@@ -88,8 +88,17 @@
 
                             <TextBlock l:L.Key="z.titleFont" Style="{StaticResource Label}"/>
                             <ComboBox x:Name="ZTitleFont" SelectionChanged="ZTitleFont_Changed" Margin="0,0,0,4"/>
+
+                            <TextBlock l:L.Key="z.titleFontSize" Style="{StaticResource Label}"/>
+                            <Slider x:Name="ZTitleFontSize" Minimum="8" Maximum="24" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="ZTitleFontSize_Changed"/>
+                            <TextBlock x:Name="ZTitleFontSizeValue" Style="{StaticResource Hint}"/>
+
                             <TextBlock l:L.Key="z.itemFont" Style="{StaticResource Label}"/>
-                            <ComboBox x:Name="ZItemFont" SelectionChanged="ZItemFont_Changed" Margin="0,0,0,10"/>
+                            <ComboBox x:Name="ZItemFont" SelectionChanged="ZItemFont_Changed" Margin="0,0,0,4"/>
+
+                            <TextBlock l:L.Key="z.itemFontSize" Style="{StaticResource Label}"/>
+                            <Slider x:Name="ZItemFontSize" Minimum="8" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="ZItemFontSize_Changed"/>
+                            <TextBlock x:Name="ZItemFontSizeValue" Style="{StaticResource Hint}"/>
 
                             <CheckBox x:Name="ZTitle" l:L.Key="m.showTitle" Click="Zone_Changed"/>
                             <CheckBox x:Name="ZLocked" l:L.Key="z.locked" Click="Zone_Changed"/>

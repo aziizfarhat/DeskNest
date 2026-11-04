@@ -6,7 +6,7 @@ DeskNest is a lightweight Windows desktop organizer that helps you group applica
 
 Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
 
-> **Project status:** Under active development. DeskNest is currently at version 0.7.0.1.
+> **Project status:** Under active development. DeskNest is currently at version 0.7.0.2.
 
 ## Features
 

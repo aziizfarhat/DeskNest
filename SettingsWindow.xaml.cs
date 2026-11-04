@@ -174,6 +174,10 @@ namespace DeskNest
             ZIcon.SelectedIndex = Array.IndexOf(Sizes, d.IconSize);
             SelectFont(ZTitleFont, d.TitleFont);
             SelectFont(ZItemFont, d.ItemFont);
+            ZTitleFontSize.Value = d.TitleFontSize;
+            ZTitleFontSizeValue.Text = d.TitleFontSize.ToString();
+            ZItemFontSize.Value = d.ItemFontSize;
+            ZItemFontSizeValue.Text = d.ItemFontSize.ToString();
             ZTitle.IsChecked = d.TitleVisible;
             ZLocked.IsChecked = d.Locked;
             ZRolled.IsChecked = d.RolledUp;
@@ -269,6 +273,26 @@ namespace DeskNest
         {
             if (_loading || Current is not NestData d || ZItemFont.SelectedIndex < 0) return;
             d.ItemFont = FontName(ZItemFont);
+            _m.ZoneChanged(d);
+        }
+
+        private void ZTitleFontSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_loading || Current is not NestData d) return;
+
+            d.TitleFontSize = (int)Math.Round(ZTitleFontSize.Value);
+            ZTitleFontSizeValue.Text = d.TitleFontSize.ToString();
+
+            _m.ZoneChanged(d);
+        }
+
+        private void ZItemFontSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_loading || Current is not NestData d) return;
+
+            d.ItemFontSize = (int)Math.Round(ZItemFontSize.Value);
+            ZItemFontSizeValue.Text = d.ItemFontSize.ToString();
+
             _m.ZoneChanged(d);
         }
 

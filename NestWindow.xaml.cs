@@ -53,7 +53,7 @@ namespace DeskNest
         private Point _dragStart;
         private bool _loaded, _suspendSize;
         private bool _moving, _resizing;
-        private int _winX, _winY, _edge, _animId, _lastIconSize;
+        private int _winX, _winY, _edge, _animId, _lastIconSize, _lastItemFontSize;
         private POINT _curStart;
         private RECT _startRect;
         private string? _portalCurrent;
@@ -329,6 +329,7 @@ namespace DeskNest
         // Polices propres à chaque zone (vide = police par défaut de Windows).
         private void ApplyFonts()
         {
+            // Police et taille du titre
             if (string.IsNullOrWhiteSpace(Data.TitleFont))
             {
                 TitleText.ClearValue(TextBlock.FontFamilyProperty);
@@ -341,8 +342,20 @@ namespace DeskNest
                 TitleEdit.FontFamily = ff;
             }
 
-            if (string.IsNullOrWhiteSpace(Data.ItemFont)) ItemsHost.ClearValue(Control.FontFamilyProperty);
-            else ItemsHost.FontFamily = new FontFamily(Data.ItemFont); // hérité par le nom de chaque icône
+            TitleText.FontSize = Data.TitleFontSize;
+            TitleEdit.FontSize = Data.TitleFontSize;
+
+            // Police et taille des noms des icônes
+            if (string.IsNullOrWhiteSpace(Data.ItemFont))
+            {
+                ItemsHost.ClearValue(Control.FontFamilyProperty);
+            }
+            else
+            {
+                ItemsHost.FontFamily = new FontFamily(Data.ItemFont);
+            }
+
+            ItemsHost.FontSize = Data.ItemFontSize;
         }
 
         // Appelé quand les paramètres ou la zone ont été modifiés depuis la fenêtre de paramètres.
@@ -352,7 +365,8 @@ namespace DeskNest
             _hoverExpanded = false;
             ApplyState();
             ApplyFonts();
-            if (_lastIconSize != Data.IconSize) RefreshItems();
+            if (_lastIconSize != Data.IconSize || _lastItemFontSize != Data.ItemFontSize)
+                RefreshItems();
         }
 
         public void ReloadItems() => RefreshItems();
@@ -447,6 +461,7 @@ namespace DeskNest
             _refreshPending = false;
             _vms = BuildItems();
             _lastIconSize = Data.IconSize;
+            _lastItemFontSize = Data.ItemFontSize;
             _selected.RemoveWhere(p => !_vms.Any(v => SamePath(v.FullPath, p)));
             foreach (var v in _vms) v.IsSelected = _selected.Contains(v.FullPath);
             _anchor = null; _pendingCollapse = null; _dragCandidate = null; _renameCandidate = null;

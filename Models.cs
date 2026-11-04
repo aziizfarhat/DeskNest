@@ -21,8 +21,10 @@ namespace DeskNest
         public string Color { get; set; } = "#1E1E2E";
         public double Opacity { get; set; } = 0.75;
         public int IconSize { get; set; } = 40;
-        public string TitleFont { get; set; } = "";     // police du titre (vide = police par défaut)
-        public string ItemFont { get; set; } = "";      // police du nom des icônes (vide = police par défaut)
+        public string TitleFont { get; set; } = "";
+        public int TitleFontSize { get; set; } = 13;
+        public string ItemFont { get; set; } = "";
+        public int ItemFontSize { get; set; } = 11;
         public bool Enabled { get; set; } = true;      // zone visible ou non (désactivable depuis les paramètres)
         public bool HoverExpand { get; set; } = true;   // participe au « développer au survol » (si l'option globale est active)
 
@@ -62,7 +64,7 @@ namespace DeskNest
         public int DesktopMode { get; set; } = 0;                 // 0 = déplacer dans le dossier géré, 1 = seulement cacher
         public bool AnimateRoll { get; set; } = true;             // animation du Roll
         public int RollAnimationMs { get; set; } = 180;
-        public bool HoverExpand { get; set; } = false;            // développer au survol (zones réduites)
+        public bool HoverExpand { get; set; } = true;            // développer au survol (zones réduites)
         public int HoverExpandDelayMs { get; set; } = 250;
         public int HoverCollapseDelayMs { get; set; } = 500;
         public string DefaultColor { get; set; } = "#1E1E2E";
