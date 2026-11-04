@@ -1,0 +1,31 @@
+# Sorties de compilation
+bin/
+obj/
+publish/
+installer/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.DotSettings.user
+
+# Divers
+*.tmp
+
+
+
+# Fichiers Windows
+Thumbs.db
+Desktop.ini
+
+# Logs et sauvegardes
+*.log
+*.bak
+*.old
+
+# Fichiers de configuration sensibles
+.env
+.env.*
+!.env.example
