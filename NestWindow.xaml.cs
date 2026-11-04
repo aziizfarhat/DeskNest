@@ -226,6 +226,15 @@ namespace DeskNest
             SetWindowPos(h, new IntPtr(1), 0, 0, 0, 0, 0x1 | 0x2 | 0x10); // HWND_BOTTOM, NOSIZE|NOMOVE|NOACTIVATE
         }
 
+        private void BringToTopForHover()
+        {
+            var h = Hwnd;
+            if (h == IntPtr.Zero) return;
+
+            // HWND_TOP : remonte la zone sans lui donner le focus.
+            SetWindowPos(h, IntPtr.Zero, 0, 0, 0, 0, 0x1 | 0x2 | 0x10);
+        }
+
         // Appelé régulièrement par le gestionnaire : la zone doit rester visible même quand Windows affiche le bureau
         // (bouton « Afficher le bureau » en bas à droite, Win+D, Win+M).
         public void EnsureDesktopVisibility(IntPtr desktopHost, bool desktopForeground)
@@ -1656,14 +1665,24 @@ namespace DeskNest
                 if ((IsMouseOver || _dragOver) && HoverEnabled && !_hoverExpanded)
                 {
                     _hoverExpanded = true;
+                    BringToTopForHover();
                     ApplyState(true);
                 }
             }
             else if (mode == HoverMode.Collapse)
             {
                 if (!_hoverExpanded || IsMouseOver) return;
-                if (IsBusy) { StartHover(HoverMode.Collapse, 400); return; } // menu, glisser, dialogue... : on réessaie
+                if (IsBusy)
+                {
+                    StartHover(HoverMode.Collapse, 400);
+                    return;
+                }
+
                 _hoverExpanded = false;
+
+                if (!_raisedForDesktop)
+                    SendToBottom();
+
                 ApplyState(true);
             }
         }

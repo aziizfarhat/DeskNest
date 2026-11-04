@@ -56,11 +56,12 @@ namespace DeskNest
                 first.Left = 80; first.Top = 80;
                 _data.Nests.Add(first);
             }
-            foreach (var f in _data.Nests.ToList()) OpenWindow(f);
 
-            // Migration : éléments masqués par une version précédente (attribut « caché » seul) -> « caché + système ».
-            foreach (var p in _data.HiddenByApp.ToList())
-                if (File.Exists(p) || Directory.Exists(p)) DesktopHelper.SetHidden(p, true);
+            // Reprend les fichiers gérés avant d'afficher les Nests.
+            RestoreManagedItemsOnStartup();
+
+            foreach (var f in _data.Nests.ToList())
+                OpenWindow(f);
 
             try
             {
@@ -94,6 +95,92 @@ namespace DeskNest
             var w = new NestWindow(this, d);
             _windows.Add(w);
             if (ShouldShow(w)) w.Show();
+        }
+
+        // Vérifie qu'un chemin appartient à un Nest classique.
+        // Les Folder Portals sont volontairement exclus.
+        private bool IsReferencedByNormalNest(string path)
+        {
+            return _data.Nests.Any(f =>
+                string.IsNullOrEmpty(f.PortalPath) &&
+                f.Items.Any(p => Same(p, path)));
+        }
+
+        // Au démarrage : replace les éléments dans le dossier de stockage
+        // et réapplique le masquage des éléments gérés par DeskNest.
+        private void RestoreManagedItemsOnStartup()
+        {
+            foreach (var m in _data.Moved.ToList())
+            {
+                if (!IsReferencedByNormalNest(m.StorePath))
+                    continue;
+
+                // Le fichier est déjà dans le stockage : rien à faire.
+                if (File.Exists(m.StorePath) || Directory.Exists(m.StorePath))
+                    continue;
+
+                // Le fichier n'existe plus à son emplacement d'origine.
+                if (!File.Exists(m.OriginalPath) && !Directory.Exists(m.OriginalPath))
+                    continue;
+
+                bool ok = DesktopStore.TryMove(m.OriginalPath, m.StorePath, out bool denied);
+
+                if (!ok && denied && DesktopHelper.IsOnPublicDesktop(m.OriginalPath))
+                {
+
+                    var name = Path.GetFileName(m.OriginalPath.TrimEnd('\\'));
+
+                    var r = MessageBox.Show(
+                        Loc.F("msg.publicDesktop", name),
+                        "DeskNest",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question,
+                        MessageBoxResult.No,
+                        Loc.MsgOptions);
+
+                    if (r == MessageBoxResult.Yes)
+                        ok = DesktopStore.TryMoveElevated(m.OriginalPath, m.StorePath);
+                }
+
+                if (!ok)
+                    Diag.Log($"impossible de reprendre l'élément : {m.OriginalPath}");
+            }
+
+            // Réapplique les attributs caché + système aux éléments concernés.
+            foreach (var p in _data.HiddenByApp.ToList())
+            {
+                if (!IsReferencedByNormalNest(p))
+                    continue;
+
+                if (File.Exists(p) || Directory.Exists(p))
+                    DesktopHelper.SetHidden(p, true);
+            }
+        }
+
+        // À la fermeture : restaure les éléments sur le bureau,
+        // mais conserve les associations pour le prochain démarrage.
+        private void RestoreManagedItemsOnShutdown()
+        {
+            foreach (var m in _data.Moved.ToList())
+            {
+                if (!IsReferencedByNormalNest(m.StorePath))
+                    continue;
+
+                var restored = MoveBack(m);
+
+                if (restored != null)
+                    m.OriginalPath = restored;
+            }
+
+            // Retire le masquage sans supprimer les références sauvegardées.
+            foreach (var p in _data.HiddenByApp.ToList())
+            {
+                if (!IsReferencedByNormalNest(p))
+                    continue;
+
+                if (File.Exists(p) || Directory.Exists(p))
+                    DesktopHelper.SetHidden(p, false);
+            }
         }
 
         public void RequestSave()
@@ -694,11 +781,19 @@ namespace DeskNest
             _desktopTimer.Stop();
             _desktopWatcher?.Dispose();
             _desktopWatcher = null;
+
+            // Remet les fichiers sur le Bureau sans perdre leurs références.
+            RestoreManagedItemsOnShutdown();
+
+            // Sauvegarde les associations pour le prochain démarrage.
             Storage.Save(_data);
+
             _mouseHook?.Dispose();
             _hotkey?.Dispose();
             _settings?.Close();
-            foreach (var w in _windows.ToList()) w.Close();
+
+            foreach (var w in _windows.ToList())
+                w.Close();
         }
     }
 }

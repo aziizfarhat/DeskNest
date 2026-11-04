@@ -1,39 +1,52 @@
 # DeskNest
 
-**A lightweight desktop organizer for Windows.**
+**Organize your Windows desktop with customizable zones and folder portals.**
 
-DeskNest helps you organize your Windows desktop into customizable zones and folder portals, keeping frequently used applications, files, and folders easier to access.
+DeskNest is a lightweight Windows desktop organizer that helps you group applications, shortcuts, files, and folders into customizable desktop areas called *Nests*.
 
-> **Project status:** Under active development. Features, settings, and the user interface may evolve.
+Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
+
+> **Project status:** Under active development. DeskNest is currently at version 0.7.0.1.
 
 ## Features
 
-### Desktop zones (Nests)
+### Desktop Zones (Nests)
 
-- Create desktop zones to group related shortcuts and items.
-- Rename zones and select all items within a zone.
-- Customize each zone's appearance:
-  - Background color
-  - Opacity
-  - Icon size
-  - Fonts
-- Hide a zone's title when you prefer a cleaner desktop.
-- Roll zones up, lock them, or expand them on hover.
-- Delete zones when they are no longer needed.
+Create independent desktop areas to organize your items by category, purpose, or workflow.
+
+- Create and rename zones.
+- Select all items within a zone.
+- Customize background colors and opacity.
+- Adjust icon size and fonts.
+- Hide zone titles.
+- Roll up zones to save desktop space.
+- Lock zones.
+- Expand zones automatically when hovering over them.
+- Link zones to folders.
+- Delete zones.
 
 ### Folder Portals
 
-- Create a Folder Portal to bring the contents of a folder onto your desktop in an organized area.
-- Link a zone to a folder using the zone's context menu.
+Folder Portals provide convenient access to folder contents directly from your desktop.
 
-### Windows integration
+- Create Folder Portals.
+- Link zones to existing folders.
+- Keep frequently used files and folders organized and accessible.
 
-- Access common zone actions from the zone context menu.
-- Create a new zone or Folder Portal from the desktop background context menu.
-- The desktop background menu is registered for the current Windows user while DeskNest is running and removed when the application exits normally.
-- The desktop menu uses DeskNest's localization system.
+### Windows Integration
 
-### Multilingual interface
+DeskNest integrates with the Windows desktop environment.
+
+- Dedicated context menu for desktop zones.
+- Desktop background context menu for creating new zones and Folder Portals.
+- Windows startup option.
+- Single-instance application support.
+- Native Windows desktop integration.
+
+The desktop background context menu is available while DeskNest is running and is removed when the application exits normally.
+The desktop background context menu uses DeskNest's localization system.
+
+### Multilingual Interface
 
 DeskNest includes translations for ten languages:
 
@@ -48,79 +61,140 @@ DeskNest includes translations for ten languages:
 - Japanese
 - Korean
 
-## Requirements
+## Screenshots
+
+Screenshots will be added as the project documentation evolves.
+
+## System Requirements
 
 - Windows 10 or Windows 11
-- .NET 8 Desktop Runtime (for running a framework-dependent build)
+- 64-bit Windows
 
-## Getting started
+The standalone application is published as a self-contained executable, so the .NET Desktop Runtime is not required to run that build.
 
-### Run from source
+## Installation
 
-1. Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
-2. Clone the repository:
+DeskNest is distributed through an Inno Setup installer.
 
-   ```powershell
-   git clone https://github.com/aziizfarhat/DeskNest.git
-   cd DeskNest
-   ```
+The installer provides:
 
-3. Restore dependencies and build:
+- Installation without requiring administrator privileges.
+- Optional automatic startup with Windows.
+- A standard Windows uninstall entry.
+- A shortcut in the Start Menu.
 
-   ```powershell
-   dotnet restore
-   dotnet build
-   ```
+The installer interface is currently available in French.
 
-4. Run the application:
+### Building the Installer
 
-   ```powershell
-   dotnet run
-   ```
+To build the installer:
 
-You can also launch the generated executable from the build output directory:
+1. Build and publish the application.
+2. Make sure `publish\DeskNest.exe` exists.
+3. Open `installer.iss` with Inno Setup.
+4. Compile the installer.
 
-```text
-bin\Debug\net8.0-windows\DeskNest.exe
+The resulting installer is generated in the `installer` directory.
+
+## Building from Source
+
+### Requirements
+
+- Windows 10 or Windows 11 (64-bit)
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Git
+
+### Clone the Repository
+
+```powershell
+git clone https://github.com/aziizfarhat/DeskNest.git
+cd DeskNest
 ```
 
-## Usage
+### Build and Run
 
-After launching DeskNest, create a zone from the application or by right-clicking an empty area of the desktop and choosing:
+```powershell
+dotnet restore
+dotnet build
+dotnet run
+```
 
-**DeskNest → New zone**
+### Create a Standalone Release
 
-To create a Folder Portal, use:
+DeskNest includes a build script that automates the publishing and installer creation process.
 
-**DeskNest → New Folder Portal...**
+Simply run:
 
-Right-click a zone to access its available actions and customization options.
+```powershell
+.\build.bat
+```
+
+The script automatically:
+
+1. Reads the application version from `DeskNest.csproj`.
+2. Publishes a self-contained, single-file Windows x64 executable.
+3. Applies ReadyToRun compilation and removes debug symbols.
+4. Detects Inno Setup 6, if installed.
+5. Creates the Windows installer when Inno Setup is available.
+
+**Generated files:**
+
+| Output | Description |
+|---|---|
+| `publish/DeskNest.exe` | Portable standalone executable |
+| `installer/DeskNest-Setup.exe` | Windows installer (when Inno Setup 6 is available) |
+
+The target computer does not need the .NET Desktop Runtime to run the standalone release.
 
 ## Technology
+
+DeskNest is built using:
 
 - C#
 - .NET 8
 - Windows Presentation Foundation (WPF)
-- Windows Registry integration for the desktop background context menu
-- Named Pipes for passing commands to the running application
+- Windows Forms
+- Windows Registry integration
+- Windows APIs
+- Named Pipes for inter-process communication
+
+The project currently has no external NuGet package dependencies explicitly declared in its project file.
+
+## Project Structure
+
+Some of the main source files:
+
+| File | Purpose |
+|---|---|
+| `App.xaml.cs` | Application startup and lifecycle |
+| `NestManager.cs` | Zone management |
+| `NestWindow.xaml` | Zone interface |
+| `SettingsWindow.xaml` | Application settings |
+| `DesktopHelper.cs` | Windows desktop integration |
+| `DesktopStore.cs` | Desktop item management |
+| `DesktopWatcher.cs` | Desktop monitoring |
+| `DesktopContextMenu.cs` | Desktop background context menu |
+| `CommandServer.cs` | Inter-process command handling |
+| `TrayIcon.cs` | System tray integration |
+| `Loc.cs` | Localization |
+| `installer.iss` | Windows installer configuration |
 
 ## Contributing
 
-Contributions, bug reports, and suggestions are welcome.
+Contributions, suggestions, and bug reports are welcome.
 
-Before submitting a change:
+Before submitting changes:
 
-1. Build the solution with `dotnet build`.
-2. Test the affected feature on Windows 10 or Windows 11.
-3. Include clear steps to reproduce any reported issue.
+1. Build the project using `dotnet build`.
+2. Test the modified functionality on Windows.
+3. Provide clear reproduction steps for bug reports.
 
 For substantial changes, please open an issue first to discuss the proposed implementation.
 
-## Issues
+## Bug Reports and Feature Requests
 
-If you encounter a bug or have a feature request, please use the
-[GitHub Issues](https://github.com/aziizfarhat/DeskNest/issues) page.
+Please use the [GitHub Issues](https://github.com/aziizfarhat/DeskNest/issues) page to report bugs or suggest improvements.
 
 ## License
 
-No license has been specified in this README. Please check the repository for the project's current licensing terms before redistributing or reusing the code.
+A license has not yet been specified for this project. Please check this section again once the repository's licensing terms have been established.
