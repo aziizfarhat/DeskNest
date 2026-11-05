@@ -140,7 +140,7 @@ namespace DeskNest
             Loaded += (_, _) => { _loaded = true; SendToBottom(); };
             Activated += (_, _) =>
             {
-                if (!_raisedForDesktop) SendToBottom();
+                if (!_raisedForDesktop && !_hoverExpanded) SendToBottom();
                 // Les fichiers d'une zone classique peuvent avoir été renommés/supprimés depuis l'Explorateur.
                 Dispatcher.BeginInvoke(new Action(RevalidateClassicItems), DispatcherPriority.Background);
             };
