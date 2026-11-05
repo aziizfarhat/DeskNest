@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.7.0.3"
+  #define AppVersion "0.7.0.4"
 #endif
 
 [Setup]
@@ -43,3 +43,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\DeskNest.exe"; Description: "Lancer DeskNest"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; Remet sur le bureau les éléments rangés dans %USERPROFILE%\DeskNest\Items
+; avant que l'exécutable ne soit supprimé.
+Filename: "{app}\DeskNest.exe"; Parameters: "--restore-all"; RunOnceId: "RestoreAllItems"; Flags: runhidden waituntilterminated skipifdoesntexist

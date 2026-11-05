@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -53,6 +54,8 @@ namespace DeskNest
         private Point _dragStart;
         private bool _loaded, _suspendSize;
         private bool _moving, _resizing;
+        private bool _allowClose, _closed;
+        private int _refreshVersion;
         private int _winX, _winY, _edge, _animId, _lastIconSize, _lastItemFontSize;
         private POINT _curStart;
         private RECT _startRect;
@@ -115,6 +118,7 @@ namespace DeskNest
             InitializeComponent();
             _manager = manager;
             Data = data;
+            FlowDirection = Loc.Flow;
 
             _portalTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
             _portalTimer.Tick += (_, _) => { _portalTimer.Stop(); RefreshItems(); };
@@ -176,8 +180,30 @@ namespace DeskNest
             };
         }
 
+        // Une zone ne doit pas pouvoir être fermée par Alt+F4 ou par le système :
+        // elle serait perdue (plus aucune fenêtre à réafficher) jusqu'au redémarrage.
+        // La fermeture réelle passe par CloseForReal(), réservée au gestionnaire.
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            if (!_allowClose)
+            {
+                e.Cancel = true;
+                Hide();
+                return;
+            }
+            base.OnClosing(e);
+        }
+
+        internal void CloseForReal()
+        {
+            _allowClose = true;
+            if (!_closed) Close();
+        }
+
         protected override void OnClosed(EventArgs e)
         {
+            _closed = true;
+            _refreshVersion++;
             Loc.Changed -= OnLanguageChanged;
             _watcher?.Dispose();
             _portalTimer.Stop();
@@ -189,6 +215,7 @@ namespace DeskNest
         // Changement de langue : on reconstruit les menus et le titre.
         private void OnLanguageChanged()
         {
+            FlowDirection = Loc.Flow;
             Root.ContextMenu = BuildNestMenu();
             _itemMenu = BuildItemMenu();
             UpdateTitle();
@@ -387,67 +414,42 @@ namespace DeskNest
             Data.PortalOrder[folder] = names;
         }
 
-        private List<ItemVM> BuildItems()
+        private List<ItemVM> BuildClassicItems()
         {
-            var list = new List<ItemVM>();
-            _portalPageCount = 1;
-            _portalPageStart = 0;
-            _portalPageNames = null;
+            var list = new List<ItemVM>(Data.Items.Count);
+            foreach (var p in Data.Items) list.Add(new ItemVM(p, Data.IconSize));
+            return list;
+        }
 
-            if (!IsPortal)
-            {
-                foreach (var p in Data.Items) list.Add(new ItemVM(p, Data.IconSize));
-                return list;
-            }
-
-            var cur = CurrentFolder;
-            if (!SamePath(cur, _portalPageFolder ?? "")) _portalPage = 0; // nouveau dossier : retour en première page
-            _portalPageFolder = cur;
-            if (!Directory.Exists(cur)) return list;
-
-            if (!SamePath(cur, Data.PortalPath!))
-            {
-                var parent = Directory.GetParent(cur.TrimEnd('\\'));
-                if (parent != null) list.Add(new ItemVM(parent.FullName, Data.IconSize, true, true));
-            }
-
-            List<string> entries;
+        // Énumération d'un dossier : exécutée hors du thread UI (un dossier
+        // volumineux ou un lecteur réseau ne doit pas figer la zone).
+        private static List<string>? ScanPortal(string folder, List<string>? custom)
+        {
             try
             {
-                entries = Directory.EnumerateFileSystemEntries(cur).Where(p =>
+                var entries = Directory.EnumerateFileSystemEntries(folder).Where(p =>
                 {
                     try { return (File.GetAttributes(p) & (FileAttributes.Hidden | FileAttributes.System)) == 0; }
                     catch { return false; }
                 }).ToList();
+
+                int Rank(string p)
+                {
+                    if (custom == null) return int.MaxValue;
+                    int i = custom.FindIndex(n => string.Equals(n, IOPath.GetFileName(p), StringComparison.OrdinalIgnoreCase));
+                    return i < 0 ? int.MaxValue : i;
+                }
+
+                return entries.OrderBy(Rank)
+                              .ThenBy(p => Directory.Exists(p) ? 0 : 1)
+                              .ThenBy(p => IOPath.GetFileName(p), StringComparer.CurrentCultureIgnoreCase)
+                              .ToList();
             }
             catch (Exception ex)
             {
                 Diag.Log("portail : " + ex.Message);
-                return list;
+                return null;
             }
-
-            var custom = GetOrder(cur);
-            int Rank(string p)
-            {
-                if (custom == null) return int.MaxValue;
-                int i = custom.FindIndex(n => string.Equals(n, IOPath.GetFileName(p), StringComparison.OrdinalIgnoreCase));
-                return i < 0 ? int.MaxValue : i;
-            }
-
-            var ordered = entries.OrderBy(Rank)
-                                 .ThenBy(p => Directory.Exists(p) ? 0 : 1)
-                                 .ThenBy(p => IOPath.GetFileName(p), StringComparer.CurrentCultureIgnoreCase)
-                                 .ToList();
-
-            _portalPageNames = ordered;
-            _portalPageCount = Math.Max(1, (ordered.Count + PortalPageSize - 1) / PortalPageSize);
-            _portalPage = Math.Clamp(_portalPage, 0, _portalPageCount - 1);
-            _portalPageStart = _portalPage * PortalPageSize;
-
-            int count = Math.Min(PortalPageSize, ordered.Count - _portalPageStart);
-            for (int i = 0; i < count; i++)
-                list.Add(new ItemVM(ordered[_portalPageStart + i], Data.IconSize, true));
-            return list;
         }
 
         private void RefreshItems()
@@ -459,7 +461,68 @@ namespace DeskNest
                 return;
             }
             _refreshPending = false;
-            _vms = BuildItems();
+
+            int version = ++_refreshVersion;
+
+            if (!IsPortal)
+            {
+                ApplyItems(BuildClassicItems(), 1, 0, null);
+                return;
+            }
+
+            _ = RefreshPortalItemsAsync(version);
+        }
+
+        private async Task RefreshPortalItemsAsync(int version)
+        {
+            var cur = CurrentFolder;
+            if (!SamePath(cur, _portalPageFolder ?? "")) _portalPage = 0; // nouveau dossier : retour en première page
+            _portalPageFolder = cur;
+            int page = _portalPage;
+            var custom = GetOrder(cur)?.ToList();
+            bool includeParent = !SamePath(cur, Data.PortalPath!);
+
+            var ordered = await Task.Run(() => ScanPortal(cur, custom));
+            if (_closed || version != _refreshVersion || !SamePath(CurrentFolder, cur)) return;
+
+            if (ordered == null)
+            {
+                ApplyItems(new List<ItemVM>(), 1, 0, null);
+                return;
+            }
+
+            int pageCount = Math.Max(1, (ordered.Count + PortalPageSize - 1) / PortalPageSize);
+            int currentPage = Math.Clamp(page, 0, pageCount - 1);
+            _portalPage = currentPage;
+            int start = currentPage * PortalPageSize;
+
+            var list = new List<ItemVM>();
+            if (includeParent)
+            {
+                var parent = Directory.GetParent(cur.TrimEnd('\\'));
+                if (parent != null) list.Add(new ItemVM(parent.FullName, Data.IconSize, true, true));
+            }
+
+            int count = Math.Min(PortalPageSize, ordered.Count - start);
+            for (int i = 0; i < count; i++)
+                list.Add(new ItemVM(ordered[start + i], Data.IconSize, true));
+
+            // Une saisie a pu commencer pendant la lecture du dossier.
+            if (_editingTitle || _editingItem != null)
+            {
+                _refreshPending = true;
+                return;
+            }
+
+            ApplyItems(list, pageCount, start, ordered);
+        }
+
+        private void ApplyItems(List<ItemVM> items, int pageCount, int pageStart, List<string>? pageNames)
+        {
+            _portalPageCount = pageCount;
+            _portalPageStart = pageStart;
+            _portalPageNames = pageNames;
+            _vms = items;
             _lastIconSize = Data.IconSize;
             _lastItemFontSize = Data.ItemFontSize;
             _selected.RemoveWhere(p => !_vms.Any(v => SamePath(v.FullPath, p)));
@@ -815,7 +878,7 @@ namespace DeskNest
                     ? text
                     : text + ext;
                 if (string.Equals(newName, IOPath.GetFileName(vm.FullPath), StringComparison.Ordinal)) return;
-                if (newName.IndexOfAny(IOPath.GetInvalidFileNameChars()) >= 0)
+                if (!NestManager.IsValidItemName(newName))
                 {
                     MessageBox.Show(this, Loc.T("msg.renameInvalid"), "DeskNest", MessageBoxButton.OK, MessageBoxImage.Warning,
                         MessageBoxResult.OK, Loc.MsgOptions);

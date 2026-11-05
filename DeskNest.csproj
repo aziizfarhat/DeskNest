@@ -10,9 +10,9 @@
     <RootNamespace>DeskNest</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>0.7.0.3</Version>
-    <AssemblyVersion>0.7.0.3</AssemblyVersion>
-    <FileVersion>0.7.0.3</FileVersion>
+    <Version>0.7.0.4</Version>
+    <AssemblyVersion>0.7.0.4</AssemblyVersion>
+    <FileVersion>0.7.0.4</FileVersion>
     <AssemblyTitle>DeskNest</AssemblyTitle>
     <Product>DeskNest</Product>
     <Description>Zones de rangement pour le bureau Windows</Description>

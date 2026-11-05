@@ -29,6 +29,81 @@ namespace DeskNest
 
         private static bool Same(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
+        // Met à jour toutes les références d'une zone quand un élément change
+        // d'emplacement (stockage <-> bureau), pour qu'une zone ne pointe
+        // jamais vers un chemin qui n'existe plus.
+        private static bool RebaseReferences(IEnumerable<NestData> nests, string from, string to)
+        {
+            if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to) || Same(from, to)) return false;
+
+            bool changed = false;
+            foreach (var f in nests)
+                for (int i = 0; i < f.Items.Count; i++)
+                    if (Same(f.Items[i], from))
+                    {
+                        f.Items[i] = to;
+                        changed = true;
+                    }
+
+            return changed;
+        }
+
+        // Répare les dispositions abîmées par une ancienne désinstallation :
+        // la zone pointe encore vers %USERPROFILE%\DeskNest\Items alors que
+        // le fichier a été remis sur le bureau. On retrouve son homologue par
+        // son nom, puis la ré-adoption le reprend normalement en charge.
+        private bool RepairMissingStoreReferences()
+        {
+            bool changed = false;
+            var storeRoot = DesktopStore.Dir.TrimEnd('\\') + "\\";
+
+            foreach (var f in _data.Nests)
+            {
+                if (!string.IsNullOrEmpty(f.PortalPath)) continue;
+
+                for (int i = 0; i < f.Items.Count; i++)
+                {
+                    var p = f.Items[i];
+                    if (string.IsNullOrEmpty(p)) continue;
+                    if (File.Exists(p) || Directory.Exists(p)) continue;
+
+                    var full = p.TrimEnd('\\');
+                    if (!full.StartsWith(storeRoot, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    // Un enregistrement de déplacement existe : c'est le
+                    // démarrage normal qui remettra le fichier dans le
+                    // stockage. Ne pas court-circuiter ce mécanisme.
+                    if (_data.Moved.Any(m => Same(m.StorePath, p))) continue;
+
+                    var name = Path.GetFileName(full);
+                    if (string.IsNullOrEmpty(name)) continue;
+
+                    var found = FindDesktopEntry(name);
+                    if (found == null) continue;
+
+                    f.Items[i] = found;
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
+        private static string? FindDesktopEntry(string name)
+        {
+            foreach (var dir in new[]
+            {
+                Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory)
+            })
+            {
+                if (string.IsNullOrEmpty(dir)) continue;
+                var candidate = Path.Combine(dir, name);
+                if (File.Exists(candidate) || Directory.Exists(candidate)) return candidate;
+            }
+            return null;
+        }
+
         public NestManager()
         {
             _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
@@ -94,6 +169,9 @@ namespace DeskNest
         {
             var w = new NestWindow(this, d);
             _windows.Add(w);
+            // Filet de sécurité : si la fenêtre est réellement fermée (fermeture
+            // système, plantage de l'affichage...), on ne garde pas de référence morte.
+            w.Closed += (_, _) => _windows.Remove(w);
             if (ShouldShow(w)) w.Show();
         }
 
@@ -106,18 +184,86 @@ namespace DeskNest
                 f.Items.Any(p => Same(p, path)));
         }
 
-        // Au démarrage : replace les éléments dans le dossier de stockage
-        // et réapplique le masquage des éléments gérés par DeskNest.
-        private void RestoreManagedItemsOnStartup()
+        // Vérifie que l'élément est réellement affiché : DeskNest doit être actif
+        // et la zone qui le référence doit être visible.
+        private bool IsReferencedByEnabledNormalNest(string path)
         {
+            return Settings.Enabled && _data.Nests.Any(f =>
+                f.Enabled &&
+                string.IsNullOrEmpty(f.PortalPath) &&
+                f.Items.Any(p => Same(p, path)));
+        }
+
+        // Remet sur le bureau les éléments qui ne sont plus affichés par une zone
+        // active (DeskNest désactivé ou zone masquée) et met à jour les références.
+        // Sans cela, les fichiers resteraient invisibles alors qu'aucune zone ne les montre.
+        private bool RestoreItemsNoLongerVisible()
+        {
+            bool changed = false;
+
             foreach (var m in _data.Moved.ToList())
             {
                 if (!IsReferencedByNormalNest(m.StorePath))
                     continue;
-
-                // Le fichier est déjà dans le stockage : rien à faire.
-                if (File.Exists(m.StorePath) || Directory.Exists(m.StorePath))
+                if (IsReferencedByEnabledNormalNest(m.StorePath))
                     continue;
+
+                // Le fichier a pu être supprimé depuis : on garde la trace,
+                // mais on ne pointe pas les zones vers un chemin inexistant.
+                if (!File.Exists(m.StorePath) && !Directory.Exists(m.StorePath) &&
+                    !File.Exists(m.OriginalPath) && !Directory.Exists(m.OriginalPath))
+                    continue;
+
+                var restored = MoveBack(m);
+                if (restored == null) continue;
+
+                // Les zones qui référençaient l'élément pointent maintenant
+                // vers son emplacement restauré, pour rester utilisables.
+                foreach (var f in _data.Nests)
+                    for (int i = 0; i < f.Items.Count; i++)
+                        if (Same(f.Items[i], m.StorePath)) f.Items[i] = restored;
+
+                _data.Moved.Remove(m);
+                changed = true;
+            }
+
+            foreach (var p in _data.HiddenByApp.ToList())
+            {
+                if (!IsReferencedByNormalNest(p))
+                    continue;
+                if (IsReferencedByEnabledNormalNest(p))
+                    continue;
+
+                if (DesktopHelper.SetHidden(p, false) || (!File.Exists(p) && !Directory.Exists(p)))
+                {
+                    _data.HiddenByApp.Remove(p);
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
+        // Au démarrage : replace les éléments dans le dossier de stockage
+        // et réapplique le masquage des éléments gérés par DeskNest.
+        private void RestoreManagedItemsOnStartup()
+        {
+            bool changed = RepairMissingStoreReferences();
+            if (RestoreItemsNoLongerVisible()) changed = true;
+
+            foreach (var m in _data.Moved.ToList())
+            {
+                if (!IsReferencedByEnabledNormalNest(m.StorePath))
+                    continue;
+
+                // Le fichier est déjà dans le stockage : par sécurité, on
+                // s'assure que les zones pointent bien vers cet emplacement.
+                if (File.Exists(m.StorePath) || Directory.Exists(m.StorePath))
+                {
+                    if (RebaseReferences(_data.Nests, m.OriginalPath, m.StorePath))
+                        changed = true;
+                    continue;
+                }
 
                 // Le fichier n'existe plus à son emplacement d'origine.
                 if (!File.Exists(m.OriginalPath) && !Directory.Exists(m.OriginalPath))
@@ -143,18 +289,32 @@ namespace DeskNest
                 }
 
                 if (!ok)
+                {
                     Diag.Log($"impossible de reprendre l'élément : {m.OriginalPath}");
+                    continue;
+                }
+
+                // Le fichier a quitté le bureau : les zones suivent.
+                if (RebaseReferences(_data.Nests, m.OriginalPath, m.StorePath))
+                    changed = true;
             }
 
             // Réapplique les attributs caché + système aux éléments concernés.
             foreach (var p in _data.HiddenByApp.ToList())
             {
-                if (!IsReferencedByNormalNest(p))
+                if (!IsReferencedByEnabledNormalNest(p))
                     continue;
 
                 if (File.Exists(p) || Directory.Exists(p))
                     DesktopHelper.SetHidden(p, true);
             }
+
+            // Réinstallation, ou zone réactivée : les fichiers remis sur le
+            // bureau doivent être repris en charge par leur zone.
+            if (AdoptDesktopItemsInEnabledZones())
+                changed = true;
+
+            if (changed) RequestSave();
         }
 
         // À la fermeture : restaure les éléments sur le bureau,
@@ -277,16 +437,35 @@ namespace DeskNest
 
         public void ZoneChanged(NestData d)
         {
+            // Masquer une zone ne doit pas faire disparaître ses fichiers du bureau.
+            bool restored = !d.Enabled && RestoreItemsNoLongerVisible();
+            // Réactiver une zone doit au contraire reprendre les éléments
+            // qu'elle référence et qui se trouvent encore sur le bureau.
+            bool adopted = d.Enabled && AdoptDesktopItemsInEnabledZones(d);
+
             _windows.FirstOrDefault(w => w.Data == d)?.ApplyExternalChange();
+            if (restored || adopted)
+                foreach (var w in _windows) w.ReloadItems();
+
             ApplyVisibility();
             RequestSave();
         }
 
         public void SetEnabled(bool on)
         {
+            bool was = Settings.Enabled;
             Settings.Enabled = on;
-            if (on) Hidden = false;
+            bool adopted = false;
+            if (on)
+            {
+                Hidden = false;
+                adopted = AdoptDesktopItemsInEnabledZones();
+            }
+            else if (was) RestoreAllHidden(); // aucune zone affichée : les icônes reviennent
+
             ApplySettings();
+            if (adopted)
+                foreach (var w in _windows) w.ReloadItems();
             RequestSave();
         }
 
@@ -315,7 +494,7 @@ namespace DeskNest
             foreach (var p in _data.HiddenByApp.ToList()) DesktopHelper.SetHidden(p, false);
             var oldMoved = _data.Moved.ToList();
 
-            foreach (var w in _windows.ToList()) w.Close();
+            foreach (var w in _windows.ToList()) w.CloseForReal();
             _windows.Clear();
             _data = d;
             _data.Settings ??= new AppSettings();
@@ -363,7 +542,7 @@ namespace DeskNest
             var items = w.Data.Items.ToList();
             _data.Nests.Remove(w.Data);
             _windows.Remove(w);
-            w.Close();
+            w.CloseForReal();
             foreach (var p in items) RestoreOnDesktop(p);
             RequestSave();
         }
@@ -442,6 +621,47 @@ namespace DeskNest
             return true;
         }
 
+        // Ré-adopte les éléments référencés par une zone visible mais encore
+        // présents sur le bureau. C'est le cas après une réinstallation : la
+        // désinstallation les a remis sur le bureau et les zones pointent vers
+        // leur nouvel emplacement. Sans cela, le même fichier apparaît à la
+        // fois sur le bureau et dans la zone.
+        private bool AdoptDesktopItemsInEnabledZones(NestData? only = null)
+        {
+            if (!Settings.Enabled || !Settings.HideDesktopIcons) return false;
+
+            bool changed = false;
+            foreach (var f in _data.Nests.ToList())
+            {
+                if (only != null && !ReferenceEquals(f, only)) continue;
+                if (!f.Enabled || !string.IsNullOrEmpty(f.PortalPath)) continue;
+
+                for (int i = 0; i < f.Items.Count; i++)
+                {
+                    var p = f.Items[i];
+                    if (_data.Moved.Any(m => Same(m.StorePath, p))) continue;
+                    if (_data.HiddenByApp.Any(h => Same(h, p))) continue;
+                    if (!File.Exists(p) && !Directory.Exists(p)) continue;
+                    if (!DesktopHelper.IsOnDesktop(p)) continue;
+
+                    var adopted = TakeFromDesktop(p);
+
+                    // Un même fichier peut être référencé par plusieurs zones :
+                    // toutes doivent pointer vers le nouvel emplacement.
+                    bool moved = RebaseReferences(_data.Nests, p, adopted);
+
+                    // Ne compter un changement que si l'élément est réellement
+                    // géré à présent (déplacé dans le stockage ou masqué).
+                    if (moved ||
+                        _data.Moved.Any(m => Same(m.StorePath, adopted)) ||
+                        _data.HiddenByApp.Any(h => Same(h, adopted)))
+                        changed = true;
+                }
+            }
+
+            return changed;
+        }
+
         // Remet un élément rangé à son emplacement d'origine. Retourne le nouveau chemin, ou null en cas d'échec.
         private string? MoveBack(MovedItem m)
         {
@@ -482,6 +702,80 @@ namespace DeskNest
             else if (DesktopHelper.SetHidden(path, false)) _data.HiddenByApp.RemoveAt(i);
             else Warn(Loc.F("msg.cannotRestore", path));
             RequestSave();
+        }
+
+        // Restauration sans interface, utilisée par le désinstalleur : remet les
+        // éléments rangés sur le bureau et met à jour les références des zones.
+        public static int RestoreAllForUninstall()
+        {
+            var data = Storage.Load();
+            int n = 0;
+
+            foreach (var m in data.Moved.ToList())
+            {
+                // Plus rien dans le stockage : le fichier a déjà été restauré
+                // (fermeture normale de l'application). Les zones doivent
+                // pointer vers cet emplacement avant qu'on oublie la trace.
+                if (!File.Exists(m.StorePath) && !Directory.Exists(m.StorePath))
+                {
+                    if (!string.IsNullOrEmpty(m.OriginalPath) &&
+                        (File.Exists(m.OriginalPath) || Directory.Exists(m.OriginalPath)))
+                        RebaseReferences(data.Nests, m.StorePath, m.OriginalPath);
+
+                    data.Moved.Remove(m);
+                    continue;
+                }
+                if (string.IsNullOrEmpty(m.OriginalPath))
+                    continue;
+
+                var destDir = System.IO.Path.GetDirectoryName(m.OriginalPath.TrimEnd('\\'));
+                if (string.IsNullOrEmpty(destDir) || !Directory.Exists(destDir))
+                    destDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                if (string.IsNullOrEmpty(destDir)) continue;
+
+                bool isDir = Directory.Exists(m.StorePath);
+                var name = System.IO.Path.GetFileName(m.OriginalPath.TrimEnd('\\'));
+                if (string.IsNullOrEmpty(name))
+                    name = System.IO.Path.GetFileName(m.StorePath.TrimEnd('\\'));
+
+                var dst = DesktopStore.UniquePath(destDir, name, isDir);
+                if (!DesktopStore.TryMove(m.StorePath, dst, out _))
+                {
+                    Diag.Log($"désinstallation : impossible de restaurer {m.StorePath}");
+                    continue;
+                }
+
+                foreach (var f in data.Nests)
+                    for (int i = 0; i < f.Items.Count; i++)
+                        if (Same(f.Items[i], m.StorePath)) f.Items[i] = dst;
+
+                data.Moved.Remove(m);
+                n++;
+            }
+
+            foreach (var p in data.HiddenByApp.ToList())
+            {
+                if (!File.Exists(p) && !Directory.Exists(p))
+                {
+                    data.HiddenByApp.Remove(p);
+                    continue;
+                }
+                if (DesktopHelper.SetHidden(p, false))
+                    data.HiddenByApp.Remove(p);
+            }
+
+            Storage.Save(data);
+
+            // Le dossier de stockage ne doit pas rester vide après désinstallation.
+            try
+            {
+                var store = DesktopStore.Dir;
+                if (Directory.Exists(store) && !Directory.EnumerateFileSystemEntries(store).Any())
+                    Directory.Delete(store);
+            }
+            catch { }
+
+            return n;
         }
 
         // Remet toutes les icônes sur le bureau (elles restent aussi dans leurs zones).
@@ -644,11 +938,37 @@ namespace DeskNest
             if (Directory.Exists(a)) Directory.Move(a, b); else File.Move(a, b);
         }
 
+        // Noms réservés par Windows (y compris avec une extension, ex. « CON.txt »).
+        private static readonly string[] ReservedNames =
+        {
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+        };
+
+        // Un nom saisi par l'utilisateur doit être accepté par Windows sans
+        // être normalisé (point/espaces finaux, nom de périphérique réservé...).
+        public static bool IsValidItemName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return false;
+            if (name == "." || name == "..") return false;
+            if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return false;
+            if (name.EndsWith(' ') || name.EndsWith('.')) return false;
+
+            var stem = Path.GetFileNameWithoutExtension(name).TrimEnd(' ');
+            return !ReservedNames.Contains(stem, StringComparer.OrdinalIgnoreCase);
+        }
+
         public bool RenameItem(string path, string newName)
         {
             var clean = path.TrimEnd('\\');
             var dir = System.IO.Path.GetDirectoryName(clean);
             if (string.IsNullOrEmpty(dir)) return false;
+            if (!IsValidItemName(newName))
+            {
+                Warn(Loc.T("msg.renameInvalid"));
+                return false;
+            }
             var dst = System.IO.Path.Combine(dir, newName);
             bool caseOnly = Same(dst, clean);
             if (!caseOnly && (File.Exists(dst) || Directory.Exists(dst)))
@@ -793,7 +1113,7 @@ namespace DeskNest
             _settings?.Close();
 
             foreach (var w in _windows.ToList())
-                w.Close();
+                w.CloseForReal();
         }
     }
 }

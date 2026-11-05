@@ -309,7 +309,9 @@ namespace DeskNest
             if (Current is not NestData src) return;
             foreach (var f in _m.Nests)
             {
-                f.Color = src.Color; f.Opacity = src.Opacity; f.IconSize = src.IconSize; f.TitleFont = src.TitleFont; f.ItemFont = src.ItemFont;
+                f.Color = src.Color; f.Opacity = src.Opacity; f.IconSize = src.IconSize;
+                f.TitleFont = src.TitleFont; f.TitleFontSize = src.TitleFontSize;
+                f.ItemFont = src.ItemFont; f.ItemFontSize = src.ItemFontSize;
                 _m.ZoneChanged(f);
             }
         }

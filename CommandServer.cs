@@ -160,48 +160,105 @@ namespace DeskNest
 
         public static async Task<bool> SendAsync(
             string command,
-            int timeoutMilliseconds = 3000)
+            int timeoutMilliseconds = 6000)
         {
             if (command != "--new-zone" && command != "--new-portal")
                 return false;
 
+            var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
+            Exception? lastError = null;
+
+            // L'instance principale peut être encore en train de démarrer :
+            // on retente la connexion au lieu de perdre silencieusement la commande.
+            while (DateTime.UtcNow < deadline)
+            {
+                NamedPipeClientStream? pipe = null;
+
+                try
+                {
+                    pipe = new NamedPipeClientStream(
+                        ".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+
+                    var remaining = deadline - DateTime.UtcNow;
+                    using var connect = new CancellationTokenSource(
+                        TimeSpan.FromMilliseconds(Math.Min(1000, Math.Max(1, remaining.TotalMilliseconds))));
+
+                    await pipe.ConnectAsync(connect.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    pipe?.Dispose();
+                    await DelayBeforeRetryAsync(deadline).ConfigureAwait(false);
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    pipe?.Dispose();
+                    lastError = ex;
+                    await DelayBeforeRetryAsync(deadline).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (pipe == null)
+                {
+                    await DelayBeforeRetryAsync(deadline).ConfigureAwait(false);
+                    continue;
+                }
+
+                // Une fois la connexion établie, on n'envoie la commande qu'une fois :
+                // la rejouer après un délai pourrait créer une zone en double.
+                try
+                {
+                    using (pipe)
+                    {
+                        using var reader = new StreamReader(
+                            pipe, Encoding.UTF8, false, 1024, true);
+
+                        using var writer = new StreamWriter(
+                            pipe, new UTF8Encoding(false), 1024, true)
+                        {
+                            AutoFlush = true
+                        };
+
+                        var remaining = deadline - DateTime.UtcNow;
+                        if (remaining <= TimeSpan.Zero) return false;
+                        using var io = new CancellationTokenSource(remaining);
+
+                        await writer.WriteLineAsync(command)
+                            .WaitAsync(io.Token)
+                            .ConfigureAwait(false);
+
+                        var response = await reader.ReadLineAsync()
+                            .WaitAsync(io.Token)
+                            .ConfigureAwait(false);
+
+                        return response == "OK";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Diag.Log("Envoi de commande : " + ex.Message);
+                    return false;
+                }
+            }
+
+            Diag.Log("Envoi de commande : instance principale indisponible" +
+                     (lastError == null ? "" : " (" + lastError.Message + ")"));
+            return false;
+        }
+
+        private static async Task DelayBeforeRetryAsync(DateTime deadline)
+        {
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero) return;
+
             try
             {
-                using var timeout =
-                    new CancellationTokenSource(timeoutMilliseconds);
-
-                using var pipe = new NamedPipeClientStream(
-                    ".",
-                    PipeName,
-                    PipeDirection.InOut,
-                    PipeOptions.Asynchronous);
-
-                await pipe.ConnectAsync(timeout.Token).ConfigureAwait(false);
-
-                using var reader = new StreamReader(
-                    pipe, Encoding.UTF8, false, 1024, true);
-
-                using var writer = new StreamWriter(
-                    pipe, new UTF8Encoding(false), 1024, true)
-                {
-                    AutoFlush = true
-                };
-
-                await writer.WriteLineAsync(command)
-                    .WaitAsync(timeout.Token)
+                await Task.Delay(
+                    TimeSpan.FromMilliseconds(Math.Min(200, remaining.TotalMilliseconds)))
                     .ConfigureAwait(false);
-
-                var response = await reader.ReadLineAsync()
-                    .WaitAsync(timeout.Token)
-                    .ConfigureAwait(false);
-
-                return response == "OK";
             }
-            catch (Exception ex)
-            {
-                Diag.Log("Envoi de commande : " + ex.Message);
-                return false;
-            }
+            catch { }
         }
 
         public void Dispose()

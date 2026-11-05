@@ -32,6 +32,50 @@ namespace DeskNest
                 return;
             }
 
+            // Mode utilisé par le désinstalleur : remettre les éléments rangés
+            // sur le bureau avant que les fichiers de l'application soient supprimés.
+            if (e.Args.Length == 1 && e.Args[0] == "--restore-all")
+            {
+                _mutex = new Mutex(true, "DeskNest.SingleInstance", out _ownsMutex);
+
+                // Le désinstalleur peut lancer ce mode juste après avoir fermé
+                // l'application : on laisse quelques instants à celle-ci pour quitter.
+                for (int i = 0; i < 10 && !_ownsMutex; i++)
+                {
+                    _mutex.Dispose();
+                    Thread.Sleep(300);
+                    _mutex = new Mutex(true, "DeskNest.SingleInstance", out _ownsMutex);
+                }
+
+                if (!_ownsMutex)
+                {
+                    Diag.Log("désinstallation : DeskNest est encore en cours d'exécution.");
+                    Shutdown(2);
+                    return;
+                }
+
+                try
+                {
+                    int n = NestManager.RestoreAllForUninstall();
+                    Diag.Log($"désinstallation : {n} élément(s) restauré(s)");
+                    Shutdown(0);
+                }
+                catch (Exception ex)
+                {
+                    Diag.Log("désinstallation : " + ex);
+                    Shutdown(1);
+                }
+                finally
+                {
+                    if (_ownsMutex)
+                    {
+                        try { _mutex.ReleaseMutex(); } catch { }
+                    }
+                }
+
+                return;
+            }
+
             _mutex = new Mutex(true, "DeskNest.SingleInstance", out _ownsMutex);
 
             // Une autre instance de DeskNest fonctionne deja.
