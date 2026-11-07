@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -29,12 +30,37 @@ namespace DeskNest
 
         public static void SetLanguage(string? code)
         {
-            int i = Array.FindIndex(Languages, l => string.Equals(l.Code, code, StringComparison.OrdinalIgnoreCase));
+            var resolved = ResolveLanguage(code);
+            int i = Array.FindIndex(Languages, l => string.Equals(l.Code, resolved, StringComparison.OrdinalIgnoreCase));
             if (i < 0) i = 0;
             if (i == _idx) return;
             _idx = i;
             Changed?.Invoke();
         }
+
+        // Langue à utiliser : code explicite s'il est pris en charge, sinon langue
+        // de l'interface Windows, sinon anglais. Un code vide signifie « automatique ».
+        public static string ResolveLanguage(string? code)
+        {
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                int i = IndexOf(code);
+                return i >= 0 ? Languages[i].Code : "en";
+            }
+
+            foreach (var culture in new[] { CultureInfo.CurrentUICulture, CultureInfo.InstalledUICulture, CultureInfo.CurrentCulture })
+            {
+                if (culture == null) continue;
+                int i = IndexOf(culture.TwoLetterISOLanguageName);
+                if (i >= 0) return Languages[i].Code;
+            }
+            return "en";
+        }
+
+        private static int IndexOf(string? code) =>
+            string.IsNullOrWhiteSpace(code)
+                ? -1
+                : Array.FindIndex(Languages, l => string.Equals(l.Code, code, StringComparison.OrdinalIgnoreCase));
 
         public static string T(string key)
         {
@@ -98,6 +124,10 @@ namespace DeskNest
             A("m.small", "Small", "Petites", "Piccole", "Klein", "Pequeños", "Pequenos", "صغيرة", "小", "小", "작게");
             A("m.medium", "Medium", "Moyennes", "Medie", "Mittel", "Medianos", "Médios", "متوسطة", "中", "中", "보통");
             A("m.large", "Large", "Grandes", "Grandi", "Groß", "Grandes", "Grandes", "كبيرة", "大", "大", "크게");
+            A("m.view", "View", "Affichage", "Visualizzazione", "Ansicht", "Vista", "Visualização", "العرض", "视图", "表示", "보기");
+            A("view.grid", "Grid", "Grille", "Griglia", "Raster", "Cuadrícula", "Grade", "شبكة", "网格", "グリッド", "격자");
+            A("view.list", "List", "Liste", "Elenco", "Liste", "Lista", "Lista", "قائمة", "列表", "リスト", "목록");
+            A("m.back", "Back (Alt+Left)", "Retour (Alt+←)", "Indietro (Alt+←)", "Zurück (Alt+←)", "Atrás (Alt+←)", "Voltar (Alt+←)", "رجوع (Alt+←)", "返回 (Alt+←)", "戻る (Alt+←)", "뒤로 (Alt+←)");
             A("m.fonts", "Fonts…", "Polices…", "Caratteri…", "Schriftarten…", "Fuentes…", "Fontes…", "الخطوط…", "字体…", "フォント…", "글꼴…");
             A("m.hideTitle", "Hide title", "Masquer le titre", "Nascondi titolo", "Titel ausblenden", "Ocultar título", "Ocultar título", "إخفاء العنوان", "隐藏标题", "タイトルを非表示", "제목 숨기기");
             A("m.showTitle", "Show title", "Afficher le titre", "Mostra titolo", "Titel einblenden", "Mostrar título", "Mostrar título", "إظهار العنوان", "显示标题", "タイトルを表示", "제목 표시");
@@ -284,6 +314,7 @@ namespace DeskNest
 
             A("z.visible", "Zone visible", "Zone visible", "Zona visibile", "Bereich sichtbar", "Zona visible", "Zona visível", "المنطقة ظاهرة", "区域可见", "ゾーンを表示", "영역 표시");
             A("z.name", "Name", "Nom", "Nome", "Name", "Nombre", "Nome", "الاسم", "名称", "名前", "이름");
+            A("z.view", "Item display", "Affichage des éléments", "Visualizzazione elementi", "Elementanzeige", "Visualización de elementos", "Exibição dos itens", "عرض العناصر", "项目显示", "項目の表示", "항목 표시");
             A("z.hex", "or color code (e.g. #1E1E2E)", "ou code couleur (ex. #1E1E2E)", "oppure codice colore (es. #1E1E2E)", "oder Farbcode (z. B. #1E1E2E)", "o código de color (p. ej. #1E1E2E)", "ou código de cor (ex.: #1E1E2E)", "أو رمز اللون (مثال: #1E1E2E)", "或颜色代码（例如 #1E1E2E）", "またはカラーコード（例: #1E1E2E）", "또는 색상 코드(예: #1E1E2E)");
             A("z.opacity", "Opacity: {0} %", "Opacité : {0} %", "Opacità: {0} %", "Deckkraft: {0} %", "Opacidad: {0} %", "Opacidade: {0} %", "الشفافية: {0}٪", "不透明度：{0} %", "不透明度: {0} %", "불투명도: {0} %");
             A("z.titleFont", "Title font", "Police du titre", "Carattere del titolo", "Schriftart des Titels", "Fuente del título", "Fonte do título", "خط العنوان", "标题字体", "タイトルのフォント", "제목 글꼴");

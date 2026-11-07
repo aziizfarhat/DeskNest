@@ -21,6 +21,7 @@ namespace DeskNest
         public string Color { get; set; } = "#1E1E2E";
         public double Opacity { get; set; } = 0.75;
         public int IconSize { get; set; } = 40;
+        public bool ListView { get; set; }        // false = grille, true = liste (propre à chaque zone)
         public string TitleFont { get; set; } = "";
         public int TitleFontSize { get; set; } = 13;
         public string ItemFont { get; set; } = "";
@@ -72,7 +73,7 @@ namespace DeskNest
         public int DefaultIconSize { get; set; } = 40;
         public int CornerRadius { get; set; } = 10;
         public bool ShowBorder { get; set; } = true;
-        public string Language { get; set; } = "en";             // langue de l'interface (anglais par défaut)
+        public string Language { get; set; } = "";               // langue de l'interface (vide = langue de Windows si prise en charge, sinon anglais)
     }
 
     public static class Palette

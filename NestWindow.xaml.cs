@@ -69,6 +69,7 @@ namespace DeskNest
         private string? _portalPageFolder;
         private List<string>? _portalPageNames;
         private MenuItem _miTitle = null!, _miRoll = null!, _miLock = null!, _miHover = null!, _miPaste = null!;
+        private MenuItem _miViewGrid = null!, _miViewList = null!;
         private MenuItem _miPortal = null!, _miPortalChange = null!, _miPortalOpen = null!, _miPortalDetach = null!;
 
         // Menu des éléments (menu contextuel façon Windows)
@@ -94,6 +95,12 @@ namespace DeskNest
         private bool _marquee;
         private Point _marqueeStart;
         private HashSet<string> _marqueeBase = new(StringComparer.OrdinalIgnoreCase);
+
+        // Folder Portal : historique des dossiers visités (bouton Retour).
+        private readonly List<string> _portalHistory = new();
+
+        // Affichage Grille / Liste de cette zone.
+        private bool _lastListView;
 
         // Développement au survol
         private enum HoverMode { None, Expand, Collapse }
@@ -137,6 +144,7 @@ namespace DeskNest
             Loc.Changed += OnLanguageChanged;
             ApplyState();
             ApplyFonts();
+            ApplyViewMode();
             ResetWatcher();
             RefreshItems();
 
@@ -165,6 +173,7 @@ namespace DeskNest
                 if (_hoverExpanded && !IsMouseOver) StartHover(HoverMode.Collapse, _manager.Settings.HoverCollapseDelayMs);
             };
             PreviewKeyDown += Window_PreviewKeyDown;
+            PreviewMouseDown += Window_PreviewMouseDown;
             LocationChanged += (_, _) =>
             {
                 if (!_loaded) return;
@@ -336,6 +345,7 @@ namespace DeskNest
                 t += " › " + IOPath.GetFileName(_portalCurrent.TrimEnd('\\'));
             TitleText.Text = t;
             TitleIcon.Data = IsPortal ? PortalIcon : NestIcon;
+            BackButton.Visibility = IsPortal && _portalHistory.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void ApplyColors()
@@ -385,6 +395,24 @@ namespace DeskNest
             ItemsHost.FontSize = Data.ItemFontSize;
         }
 
+        // Affichage Grille / Liste, propre à chaque zone.
+        private void ApplyViewMode()
+        {
+            _lastListView = Data.ListView;
+            ItemsHost.ItemsPanel = (ItemsPanelTemplate)FindResource(Data.ListView ? "ListItemsPanel" : "GridItemsPanel");
+            ItemsHost.ItemTemplate = (DataTemplate)FindResource(Data.ListView ? "ListItemTemplate" : "GridItemTemplate");
+            Marker.Width = Data.ListView ? Math.Max(ItemsHost.ActualWidth, 40) : 2;
+            Marker.Height = Data.ListView ? 2 : Math.Max(Data.IconSize + 10, 12);
+        }
+
+        private void SetListView(bool list)
+        {
+            if (Data.ListView == list) return;
+            Data.ListView = list;
+            ApplyViewMode();
+            _manager.RequestSave();
+        }
+
         // Appelé quand les paramètres ou la zone ont été modifiés depuis la fenêtre de paramètres.
         public void ApplyExternalChange()
         {
@@ -392,7 +420,9 @@ namespace DeskNest
             _hoverExpanded = false;
             ApplyState();
             ApplyFonts();
-            if (_lastIconSize != Data.IconSize || _lastItemFontSize != Data.ItemFontSize)
+            bool viewChanged = _lastListView != Data.ListView;
+            if (viewChanged) ApplyViewMode();
+            if (_lastIconSize != Data.IconSize || _lastItemFontSize != Data.ItemFontSize || viewChanged)
                 RefreshItems();
         }
 
@@ -634,14 +664,35 @@ namespace DeskNest
         private void ScheduleRefresh() =>
             Dispatcher.BeginInvoke(new Action(() => { _portalTimer.Stop(); _portalTimer.Start(); }));
 
-        private void NavigateTo(string folder)
+        private void NavigateTo(string folder, bool addHistory = true)
         {
-            if (!IsPortal || !Directory.Exists(folder)) return;
+            if (!IsPortal || !Directory.Exists(folder) || SamePath(folder, CurrentFolder)) return;
+            if (addHistory && !string.IsNullOrEmpty(CurrentFolder)) _portalHistory.Add(CurrentFolder);
             _portalCurrent = SamePath(folder, Data.PortalPath!) ? null : folder;
             _portalPage = 0;
             ResetWatcher();
             UpdateTitle();
             RefreshItems();
+        }
+
+        // Retour au dossier précédent ; les dossiers supprimés entre-temps sont ignorés.
+        private void NavigateBack()
+        {
+            if (!IsPortal) return;
+            while (_portalHistory.Count > 0)
+            {
+                int last = _portalHistory.Count - 1;
+                var folder = _portalHistory[last];
+                _portalHistory.RemoveAt(last);
+                if (!Directory.Exists(folder)) continue;
+                _portalCurrent = SamePath(folder, Data.PortalPath!) ? null : folder;
+                _portalPage = 0;
+                ResetWatcher();
+                UpdateTitle();
+                RefreshItems();
+                return;
+            }
+            UpdateTitle();
         }
 
         // ---------- Éléments ----------
@@ -910,6 +961,8 @@ namespace DeskNest
             m.IsOpen = true;
         }
 
+        private void BackButton_Click(object sender, RoutedEventArgs e) => NavigateBack();
+
         private void TitleText_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (e.ClickCount != 2) return; // simple clic : déplacement de la zone (géré par Root)
@@ -1001,6 +1054,10 @@ namespace DeskNest
             CancelRenameTimer();
             var mods = Keyboard.Modifiers;
 
+            // Folder Portal : Alt+← ou Retour arrière pour revenir au dossier précédent.
+            if (IsPortal && mods == ModifierKeys.None && e.Key == Key.Back) { NavigateBack(); e.Handled = true; return; }
+            if (IsPortal && mods == ModifierKeys.Alt && (e.Key == Key.Left || e.SystemKey == Key.Left)) { NavigateBack(); e.Handled = true; return; }
+
             if (mods == ModifierKeys.Control && e.Key == Key.A) { SelectAll(); e.Handled = true; }
             else if (mods == ModifierKeys.Control && e.Key == Key.C) { CopySelected(false); e.Handled = true; }
             else if (mods == ModifierKeys.Control && e.Key == Key.X) { CopySelected(true); e.Handled = true; }
@@ -1014,6 +1071,14 @@ namespace DeskNest
             }
             else if (e.Key == Key.Escape) { ClearSelection(); e.Handled = true; }
             else if (e.Key == Key.Enter) { OpenSelected(); e.Handled = true; }
+        }
+
+        // Bouton « précédent » de la souris (XButton1) : retour dans un Folder Portal.
+        private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.XButton1 || !IsPortal) return;
+            NavigateBack();
+            e.Handled = true;
         }
 
         private List<Rect> GetItemRects()
@@ -1390,8 +1455,29 @@ namespace DeskNest
 
             if (n == 0 || rects.All(r => r.IsEmpty))
             {
-                marker = new Rect(2, 2, 2, Data.IconSize + 10);
+                marker = Data.ListView
+                    ? new Rect(0, 0, Math.Max(ItemsHost.ActualWidth, 40), 2)
+                    : new Rect(2, 2, 2, Data.IconSize + 10);
                 return 0;
+            }
+
+            // Liste : les éléments sont empilés verticalement, le repère est une ligne horizontale.
+            if (Data.ListView)
+            {
+                double width = Math.Max(ItemsHost.ActualWidth, 40);
+                for (int i = 0; i < n; i++)
+                {
+                    var r = rects[i];
+                    if (r.IsEmpty) continue;
+                    if (p.Y < r.Top + r.Height / 2)
+                    {
+                        marker = new Rect(0, r.Top, width, 2);
+                        return i;
+                    }
+                }
+                int last = rects.FindLastIndex(r => !r.IsEmpty);
+                marker = new Rect(0, rects[last].Bottom - 2, width, 2);
+                return last + 1;
             }
 
             int rowStart = -1, rowEnd = -1;
@@ -1449,7 +1535,8 @@ namespace DeskNest
             var tl = ItemsHost.TranslatePoint(r.TopLeft, Overlay);
             Canvas.SetLeft(Marker, tl.X);
             Canvas.SetTop(Marker, tl.Y);
-            Marker.Height = Math.Max(r.Height, 12);
+            Marker.Width = Math.Max(r.Width, 2);
+            Marker.Height = Math.Max(r.Height, 2);
             Marker.Visibility = Visibility.Visible;
         }
 
@@ -1627,6 +1714,13 @@ namespace DeskNest
                 sizes.Items.Add(Mi(Loc.T(key), () => { Data.IconSize = px; RefreshItems(); _manager.RequestSave(); }));
             m.Items.Add(sizes);
 
+            var view = new MenuItem { Header = Loc.T("m.view") };
+            _miViewGrid = Mi(Loc.T("view.grid"), () => SetListView(false));
+            _miViewList = Mi(Loc.T("view.list"), () => SetListView(true));
+            view.Items.Add(_miViewGrid);
+            view.Items.Add(_miViewList);
+            m.Items.Add(view);
+
             m.Items.Add(Mi(Loc.T("m.fonts"), () => _manager.ShowSettings(Data)));
 
             m.Items.Add(new Separator());
@@ -1656,6 +1750,8 @@ namespace DeskNest
                 _miRoll.IsEnabled = Data.TitleVisible;
                 _miLock.Header = Data.Locked ? Loc.T("m.unlock") : Loc.T("m.lock");
                 _miHover.Header = Data.HoverExpand ? Loc.T("m.hoverOn") : Loc.T("m.hoverOff");
+                _miViewGrid.IsChecked = !Data.ListView;
+                _miViewList.IsChecked = Data.ListView;
                 _miPaste.IsEnabled = FileClipboard.HasFiles();
                 _miPortal.Visibility = IsPortal ? Visibility.Collapsed : Visibility.Visible;
                 _miPortalChange.Visibility = IsPortal ? Visibility.Visible : Visibility.Collapsed;
@@ -1789,6 +1885,7 @@ namespace DeskNest
 
             Data.PortalPath = folder;
             _portalCurrent = null;
+            _portalHistory.Clear();
             Data.PortalOrder.Clear();
             if (Loc.IsDefaultZoneTitle(Data.Title))
             {
@@ -1805,6 +1902,7 @@ namespace DeskNest
         {
             Data.PortalPath = null;
             _portalCurrent = null;
+            _portalHistory.Clear();
             Data.PortalOrder.Clear();
             _selected.Clear();
             ResetWatcher();

@@ -55,6 +55,9 @@ namespace DeskNest
             CmbDesktopMode.Items.Clear();
             CmbDesktopMode.Items.Add(Loc.T("g.modeMove"));
             CmbDesktopMode.Items.Add(Loc.T("g.modeHide"));
+            ZView.Items.Clear();
+            ZView.Items.Add(Loc.T("view.grid"));
+            ZView.Items.Add(Loc.T("view.list"));
         }
 
         private void OnLanguageChanged()
@@ -172,6 +175,7 @@ namespace DeskNest
             ZOpacity.Value = d.Opacity * 100;
             ZOpacityLabel.Text = Loc.F("z.opacity", (int)(d.Opacity * 100));
             ZIcon.SelectedIndex = Array.IndexOf(Sizes, d.IconSize);
+            ZView.SelectedIndex = d.ListView ? 1 : 0;
             SelectFont(ZTitleFont, d.TitleFont);
             SelectFont(ZItemFont, d.ItemFont);
             ZTitleFontSize.Value = d.TitleFontSize;
@@ -237,6 +241,13 @@ namespace DeskNest
         {
             if (_loading || Current is not NestData d || ZIcon.SelectedIndex < 0) return;
             d.IconSize = Sizes[ZIcon.SelectedIndex];
+            _m.ZoneChanged(d);
+        }
+
+        private void ZView_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading || Current is not NestData d || ZView.SelectedIndex < 0) return;
+            d.ListView = ZView.SelectedIndex == 1;
             _m.ZoneChanged(d);
         }
 

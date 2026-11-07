@@ -86,6 +86,9 @@
                             <TextBlock l:L.Key="m.iconSize" Style="{StaticResource Label}"/>
                             <ComboBox x:Name="ZIcon" SelectionChanged="ZIcon_Changed" Margin="0,0,0,10"/>
 
+                            <TextBlock l:L.Key="z.view" Style="{StaticResource Label}"/>
+                            <ComboBox x:Name="ZView" SelectionChanged="ZView_Changed" Margin="0,0,0,10"/>
+
                             <TextBlock l:L.Key="z.titleFont" Style="{StaticResource Label}"/>
                             <ComboBox x:Name="ZTitleFont" SelectionChanged="ZTitleFont_Changed" Margin="0,0,0,4"/>
 
