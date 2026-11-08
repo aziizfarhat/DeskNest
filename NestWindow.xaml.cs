@@ -294,7 +294,21 @@ namespace DeskNest
         {
             var h = Hwnd;
             if (h == IntPtr.Zero) return;
+            // HWND_BOTTOM retire aussi l'état « toujours au-dessus » s'il était actif.
             SetWindowPos(h, new IntPtr(1), 0, 0, 0, 0, 0x1 | 0x2 | 0x10); // HWND_BOTTOM, NOSIZE|NOMOVE|NOACTIVATE
+        }
+
+        // « Afficher le bureau » ne minimise pas les fenêtres sur Windows 10/11 : le shell remonte
+        // le bureau au-dessus de tout le reste. Un simple HWND_TOP est annulé immédiatement par
+        // Explorer ; il faut donc passer dans la bande topmost tant que le bureau est affiché.
+        private void RaiseAboveDesktop(IntPtr h)
+        {
+            SetWindowPos(h, new IntPtr(-1), 0, 0, 0, 0, 0x1 | 0x2 | 0x10); // HWND_TOPMOST, NOSIZE|NOMOVE|NOACTIVATE
+        }
+
+        private void ClearTopmost(IntPtr h)
+        {
+            SetWindowPos(h, new IntPtr(-2), 0, 0, 0, 0, 0x1 | 0x2 | 0x10); // HWND_NOTOPMOST
         }
 
         private void BringToTopForHover()
@@ -329,16 +343,18 @@ namespace DeskNest
 
             if (desktopHost != IntPtr.Zero && DesktopHelper.IsAbove(desktopHost, h))
             {
-                // Le bureau a été remonté au-dessus de nos zones : on passe au-dessus de lui (HWND_TOP).
-                SetWindowPos(h, IntPtr.Zero, 0, 0, 0, 0, 0x1 | 0x2 | 0x10);
-                if (!_raisedForDesktop) Diag.Log($"bureau au-dessus de la zone « {Data.Title} » -> zone remontée");
+                // Le bureau a été remonté au-dessus de nos zones (« Afficher le bureau ») : on passe
+                // dans la bande topmost, sinon le shell nous replace sous le bureau à chaque passe.
+                RaiseAboveDesktop(h);
+                if (!_raisedForDesktop) Diag.Log($"bureau au-dessus de la zone « {Data.Title} » -> zone remontée au-dessus du bureau");
                 _raisedForDesktop = true;
             }
             else if (_raisedForDesktop && !desktopForeground)
             {
-                // Une application a repris le focus : la zone retourne à l'arrière-plan.
+                // Une application a repris le focus : la zone quitte la bande topmost et retourne à l'arrière-plan.
                 _raisedForDesktop = false;
                 Diag.Log($"retour à l'arrière-plan de la zone « {Data.Title} »");
+                ClearTopmost(h);
                 SendToBottom();
             }
         }
