@@ -62,6 +62,7 @@ namespace DeskNest
         public bool HotkeyEnabled { get; set; } = true;           // Ctrl + Alt + F
         public bool DesktopDoubleClickEnabled { get; set; } = true;
         public bool HideDesktopIcons { get; set; } = true;
+        public bool ShowSearchBar { get; set; } = true;           // barre de recherche sous la barre de titre des zones
         public int DesktopMode { get; set; } = 0;                 // 0 = déplacer dans le dossier géré, 1 = seulement cacher
         public bool AnimateRoll { get; set; } = true;             // animation du Roll
         public int RollAnimationMs { get; set; } = 180;
@@ -155,16 +156,19 @@ namespace DeskNest
             IsFolder = isUp || Directory.Exists(path);
             CanRemove = !isPortal && !isUp;
             if (isUp) Name = "..";
-            else
-            {
-                var n = Directory.Exists(path)
-                    ? System.IO.Path.GetFileName(path.TrimEnd('\\'))
-                    : System.IO.Path.GetFileNameWithoutExtension(path);
-                Name = string.IsNullOrEmpty(n) ? path : n;
-            }
+            else Name = GetName(path);
 
             Icon = IconHelper.GetCached(FullPath);
             if (Icon == null) LoadIconAsync();
+        }
+
+        // Nom affiché dans une zone (sans l'extension pour les fichiers, comme l'Explorateur).
+        public static string GetName(string path)
+        {
+            var n = Directory.Exists(path)
+                ? System.IO.Path.GetFileName(path.TrimEnd('\\'))
+                : System.IO.Path.GetFileNameWithoutExtension(path);
+            return string.IsNullOrEmpty(n) ? path : n;
         }
 
         private async void LoadIconAsync()

@@ -6,7 +6,7 @@ DeskNest is a lightweight Windows desktop organizer that helps you group applica
 
 Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
 
-> **Project status:** Under active development. DeskNest is currently at version 0.7.1.0.
+> **Project status:** Under active development. DeskNest is currently at version 0.7.2.0.
 
 ## Features
 
@@ -22,6 +22,7 @@ Create independent desktop areas to organize your items by category, purpose, or
 - Roll up zones to save desktop space.
 - Lock zones.
 - Expand zones automatically when hovering over them.
+- Search the items of a zone from an optional search bar.
 - Link zones to folders.
 - Delete zones.
 
@@ -41,6 +42,7 @@ DeskNest integrates with the Windows desktop environment.
 - Desktop background context menu for creating new zones and Folder Portals.
 - Windows startup option.
 - Single-instance application support.
+- Stays visible when using the Windows “Show desktop” command.
 - Native Windows desktop integration.
 
 The desktop background context menu is available while DeskNest is running and is removed when the application exits normally.

@@ -832,7 +832,7 @@ namespace DeskNest
             var host = DesktopHelper.FindDesktopHost();
             bool desktopForeground = DesktopHelper.IsDesktopForeground(host);
             foreach (var w in _windows)
-                if (ShouldShow(w) && w.IsVisible) w.EnsureDesktopVisibility(host, desktopForeground);
+                if (ShouldShow(w)) w.EnsureDesktopVisibility(host, desktopForeground);
         }
 
         // ---------- Glisser un élément hors d'une zone (vers le bureau, l'Explorateur...) ----------

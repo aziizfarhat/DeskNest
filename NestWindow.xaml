@@ -241,6 +241,7 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -285,7 +286,42 @@
                 </Grid>
             </Border>
 
-            <ScrollViewer x:Name="ContentScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto"
+            <!-- Barre de recherche : filtre les éléments affichés (masquable dans les paramètres). -->
+            <Border x:Name="SearchBar" Grid.Row="1" Height="30" Background="#16000000"
+                    BorderBrush="#22FFFFFF" BorderThickness="0,1,0,1">
+                <Grid Margin="8,0,6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0" Width="13" Height="13" VerticalAlignment="Center">
+                        <Ellipse Width="9" Height="9" Stroke="#A0FFFFFF" StrokeThickness="1.3"
+                                 HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                        <Path Data="M8.5,8.5 L12.5,12.5" Stroke="#A0FFFFFF" StrokeThickness="1.4"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Grid>
+
+                    <Grid Grid.Column="1" Margin="7,0,4,0">
+                        <TextBlock x:Name="SearchHint" l:L.Key="search.hint" Foreground="#80FFFFFF" FontSize="11"
+                                   VerticalAlignment="Center" IsHitTestVisible="False" TextTrimming="CharacterEllipsis"/>
+                        <TextBox x:Name="SearchBox" Background="Transparent" BorderThickness="0"
+                                 Foreground="White" CaretBrush="White" FontSize="11" Padding="0"
+                                 VerticalContentAlignment="Center" SpellCheck.IsEnabled="False"
+                                 TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown"/>
+                    </Grid>
+
+                    <Button x:Name="SearchClear" Grid.Column="2" Width="20" Height="20" Margin="0"
+                            Style="{StaticResource FlatIconButton}" Visibility="Collapsed"
+                            l:L.TipKey="search.clear" Click="SearchClear_Click">
+                        <Path Data="M3,3 L11,11 M11,3 L3,11" Stroke="White" StrokeThickness="1.4"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="14" Height="14"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <ScrollViewer x:Name="ContentScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto"
                           Margin="0,0,6,0" Padding="8,6,4,8" AllowDrop="True">
                 <ItemsControl x:Name="ItemsHost" AllowDrop="True"
                               ItemsPanel="{StaticResource GridItemsPanel}"
@@ -293,7 +329,7 @@
             </ScrollViewer>
 
             <!-- Pagination des Folder Portals : seuls les éléments de la page courante sont instanciés. -->
-            <Border x:Name="PagerBar" Grid.Row="2" Height="24" Visibility="Collapsed" Background="#22000000"
+            <Border x:Name="PagerBar" Grid.Row="3" Height="24" Visibility="Collapsed" Background="#22000000"
                     CornerRadius="0,0,9,9">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -317,19 +353,19 @@
             </Border>
 
             <!-- Indication de dépôt (Folder Portal : déplacer / copier dans le dossier) -->
-            <Border x:Name="DropHint" Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,10"
+            <Border x:Name="DropHint" Grid.Row="2" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,10"
                     Padding="10,4" CornerRadius="6" Background="#D9000000" IsHitTestVisible="False" Visibility="Collapsed">
                 <TextBlock x:Name="DropHintText" Foreground="White" FontSize="11"/>
             </Border>
 
             <!-- Repère d'insertion (tri personnalisé) et rectangle de sélection -->
-            <Canvas x:Name="Overlay" Grid.Row="1" IsHitTestVisible="False" FlowDirection="LeftToRight">
+            <Canvas x:Name="Overlay" Grid.Row="2" IsHitTestVisible="False" FlowDirection="LeftToRight">
                 <Rectangle x:Name="Marker" Width="2" Height="40" RadiusX="1" RadiusY="1"
                            Fill="#F2FFFFFF" Visibility="Collapsed"/>
                 <Rectangle x:Name="SelBox" Visibility="Collapsed" Fill="#332E7DD1" Stroke="#AA5AA9FF" StrokeThickness="1"/>
             </Canvas>
 
-            <Grid x:Name="Handles" Grid.RowSpan="3">
+            <Grid x:Name="Handles" Grid.RowSpan="4">
                 <Rectangle Style="{StaticResource HandleStyle}" Tag="1"  Width="6" HorizontalAlignment="Left"  Margin="0,12" Cursor="SizeWE"/>
                 <Rectangle Style="{StaticResource HandleStyle}" Tag="4"  Width="6" HorizontalAlignment="Right" Margin="0,12" Cursor="SizeWE"/>
                 <Rectangle Style="{StaticResource HandleStyle}" Tag="2"  Height="6" VerticalAlignment="Top"    Margin="12,0" Cursor="SizeNS"/>

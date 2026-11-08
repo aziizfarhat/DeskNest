@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -102,6 +103,12 @@ namespace DeskNest
         // Affichage Grille / Liste de cette zone.
         private bool _lastListView;
 
+        // Recherche : filtre temporaire (non enregistré dans la configuration).
+        private string _searchText = "";
+        private bool _updatingSearch;
+        private bool _searchReady;
+        private bool HasFilter => !string.IsNullOrWhiteSpace(_searchText);
+
         // Développement au survol
         private enum HoverMode { None, Expand, Collapse }
         private HoverMode _hoverMode;
@@ -145,6 +152,7 @@ namespace DeskNest
             ApplyState();
             ApplyFonts();
             ApplyViewMode();
+            UpdateSearchUi();
             ResetWatcher();
             RefreshItems();
 
@@ -163,7 +171,12 @@ namespace DeskNest
                 if (!_menuOpen && !_dragging) ClearSelection();
             };
             // Une zone n'est jamais minimisée / agrandie : elle reste indépendante des fenêtres Windows.
-            StateChanged += (_, _) => { if (WindowState != WindowState.Normal) WindowState = WindowState.Normal; };
+            // « Afficher le bureau » peut néanmoins minimiser la fenêtre par le biais de l'API ShowWindow.
+            StateChanged += (_, _) =>
+            {
+                if (WindowState != WindowState.Minimized) return;
+                Dispatcher.BeginInvoke(new Action(RestoreSystemMinimize), DispatcherPriority.Send);
+            };
             MouseEnter += (_, _) => OnHoverEnter();
             MouseLeave += (_, _) => OnHoverLeave();
             ContextMenuOpening += (_, _) => _menuOpen = true;
@@ -187,6 +200,8 @@ namespace DeskNest
                 if (!IsRolled) Data.Height = e.NewSize.Height; // la hauteur "développée" n'est jamais écrasée par la hauteur réduite
                 _manager.RequestSave();
             };
+
+            _searchReady = true;
         }
 
         // Une zone ne doit pas pouvoir être fermée par Alt+F4 ou par le système :
@@ -246,13 +261,33 @@ namespace DeskNest
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
             const int WM_SYSCOMMAND = 0x0112;
+            const int WM_SIZE = 0x0005;
+            const int SIZE_MINIMIZED = 1;
             if (msg == WM_SYSCOMMAND)
             {
                 int cmd = (int)(wParam.ToInt64() & 0xFFF0);
                 // SC_SIZE, SC_MOVE, SC_MINIMIZE, SC_MAXIMIZE : ignorés
                 if (cmd == 0xF000 || cmd == 0xF010 || cmd == 0xF020 || cmd == 0xF030) handled = true;
             }
+            else if (msg == WM_SIZE && (int)(wParam.ToInt64() & 0xFFFF) == SIZE_MINIMIZED)
+            {
+                // « Afficher le bureau » / Win+D minimise les fenêtres via ShowWindow : on se rétablit aussitôt.
+                Diag.Log($"zone « {Data.Title} » réduite par Windows (WM_SIZE) -> restauration");
+                Dispatcher.BeginInvoke(new Action(RestoreSystemMinimize), DispatcherPriority.Send);
+            }
             return IntPtr.Zero;
+        }
+
+        private void RestoreSystemMinimize()
+        {
+            if (_closed) return;
+            var h = Hwnd;
+            if (h == IntPtr.Zero) return;
+
+            // Restauration sans activation : la zone ne doit pas voler le focus quand Windows affiche le bureau.
+            if (IsIconic(h)) ShowWindow(h, 4); // SW_SHOWNOACTIVATE
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; // repli WPF
+            if (IsIconic(h)) ShowWindow(h, 8); // SW_SHOWNA : dernier repli, toujours sans activation
         }
 
         private void SendToBottom()
@@ -278,8 +313,19 @@ namespace DeskNest
             var h = Hwnd;
             if (h == IntPtr.Zero) return;
 
-            if (IsIconic(h)) { Diag.Log($"zone « {Data.Title} » réduite par Windows -> restauration"); ShowWindow(h, 9); }       // SW_RESTORE
-            else if (!IsWindowVisible(h)) { Diag.Log($"zone « {Data.Title} » masquée par Windows -> réaffichage"); ShowWindow(h, 4); } // SW_SHOWNOACTIVATE
+            if (IsIconic(h) || WindowState == WindowState.Minimized)
+            {
+                Diag.Log($"zone « {Data.Title} » réduite par Windows -> restauration");
+                // Restauration sans activation (pas de vol de focus), avec repli si Windows insiste.
+                if (IsIconic(h)) ShowWindow(h, 4); // SW_SHOWNOACTIVATE
+                if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+                if (IsIconic(h)) ShowWindow(h, 8); // SW_SHOWNA
+            }
+            else if (!IsWindowVisible(h))
+            {
+                Diag.Log($"zone « {Data.Title} » masquée par Windows -> réaffichage");
+                ShowWindow(h, 4); // SW_SHOWNOACTIVATE
+            }
 
             if (desktopHost != IntPtr.Zero && DesktopHelper.IsAbove(desktopHost, h))
             {
@@ -304,6 +350,7 @@ namespace DeskNest
             int id = ++_animId;
             TitleBar.Visibility = Data.TitleVisible ? Visibility.Visible : Visibility.Collapsed;
             bool rolled = IsRolled;
+            SearchBar.Visibility = !rolled && _manager.Settings.ShowSearchBar ? Visibility.Visible : Visibility.Collapsed;
             Handles.Visibility = (Data.Locked || rolled) ? Visibility.Collapsed : Visibility.Visible;
             double target = rolled ? TitleHeight + 2 : Math.Max(Data.Height, 60);
 
@@ -413,11 +460,69 @@ namespace DeskNest
             _manager.RequestSave();
         }
 
+        // ---------- Recherche : filtre temporaire des éléments affichés ----------
+        private bool NameMatches(string name)
+        {
+            var query = _searchText.Trim();
+            if (query.Length == 0) return true;
+            // Ignore la casse et les accents (« ecole » trouve « école »).
+            return CultureInfo.CurrentCulture.CompareInfo.IndexOf(name, query,
+                CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0;
+        }
+
+        private void UpdateSearchUi()
+        {
+            bool empty = string.IsNullOrEmpty(SearchBox.Text);
+            SearchHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+            SearchClear.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        // Vide la recherche sans déclencher d'actualisation (l'appelant en lance une).
+        private void ResetSearch()
+        {
+            if (SearchBox.Text.Length == 0 && _searchText.Length == 0) return;
+            _updatingSearch = true;
+            SearchBox.Clear();
+            _updatingSearch = false;
+            _searchText = "";
+            UpdateSearchUi();
+        }
+
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_searchReady || _updatingSearch) return;
+            _searchText = SearchBox.Text;
+            UpdateSearchUi();
+            _portalPage = 0;
+            RefreshItems();
+            ContentScroll.ScrollToTop();
+        }
+
+        private void SearchBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Escape) return;
+            if (SearchBox.Text.Length > 0) SearchBox.Clear();
+            else ClearSelection();
+            e.Handled = true;
+        }
+
+        private void SearchClear_Click(object sender, RoutedEventArgs e)
+        {
+            SearchBox.Clear();
+            SearchBox.Focus();
+        }
+
         // Appelé quand les paramètres ou la zone ont été modifiés depuis la fenêtre de paramètres.
         public void ApplyExternalChange()
         {
             StopHover();
             _hoverExpanded = false;
+            // Masquer la barre de recherche ne doit pas laisser un filtre invisible actif.
+            if (!_manager.Settings.ShowSearchBar && HasFilter)
+            {
+                ResetSearch();
+                RefreshItems();
+            }
             ApplyState();
             ApplyFonts();
             bool viewChanged = _lastListView != Data.ListView;
@@ -447,7 +552,11 @@ namespace DeskNest
         private List<ItemVM> BuildClassicItems()
         {
             var list = new List<ItemVM>(Data.Items.Count);
-            foreach (var p in Data.Items) list.Add(new ItemVM(p, Data.IconSize));
+            foreach (var p in Data.Items)
+            {
+                if (HasFilter && !NameMatches(ItemVM.GetName(p))) continue;
+                list.Add(new ItemVM(p, Data.IconSize));
+            }
             return list;
         }
 
@@ -510,7 +619,8 @@ namespace DeskNest
             _portalPageFolder = cur;
             int page = _portalPage;
             var custom = GetOrder(cur)?.ToList();
-            bool includeParent = !SamePath(cur, Data.PortalPath!);
+            bool filtering = HasFilter;
+            bool includeParent = !filtering && !SamePath(cur, Data.PortalPath!);
 
             var ordered = await Task.Run(() => ScanPortal(cur, custom));
             if (_closed || version != _refreshVersion || !SamePath(CurrentFolder, cur)) return;
@@ -520,6 +630,11 @@ namespace DeskNest
                 ApplyItems(new List<ItemVM>(), 1, 0, null);
                 return;
             }
+
+            // Le filtre porte sur le dossier complet avant la pagination : toutes les correspondances
+            // restent visibles, même si elles se trouvent au-delà de la première page.
+            if (filtering)
+                ordered = ordered.Where(p => NameMatches(ItemVM.GetName(p))).ToList();
 
             int pageCount = Math.Max(1, (ordered.Count + PortalPageSize - 1) / PortalPageSize);
             int currentPage = Math.Clamp(page, 0, pageCount - 1);
@@ -669,6 +784,7 @@ namespace DeskNest
             if (!IsPortal || !Directory.Exists(folder) || SamePath(folder, CurrentFolder)) return;
             if (addHistory && !string.IsNullOrEmpty(CurrentFolder)) _portalHistory.Add(CurrentFolder);
             _portalCurrent = SamePath(folder, Data.PortalPath!) ? null : folder;
+            ResetSearch();
             _portalPage = 0;
             ResetWatcher();
             UpdateTitle();
@@ -686,6 +802,7 @@ namespace DeskNest
                 _portalHistory.RemoveAt(last);
                 if (!Directory.Exists(folder)) continue;
                 _portalCurrent = SamePath(folder, Data.PortalPath!) ? null : folder;
+                ResetSearch();
                 _portalPage = 0;
                 ResetWatcher();
                 UpdateTitle();
@@ -721,6 +838,10 @@ namespace DeskNest
         // Déplace un ou plusieurs éléments (ordre relatif conservé) à la position donnée.
         private void ReorderTo(List<string> paths, int index)
         {
+            // Pendant une recherche, la liste affichée est partielle : réenregistrer son ordre
+            // ferait perdre les éléments masqués. Le tri reste donc désactivé tant que le filtre est actif.
+            if (HasFilter) return;
+
             var moving = _vms.Where(v => !v.IsUp && paths.Any(p => SamePath(p, v.FullPath))).ToList();
             if (moving.Count == 0) return;
             bool hasUp = _vms.Count > 0 && _vms[0].IsUp;
@@ -1051,6 +1172,7 @@ namespace DeskNest
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (_editingTitle || _editingItem != null) return; // les touches appartiennent au champ de saisie
+            if (SearchBox.IsKeyboardFocusWithin) return;        // frappe dans la barre de recherche
             CancelRenameTimer();
             var mods = Keyboard.Modifiers;
 
@@ -1579,10 +1701,10 @@ namespace DeskNest
                         intoFolder = true;
                         hint = FolderHint(folderTarget, ctrl);
                     }
-                    else if (same) insertMarker = true;
+                    else if (same && !HasFilter) insertMarker = true;
                     else hint = PortalHint(ctrl); // venu d'une autre zone : le fichier est mis dans le dossier du portail
                 }
-                else insertMarker = true;
+                else insertMarker = !HasFilter;
             }
             else if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
@@ -1602,7 +1724,7 @@ namespace DeskNest
                     // Zone classique : simple référence, jamais Move (l'Explorateur ne doit rien supprimer).
                     if (e.AllowedEffects.HasFlag(DragDropEffects.Link)) fx = DragDropEffects.Link;
                     else if (e.AllowedEffects.HasFlag(DragDropEffects.Copy)) fx = DragDropEffects.Copy;
-                    insertMarker = fx != DragDropEffects.None;
+                    insertMarker = fx != DragDropEffects.None && !HasFilter;
                 }
             }
             e.Effects = fx;
@@ -1635,7 +1757,7 @@ namespace DeskNest
             HideDragVisuals();
 
             var pos = e.GetPosition(ItemsHost);
-            int idx = GetInsertIndex(pos, out _);
+            int idx = HasFilter ? -1 : GetInsertIndex(pos, out _);
             var folderTarget = FolderTargetAt(pos, out _);
             bool ctrl = (e.KeyStates & DragDropKeyStates.ControlKey) != 0;
 
@@ -1887,6 +2009,7 @@ namespace DeskNest
             _portalCurrent = null;
             _portalHistory.Clear();
             Data.PortalOrder.Clear();
+            ResetSearch();
             if (Loc.IsDefaultZoneTitle(Data.Title))
             {
                 var n = IOPath.GetFileName(folder.TrimEnd('\\'));
@@ -1905,6 +2028,7 @@ namespace DeskNest
             _portalHistory.Clear();
             Data.PortalOrder.Clear();
             _selected.Clear();
+            ResetSearch();
             ResetWatcher();
             UpdateTitle();
             RefreshItems();

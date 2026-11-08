@@ -104,6 +104,7 @@ namespace DeskNest
             ChkHotkey.IsChecked = s.HotkeyEnabled;
             ChkDesktopDbl.IsChecked = s.DesktopDoubleClickEnabled;
             ChkHideIcons.IsChecked = s.HideDesktopIcons;
+            ChkSearchBar.IsChecked = s.ShowSearchBar;
             CmbDesktopMode.SelectedIndex = s.DesktopMode == 1 ? 1 : 0;
 
             ChkHover.IsChecked = s.HoverExpand;
@@ -141,6 +142,7 @@ namespace DeskNest
         private void ChkHotkey_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.HotkeyEnabled = ChkHotkey.IsChecked == true; _m.SettingsChanged(); }
         private void ChkDesktopDbl_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.DesktopDoubleClickEnabled = ChkDesktopDbl.IsChecked == true; _m.SettingsChanged(); }
         private void ChkHideIcons_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.HideDesktopIcons = ChkHideIcons.IsChecked == true; _m.SettingsChanged(); }
+        private void ChkSearchBar_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.ShowSearchBar = ChkSearchBar.IsChecked == true; _m.SettingsChanged(); }
 
         private void CmbDesktopMode_Changed(object sender, SelectionChangedEventArgs e)
         {

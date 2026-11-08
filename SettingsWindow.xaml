@@ -43,6 +43,7 @@
                         <CheckBox x:Name="ChkHotkey" l:L.Key="g.hotkey" Click="ChkHotkey_Click"/>
                         <CheckBox x:Name="ChkDesktopDbl" l:L.Key="g.dblclick" Click="ChkDesktopDbl_Click"/>
                         <CheckBox x:Name="ChkHideIcons" l:L.Key="g.hideIcons" Click="ChkHideIcons_Click"/>
+                        <CheckBox x:Name="ChkSearchBar" l:L.Key="g.searchBar" Click="ChkSearchBar_Click"/>
                         <TextBlock l:L.Key="g.method" Style="{StaticResource Label}"/>
                         <ComboBox x:Name="CmbDesktopMode" Margin="0,0,0,10" SelectionChanged="CmbDesktopMode_Changed"/>
                         <TextBlock l:L.Key="g.hint" Style="{StaticResource Hint}"/>
