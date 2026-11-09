@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.7.2.1"
+  #define AppVersion "0.7.3.0"
 #endif
 
 [Setup]
@@ -34,6 +34,7 @@ Type: files; Name: "{app}\NestsLite.exe"
 
 [Files]
 Source: "publish\DeskNest.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\DeskNest"; Filename: "{app}\DeskNest.exe"

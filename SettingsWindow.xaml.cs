@@ -88,7 +88,9 @@ namespace DeskNest
             DOpacityLabel.Text = Loc.F("z.opacity", (int)(s.DefaultOpacity * 100));
             RadiusLabel.Text = Loc.F("a.radius", s.CornerRadius);
             DataPath.Text = Loc.F("k.path", Storage.Dir);
-            AboutVersion.Text = Loc.F("ab.version", typeof(App).Assembly.GetName().Version?.ToString(3) ?? "?");
+            var version = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "?";
+            AboutVersion.Text = Loc.F("ab.version", version);
+            HeaderVersion.Text = Loc.F("ab.version", version);
             if (Current is NestData d) ZOpacityLabel.Text = Loc.F("z.opacity", (int)(d.Opacity * 100));
         }
 
@@ -114,6 +116,8 @@ namespace DeskNest
             AnimMs.Value = s.RollAnimationMs;
 
             DColor.SelectedIndex = IndexOfPreset(s.DefaultColor);
+            DHex.Text = s.DefaultColor;
+            UpdateDefaultSwatch();
             DOpacity.Value = s.DefaultOpacity * 100;
             DIcon.SelectedIndex = Array.IndexOf(Sizes, s.DefaultIconSize);
             Radius.Value = s.CornerRadius;
@@ -174,6 +178,7 @@ namespace DeskNest
             ZName.Text = d.Title;
             ZColor.SelectedIndex = IndexOfPreset(d.Color);
             ZHex.Text = d.Color;
+            UpdateZoneSwatch();
             ZOpacity.Value = d.Opacity * 100;
             ZOpacityLabel.Text = Loc.F("z.opacity", (int)(d.Opacity * 100));
             ZIcon.SelectedIndex = Array.IndexOf(Sizes, d.IconSize);
@@ -220,6 +225,7 @@ namespace DeskNest
             if (_loading || Current is not NestData d || ZColor.SelectedIndex < 0) return;
             d.Color = Palette.Presets[ZColor.SelectedIndex].Hex;
             _loading = true; ZHex.Text = d.Color; _loading = false;
+            UpdateZoneSwatch();
             _m.ZoneChanged(d);
         }
 
@@ -229,7 +235,62 @@ namespace DeskNest
             if (!Regex.IsMatch(ZHex.Text, "^#[0-9A-Fa-f]{6}$")) return;
             d.Color = ZHex.Text;
             _loading = true; ZColor.SelectedIndex = IndexOfPreset(d.Color); _loading = false;
+            UpdateZoneSwatch();
             _m.ZoneChanged(d);
+        }
+
+        private void PickZoneColor_Click(object sender, RoutedEventArgs e)
+        {
+            if (Current is not NestData d) return;
+            var picked = PickColor(d.Color);
+            if (picked == null) return;
+            d.Color = picked;
+            _loading = true;
+            ZHex.Text = d.Color;
+            ZColor.SelectedIndex = IndexOfPreset(d.Color);
+            _loading = false;
+            UpdateZoneSwatch();
+            _m.ZoneChanged(d);
+        }
+
+        private static System.Drawing.Color ToDrawingColor(string hex)
+        {
+            try { return System.Drawing.ColorTranslator.FromHtml(hex); }
+            catch { return System.Drawing.Color.Black; }
+        }
+
+        private string? PickColor(string currentHex)
+        {
+            using var dlg = new System.Windows.Forms.ColorDialog
+            {
+                FullOpen = true,
+                AnyColor = true,
+                Color = ToDrawingColor(currentHex)
+            };
+            // Sans fenêtre propriétaire, la boîte de dialogue Windows peut s'ouvrir
+            // derrière les Settings. On l'ancre à la fenêtre courante.
+            var owner = new DialogOwner(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+            if (dlg.ShowDialog(owner) != System.Windows.Forms.DialogResult.OK) return null;
+            return $"#{dlg.Color.R:X2}{dlg.Color.G:X2}{dlg.Color.B:X2}";
+        }
+
+        private sealed class DialogOwner : System.Windows.Forms.IWin32Window
+        {
+            public DialogOwner(IntPtr handle) { Handle = handle; }
+            public IntPtr Handle { get; }
+        }
+
+        private void UpdateZoneSwatch()
+        {
+            if (Current is NestData d) ZColorSwatch.Background = ToBrush(d.Color);
+        }
+
+        private void UpdateDefaultSwatch() => DColorSwatch.Background = ToBrush(_m.Settings.DefaultColor);
+
+        private static Brush ToBrush(string hex)
+        {
+            try { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); }
+            catch { return Brushes.Transparent; }
         }
 
         private void ZOpacity_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -399,6 +460,31 @@ namespace DeskNest
         {
             if (_loading || DColor.SelectedIndex < 0) return;
             _m.Settings.DefaultColor = Palette.Presets[DColor.SelectedIndex].Hex;
+            _loading = true; DHex.Text = _m.Settings.DefaultColor; _loading = false;
+            UpdateDefaultSwatch();
+            _m.RequestSave();
+        }
+
+        private void DHex_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_loading) return;
+            if (!Regex.IsMatch(DHex.Text, "^#[0-9A-Fa-f]{6}$")) return;
+            _m.Settings.DefaultColor = DHex.Text;
+            _loading = true; DColor.SelectedIndex = IndexOfPreset(_m.Settings.DefaultColor); _loading = false;
+            UpdateDefaultSwatch();
+            _m.RequestSave();
+        }
+
+        private void PickDefaultColor_Click(object sender, RoutedEventArgs e)
+        {
+            var picked = PickColor(_m.Settings.DefaultColor);
+            if (picked == null) return;
+            _m.Settings.DefaultColor = picked;
+            _loading = true;
+            DHex.Text = picked;
+            DColor.SelectedIndex = IndexOfPreset(picked);
+            _loading = false;
+            UpdateDefaultSwatch();
             _m.RequestSave();
         }
 

@@ -288,7 +288,8 @@
 
             <!-- Barre de recherche : filtre les éléments affichés (masquable dans les paramètres). -->
             <Border x:Name="SearchBar" Grid.Row="1" Height="30" Background="#16000000"
-                    BorderBrush="#22FFFFFF" BorderThickness="0,1,0,1">
+                    BorderBrush="#22FFFFFF" BorderThickness="0,1,0,1"
+                    MouseLeftButtonDown="SearchBar_MouseLeftButtonDown">
                 <Grid Margin="8,0,6,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>

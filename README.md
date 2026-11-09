@@ -6,7 +6,7 @@ DeskNest is a lightweight Windows desktop organizer that helps you group applica
 
 Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
 
-> **Project status:** Under active development. DeskNest is currently at version 0.7.2.1.
+> **Project status:** Under active development. DeskNest is currently at version 0.7.3.0.
 
 ## Features
 
@@ -199,4 +199,10 @@ Please use the [GitHub Issues](https://github.com/aziizfarhat/DeskNest/issues) p
 
 ## License
 
-A license has not yet been specified for this project. Please check this section again once the repository's licensing terms have been established.
+DeskNest is free to download, use, and redistribute for non-commercial purposes.
+
+- You must credit the author, **aziizfarhat**, when you redistribute it.
+- You may not sell DeskNest or include it in a commercial product.
+
+Licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License](https://creativecommons.org/licenses/by-nc/4.0/).
+See [LICENSE](LICENSE) for the full legal text.

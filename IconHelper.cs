@@ -93,6 +93,13 @@ namespace DeskNest
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
         private static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
 
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        private static extern int ExtractIconEx(string lpszFile, int nIconIndex, out IntPtr phiconLarge, out IntPtr phiconSmall, int nIcons);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint PrivateExtractIcons(string szFileName, int nIconIndex, int cxIcon, int cyIcon,
+            [Out] IntPtr[] phicon, [Out] uint[] piconid, uint nIcons, uint flags);
+
         [DllImport("shell32.dll")]
         private static extern int SHGetImageList(int iImageList, ref Guid riid, out IImageList ppv);
 
@@ -174,6 +181,15 @@ namespace DeskNest
 
         private static ImageSource? Extract(string path)
         {
+            // Les raccourcis Internet (.url) ne sont pas résolus par SHGetFileInfo : il renvoie
+            // le globe générique. Explorer, lui, lit IconFile/IconIndex dans le fichier .url.
+            var shortcutIcon = ExtractInternetShortcutIcon(path);
+            if (shortcutIcon != null)
+            {
+                AddToCache(path, shortcutIcon);
+                return shortcutIcon;
+            }
+
             IntPtr hIcon = IntPtr.Zero;
             try
             {
@@ -219,6 +235,65 @@ namespace DeskNest
             {
                 if (hIcon != IntPtr.Zero) DestroyIcon(hIcon);
             }
+        }
+
+        // Extrait l'icône déclarée par un raccourci Internet (.url). Sans cela, Windows
+        // renvoie l'icône générique « globe » au lieu de l'icône choisie par l'auteur.
+        private static ImageSource? ExtractInternetShortcutIcon(string path)
+        {
+            try
+            {
+                if (!path.EndsWith(".url", StringComparison.OrdinalIgnoreCase)) return null;
+                if (!File.Exists(path)) return null;
+
+                string? iconFile = null;
+                int iconIndex = 0;
+                foreach (var raw in File.ReadLines(path))
+                {
+                    var line = raw.Trim();
+                    if (line.StartsWith("IconFile=", StringComparison.OrdinalIgnoreCase))
+                        iconFile = line.Substring("IconFile=".Length).Trim().Trim('"');
+                    else if (line.StartsWith("IconIndex=", StringComparison.OrdinalIgnoreCase))
+                        int.TryParse(line.Substring("IconIndex=".Length).Trim(), out iconIndex);
+                }
+
+                if (string.IsNullOrWhiteSpace(iconFile)) return null;
+                iconFile = Environment.ExpandEnvironmentVariables(iconFile);
+                if (!File.Exists(iconFile)) return null;
+
+                // 48 px comme les autres icônes du shell (ExtractIconEx ne fournit que 32 px,
+                // ce qui rendait les icônes de raccourci .url visiblement plus floues).
+                var handles = new IntPtr[1];
+                var ids = new uint[1];
+                if (PrivateExtractIcons(iconFile, iconIndex, 48, 48, handles, ids, 1, 0) > 0 &&
+                    handles[0] != IntPtr.Zero)
+                {
+                    try
+                    {
+                        var hi = Imaging.CreateBitmapSourceFromHIcon(handles[0], Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                        hi.Freeze();
+                        return hi;
+                    }
+                    finally { DestroyIcon(handles[0]); }
+                }
+
+                IntPtr large = IntPtr.Zero, small = IntPtr.Zero;
+                try
+                {
+                    if (ExtractIconEx(iconFile, iconIndex, out large, out small, 1) <= 0) return null;
+                    var handle = large != IntPtr.Zero ? large : small;
+                    if (handle == IntPtr.Zero) return null;
+                    var src = Imaging.CreateBitmapSourceFromHIcon(handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                    src.Freeze();
+                    return src;
+                }
+                finally
+                {
+                    if (large != IntPtr.Zero) DestroyIcon(large);
+                    if (small != IntPtr.Zero) DestroyIcon(small);
+                }
+            }
+            catch { return null; }
         }
     }
 }

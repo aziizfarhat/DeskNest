@@ -528,6 +528,18 @@ namespace DeskNest
             SearchBox.Focus();
         }
 
+        // Un clic sur le fond de la barre de recherche (loupe, espace vide) donne le focus
+        // au champ au lieu de déplacer la zone.
+        private void SearchBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (IsInsideTextBox(e.OriginalSource)) return;
+            for (var d = e.OriginalSource as DependencyObject; d != null;
+                 d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
+                if (d is Button) return; // le bouton d'effacement gère son propre clic
+            SearchBox.Focus();
+            e.Handled = true;
+        }
+
         // Appelé quand les paramètres ou la zone ont été modifiés depuis la fenêtre de paramètres.
         public void ApplyExternalChange()
         {
@@ -1188,7 +1200,10 @@ namespace DeskNest
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (_editingTitle || _editingItem != null) return; // les touches appartiennent au champ de saisie
-            if (SearchBox.IsKeyboardFocusWithin) return;        // frappe dans la barre de recherche
+            // La barre de recherche garde le focus après une recherche. On la laisse gérer la
+            // frappe, sauf pour Suppr quand elle est vide : l'utilisateur veut alors retirer
+            // l'élément sélectionné, comme dans l'Explorateur.
+            if (SearchBox.IsKeyboardFocusWithin && !(e.Key == Key.Delete && SearchBox.Text.Length == 0)) return;
             CancelRenameTimer();
             var mods = Keyboard.Modifiers;
 
@@ -1237,7 +1252,7 @@ namespace DeskNest
         // Sélection par rectangle (glisser dans une zone vide du contenu).
         private void StartMarquee(MouseButtonEventArgs e)
         {
-            Focus();
+            FocusZone();
             _marquee = true;
             _marqueeStart = e.GetPosition(ItemsHost);
             bool additive = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
@@ -1283,11 +1298,22 @@ namespace DeskNest
             SelBox.Visibility = Visibility.Visible;
         }
 
+        // Donne le focus clavier à la zone elle-même. Indispensable après une recherche :
+        // sinon le champ de recherche conserve le focus et les raccourcis (Suppr, F2…)
+        // continuent de lui être destinés.
+        private void FocusZone()
+        {
+            if (SearchBox.IsKeyboardFocusWithin) Keyboard.ClearFocus();
+            Focus();
+            Keyboard.Focus(this);
+        }
+
         // ---------- Souris : déplacement de la zone, sélection, éléments ----------
         private void Root_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (e.Handled) return;
             if (IsInsideTextBox(e.OriginalSource)) return; // clic dans un champ de saisie (titre ou nom d'élément)
+            FocusZone(); // la zone reprend le clavier (sinon Suppr reste destiné à la recherche)
             CancelRenameTimer();
             if (_editingTitle) EndTitleEdit(true);
             if (_editingItem != null) EndItemEdit(true);
@@ -1397,7 +1423,7 @@ namespace DeskNest
             if (_editingTitle) EndTitleEdit(true);
             if (_editingItem != null) EndItemEdit(true);
             CancelRenameTimer();
-            Focus();
+            FocusZone();
             _dragStart = e.GetPosition(null);
             _dragCandidate = null;
             _pendingCollapse = null;
@@ -1437,6 +1463,7 @@ namespace DeskNest
         {
             if (sender is not FrameworkElement fe || fe.DataContext is not ItemVM vm) return;
             if (IsInsideTextBox(e.OriginalSource)) return; // menu standard du champ de saisie
+            FocusZone();
             CancelRenameTimer();
             if (!vm.IsUp && !vm.IsSelected) SelectOnly(vm);
             fe.ContextMenu = _itemMenu; // un seul menu partagé par tous les éléments
