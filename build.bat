@@ -31,6 +31,34 @@ if not exist "publish\DeskNest.exe" (
   exit /b 1
 )
 
+rem Signature Authenticode facultative : DESKNEST_PFX pointe vers le certificat .pfx,
+rem DESKNEST_PFX_PASSWORD contient son mot de passe. Sans certificat, le build reste non signe.
+set "SIGNTOOL="
+if not defined DESKNEST_PFX goto :no_sign
+if not exist "%DESKNEST_PFX%" (
+  echo ATTENTION : DESKNEST_PFX introuvable, build non signe.
+  goto :no_sign
+)
+for /f "delims=" %%s in ('where signtool 2^>nul') do if not defined SIGNTOOL set "SIGNTOOL=%%s"
+if not defined SIGNTOOL (
+  for /f "usebackq delims=" %%s in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -Path '%ProgramFiles(x86)%\Windows Kits\10\bin' -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName"`) do set "SIGNTOOL=%%s"
+)
+if not defined SIGNTOOL (
+  echo ATTENTION : signtool.exe introuvable, build non signe.
+  goto :no_sign
+)
+
+echo.
+echo Signature de publish\DeskNest.exe...
+call :sign "publish\DeskNest.exe"
+if errorlevel 1 exit /b 1
+goto :signed
+
+:no_sign
+echo.
+echo Signature : ignoree - build non signe.
+:signed
+
 rem Inno Setup peut etre installe pour tous les utilisateurs ou seulement l'utilisateur courant.
 set "ISCC="
 if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
@@ -47,6 +75,25 @@ echo Creation de l'installateur (%APPVER%)...
 "%ISCC%" /DAppVersion=%APPVER% installer.iss
 if errorlevel 1 exit /b 1
 
+if defined SIGNTOOL (
+  echo.
+  echo Signature de installer\DeskNest-Setup.exe...
+  call :sign "installer\DeskNest-Setup.exe"
+  if errorlevel 1 exit /b 1
+)
+
 echo.
 echo Termine : publish\DeskNest.exe et installer\DeskNest-Setup.exe
+exit /b 0
+
+:sign
+if defined DESKNEST_PFX_PASSWORD (
+  "%SIGNTOOL%" sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f "%DESKNEST_PFX%" /p "%DESKNEST_PFX_PASSWORD%" "%~1"
+) else (
+  "%SIGNTOOL%" sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f "%DESKNEST_PFX%" "%~1"
+)
+if errorlevel 1 (
+  echo Echec de la signature de %~1
+  exit /b 1
+)
 exit /b 0

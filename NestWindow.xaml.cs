@@ -58,6 +58,9 @@ namespace DeskNest
         private bool _allowClose, _closed;
         private int _refreshVersion;
         private int _winX, _winY, _edge, _animId, _lastIconSize, _lastItemFontSize;
+        private int _moveW, _moveH, _snapThreshold;
+        // Bornes de la zone au début d'un déplacement / redimensionnement (pour l'annulation).
+        private double _startLeft, _startTop, _startWidth, _startHeight;
         private POINT _curStart;
         private RECT _startRect;
         private string? _portalCurrent;
@@ -70,6 +73,7 @@ namespace DeskNest
         private string? _portalPageFolder;
         private List<string>? _portalPageNames;
         private MenuItem _miTitle = null!, _miRoll = null!, _miLock = null!, _miHover = null!, _miPaste = null!;
+        private MenuItem _miUndo = null!, _miRedo = null!, _miApplyTemplate = null!;
         private MenuItem _miViewGrid = null!, _miViewList = null!;
         private MenuItem _miPortal = null!, _miPortalChange = null!, _miPortalOpen = null!, _miPortalDetach = null!;
 
@@ -561,6 +565,37 @@ namespace DeskNest
 
         public void ReloadItems() => RefreshItems();
 
+        // Place la zone (utilisé par la répartition automatique et l'application d'un modèle).
+        public void SetBounds(double left, double top, double width, double height)
+        {
+            Left = left;
+            Top = top;
+            Width = width;
+            Data.Left = left;
+            Data.Top = top;
+            Data.Width = width;
+            Data.Height = height;
+            if (!IsRolled) Height = height; // une zone réduite garde la hauteur de sa barre de titre
+            _manager.RequestSave();
+        }
+
+        // Sélectionne un élément précis (utilisé par la recherche globale).
+        public void RevealItem(string path)
+        {
+            if (IsPortal) return;
+            RefreshItems();
+            var vm = _vms.FirstOrDefault(v => !v.IsUp && SamePath(v.FullPath, path));
+            if (vm == null) return;
+            ClearSelection();
+            SetSelected(vm, true);
+            _anchor = vm;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (ItemsHost.ItemContainerGenerator.ContainerFromItem(vm) is FrameworkElement fe)
+                    fe.BringIntoView();
+            }), DispatcherPriority.Loaded);
+        }
+
         // ---------- Contenu : zone classique ou Folder Portal ----------
         private static bool SamePath(string a, string b) =>
             string.Equals(a.TrimEnd('\\'), b.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
@@ -841,26 +876,45 @@ namespace DeskNest
         }
 
         // ---------- Éléments ----------
-        public void AddItem(string path, int index = -1)
+        public void AddItem(string path, int index = -1, bool fromDesktop = false)
         {
             if (IsPortal) return;
             if (Data.Items.Any(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase))) return;
-            if (index < 0 || index > Data.Items.Count) Data.Items.Add(path);
+            bool append = index < 0 || index > Data.Items.Count;
+            if (append) Data.Items.Add(path);
             else Data.Items.Insert(index, path);
+            _manager.RecordItemAdded(Data, path, append ? Data.Items.Count - 1 : index, fromDesktop);
             Dispatcher.BeginInvoke(new Action(RefreshItems));
             _manager.RequestSave();
         }
 
-        public bool RemoveItem(string path, bool restoreOnDesktop)
+        public bool RemoveItem(string path, bool restoreOnDesktop, bool record = true)
         {
             int i = Data.Items.FindIndex(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
             if (i < 0) return false;
             Data.Items.RemoveAt(i);
             _selected.Remove(path);
             Dispatcher.BeginInvoke(new Action(RefreshItems));
-            if (restoreOnDesktop) _manager.RestoreOnDesktop(path);
+
+            string current = path;
+            if (restoreOnDesktop) current = _manager.RestoreOnDesktop(path) ?? path;
+            if (record) _manager.RecordItemRemoved(Data, current, i, restoreOnDesktop);
             _manager.RequestSave();
             return true;
+        }
+
+        // L'élément a été déplacé hors de DeskNest (bureau, Explorateur) : on retire la
+        // référence, mais l'action reste annulable pour que Ctrl+Z le ramène dans la zone.
+        public void RemoveItemExternal(string path)
+        {
+            int i = Data.Items.FindIndex(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+            if (i < 0) return;
+            Data.Items.RemoveAt(i);
+            _selected.Remove(path);
+            Dispatcher.BeginInvoke(new Action(RefreshItems));
+            var current = _manager.ResolveItemPath(path);
+            _manager.RecordItemRemoved(Data, current, i, true);
+            _manager.RequestSave();
         }
 
         // Déplace un ou plusieurs éléments (ordre relatif conservé) à la position donnée.
@@ -1138,8 +1192,8 @@ namespace DeskNest
             _editingTitle = false;
             if (commit && !string.IsNullOrWhiteSpace(TitleEdit.Text) && TitleEdit.Text.Trim() != Data.Title)
             {
-                Data.Title = TitleEdit.Text.Trim();
-                _manager.RequestSave();
+                var title = TitleEdit.Text.Trim();
+                _manager.EditNest(Data, Loc.T("undo.rename"), () => Data.Title = title);
             }
             TitleEdit.Visibility = Visibility.Collapsed;
             TitleText.Visibility = Visibility.Visible;
@@ -1206,6 +1260,11 @@ namespace DeskNest
             if (SearchBox.IsKeyboardFocusWithin && !(e.Key == Key.Delete && SearchBox.Text.Length == 0)) return;
             CancelRenameTimer();
             var mods = Keyboard.Modifiers;
+
+            // Annuler / rétablir la disposition (déplacements, renommages, changements de zone).
+            if (mods == ModifierKeys.Control && e.Key == Key.Z) { _manager.Undo(); e.Handled = true; return; }
+            if (mods == ModifierKeys.Control && e.Key == Key.Y) { _manager.Redo(); e.Handled = true; return; }
+            if (mods == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.Z) { _manager.Redo(); e.Handled = true; return; }
 
             // Folder Portal : Alt+← ou Retour arrière pour revenir au dossier précédent.
             if (IsPortal && mods == ModifierKeys.None && e.Key == Key.Back) { NavigateBack(); e.Handled = true; return; }
@@ -1336,6 +1395,12 @@ namespace DeskNest
             GetCursorPos(out _curStart);
             GetWindowRect(h, out var rect);
             _winX = rect.Left; _winY = rect.Top;
+            _moveW = rect.Right - rect.Left;
+            _moveH = rect.Bottom - rect.Top;
+            _startLeft = Data.Left; _startTop = Data.Top;
+            _startWidth = Data.Width; _startHeight = Data.Height;
+            var dpi = VisualTreeHelper.GetDpi(this);
+            _snapThreshold = Math.Max(1, (int)Math.Round(9 * dpi.DpiScaleX));
             _moving = true;
             Root.CaptureMouse();
         }
@@ -1351,8 +1416,19 @@ namespace DeskNest
             if (!_moving) return;
             if (e.LeftButton != MouseButtonState.Pressed) { EndMove(); return; }
             GetCursorPos(out var c);
+            int x = _winX + c.X - _curStart.X;
+            int y = _winY + c.Y - _curStart.Y;
+            if (_manager.Settings.SnapEnabled)
+            {
+                var screen = SnapEngine.WorkArea(this);
+                var snap = SnapEngine.SnapMove(x, y, _moveW, _moveH,
+                    SnapEngine.OtherRects(_manager, this), screen, _snapThreshold);
+                x = snap.X; y = snap.Y;
+                _manager.ShowGuides(snap.GuideX, snap.GuideY, screen);
+            }
+            else _manager.HideGuides();
             // SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
-            SetWindowPos(Hwnd, IntPtr.Zero, _winX + c.X - _curStart.X, _winY + c.Y - _curStart.Y, 0, 0, 0x1 | 0x4 | 0x10);
+            SetWindowPos(Hwnd, IntPtr.Zero, x, y, 0, 0, 0x1 | 0x4 | 0x10);
         }
 
         private void Root_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -1363,7 +1439,7 @@ namespace DeskNest
 
         private void Root_LostMouseCapture(object sender, MouseEventArgs e)
         {
-            _moving = false;
+            EndMove();
             if (_marquee) { _marquee = false; SelBox.Visibility = Visibility.Collapsed; }
         }
 
@@ -1371,7 +1447,9 @@ namespace DeskNest
         {
             if (!_moving) return;
             _moving = false;
+            _manager.HideGuides();
             Root.ReleaseMouseCapture();
+            _manager.RecordBounds(Data, _startLeft, _startTop, _startWidth, _startHeight, Loc.T("undo.move"));
         }
 
         // ---------- Redimensionnement manuel (tous les côtés et coins) ----------
@@ -1382,6 +1460,10 @@ namespace DeskNest
             _edge = int.Parse((string)fe.Tag);
             GetCursorPos(out _curStart);
             GetWindowRect(Hwnd, out _startRect);
+            _startLeft = Data.Left; _startTop = Data.Top;
+            _startWidth = Data.Width; _startHeight = Data.Height;
+            var dpi = VisualTreeHelper.GetDpi(this);
+            _snapThreshold = Math.Max(1, (int)Math.Round(9 * dpi.DpiScaleX));
             _resizing = true;
             fe.CaptureMouse();
             e.Handled = true;
@@ -1401,6 +1483,15 @@ namespace DeskNest
             if ((_edge & 4) != 0) w = Math.Max(minW, w + dx);
             if ((_edge & 2) != 0) { int nh = Math.Max(minH, h - dy); y += h - nh; h = nh; }
             if ((_edge & 8) != 0) h = Math.Max(minH, h + dy);
+            if (_manager.Settings.SnapEnabled)
+            {
+                var screen = SnapEngine.WorkArea(this);
+                var snap = SnapEngine.SnapResize(x, y, w, h, _edge,
+                    SnapEngine.OtherRects(_manager, this), screen, _snapThreshold, minW, minH);
+                x = snap.X; y = snap.Y; w = snap.W; h = snap.H;
+                _manager.ShowGuides(snap.GuideX, snap.GuideY, screen);
+            }
+            else _manager.HideGuides();
             SetWindowPos(Hwnd, IntPtr.Zero, x, y, w, h, 0x4 | 0x10); // SWP_NOZORDER | SWP_NOACTIVATE
         }
 
@@ -1411,7 +1502,9 @@ namespace DeskNest
         {
             if (!_resizing) return;
             _resizing = false;
+            _manager.HideGuides();
             (sender as UIElement)?.ReleaseMouseCapture();
+            _manager.RecordBounds(Data, _startLeft, _startTop, _startWidth, _startHeight, Loc.T("undo.resize"));
         }
 
         // ---------- Clic sur les éléments ----------
@@ -1525,7 +1618,8 @@ namespace DeskNest
                     if (File.Exists(p) || Directory.Exists(p)) continue;
                     pending.Remove(p);               // le fichier a quitté son emplacement : il a été déplacé
                     _manager.ForgetStored(p);
-                    if (!IsPortal) RemoveItem(p, false); // il n'est plus dans la zone
+                    // Le retrait est enregistré : Ctrl+Z ramène l'élément dans la zone.
+                    if (!IsPortal) RemoveItemExternal(p);
                 }
                 if (pending.Count == 0) { t.Stop(); return; }
                 if (ticks < 60) return;
@@ -1833,13 +1927,19 @@ namespace DeskNest
 
         private void AddDroppedFiles(List<string> files, int idx)
         {
-            foreach (var f in files)
+            _manager.History.BeginBatch();
+            try
             {
-                if (Data.Items.Any(p => string.Equals(p, f, StringComparison.OrdinalIgnoreCase))) continue;
-                var effective = _manager.TakeFromDesktop(f); // l'élément quitte le bureau
-                AddItem(effective, idx);
-                if (idx >= 0) idx++;
+                foreach (var f in files)
+                {
+                    if (Data.Items.Any(p => string.Equals(p, f, StringComparison.OrdinalIgnoreCase))) continue;
+                    bool fromDesktop = DesktopHelper.IsOnDesktop(f);
+                    var effective = _manager.TakeFromDesktop(f); // l'élément quitte le bureau
+                    AddItem(effective, idx, fromDesktop);
+                    if (idx >= 0) idx++;
+                }
             }
+            finally { _manager.History.EndBatch(Loc.T("undo.addItem")); }
         }
 
         // ---------- Menu contextuel de la zone ----------
@@ -1848,7 +1948,22 @@ namespace DeskNest
             var m = new ContextMenu { FlowDirection = Loc.Flow };
             m.Items.Add(Mi(Loc.T("tray.newZone"), () => _manager.CreateNest()));
             m.Items.Add(Mi(Loc.T("tray.newPortal"), () => _manager.CreatePortal()));
+            _miUndo = Mi(Loc.T("menu.undo"), () => _manager.Undo());
+            _miUndo.InputGestureText = "Ctrl+Z";
+            _miRedo = Mi(Loc.T("menu.redo"), () => _manager.Redo());
+            _miRedo.InputGestureText = "Ctrl+Y";
+            m.Items.Add(_miUndo);
+            m.Items.Add(_miRedo);
+            m.Items.Add(new Separator());
             m.Items.Add(Mi(Loc.T("m.renameZone"), RenameZone));
+            m.Items.Add(Mi(Loc.T("m.duplicateZone"), () => _manager.DuplicateNest(Data)));
+            m.Items.Add(Mi(Loc.T("m.saveTemplate"), () =>
+            {
+                var name = InputDialog.Ask(this, Loc.T("m.saveTemplate"), Data.Title);
+                if (!string.IsNullOrWhiteSpace(name)) _manager.SaveTemplate(Data, name);
+            }));
+            _miApplyTemplate = new MenuItem { Header = Loc.T("m.applyTemplate") };
+            m.Items.Add(_miApplyTemplate);
             m.Items.Add(Mi(Loc.T("m.selectAll"), SelectAll));
             _miPaste = Mi(Loc.T("paste"), () => PasteHere(null));
             m.Items.Add(_miPaste);
@@ -1866,22 +1981,25 @@ namespace DeskNest
 
             var colors = new MenuItem { Header = Loc.T("m.color") };
             foreach (var (name, hex) in Palette.Presets)
-                colors.Items.Add(Mi(Loc.T(name), () => { Data.Color = hex; ApplyColors(); _manager.RequestSave(); }));
+                colors.Items.Add(Mi(Loc.T(name), () => _manager.EditNest(Data, Loc.T("undo.color"),
+                    () => { Data.Color = hex; ApplyColors(); })));
             m.Items.Add(colors);
 
             var opacity = new MenuItem { Header = Loc.T("m.opacity") };
             foreach (var pct in new[] { 30, 50, 75, 90 })
-                opacity.Items.Add(Mi($"{pct} %", () => { Data.Opacity = pct / 100.0; ApplyColors(); _manager.RequestSave(); }));
+                opacity.Items.Add(Mi($"{pct} %", () => _manager.EditNest(Data, Loc.T("undo.opacity"),
+                    () => { Data.Opacity = pct / 100.0; ApplyColors(); })));
             m.Items.Add(opacity);
 
             var sizes = new MenuItem { Header = Loc.T("m.iconSize") };
             foreach (var (key, px) in new[] { ("m.small", 32), ("m.medium", 40), ("m.large", 48) })
-                sizes.Items.Add(Mi(Loc.T(key), () => { Data.IconSize = px; RefreshItems(); _manager.RequestSave(); }));
+                sizes.Items.Add(Mi(Loc.T(key), () => _manager.EditNest(Data, Loc.T("undo.iconSize"),
+                    () => { Data.IconSize = px; RefreshItems(); })));
             m.Items.Add(sizes);
 
             var view = new MenuItem { Header = Loc.T("m.view") };
-            _miViewGrid = Mi(Loc.T("view.grid"), () => SetListView(false));
-            _miViewList = Mi(Loc.T("view.list"), () => SetListView(true));
+            _miViewGrid = Mi(Loc.T("view.grid"), () => _manager.EditNest(Data, Loc.T("undo.view"), () => SetListView(false)));
+            _miViewList = Mi(Loc.T("view.list"), () => _manager.EditNest(Data, Loc.T("undo.view"), () => SetListView(true)));
             view.Items.Add(_miViewGrid);
             view.Items.Add(_miViewList);
             m.Items.Add(view);
@@ -1889,16 +2007,17 @@ namespace DeskNest
             m.Items.Add(Mi(Loc.T("m.fonts"), () => _manager.ShowSettings(Data)));
 
             m.Items.Add(new Separator());
-            _miTitle = Mi("", () =>
+            _miTitle = Mi("", () => _manager.EditNest(Data, Loc.T("undo.title"), () =>
             {
                 Data.TitleVisible = !Data.TitleVisible;
                 if (!Data.TitleVisible) Data.RolledUp = false;
                 ApplyState();
-                _manager.RequestSave();
-            });
+            }));
             _miRoll = Mi("", ToggleRollUp);
-            _miLock = Mi("", () => { Data.Locked = !Data.Locked; ApplyState(); _manager.RequestSave(); });
-            _miHover = Mi("", () => { Data.HoverExpand = !Data.HoverExpand; _manager.RequestSave(); });
+            _miLock = Mi("", () => _manager.EditNest(Data, Loc.T("undo.lock"),
+                () => { Data.Locked = !Data.Locked; ApplyState(); }));
+            _miHover = Mi("", () => _manager.EditNest(Data, Loc.T("undo.hover"),
+                () => Data.HoverExpand = !Data.HoverExpand));
             m.Items.Add(_miTitle);
             m.Items.Add(_miRoll);
             m.Items.Add(_miLock);
@@ -1917,6 +2036,21 @@ namespace DeskNest
                 _miHover.Header = Data.HoverExpand ? Loc.T("m.hoverOn") : Loc.T("m.hoverOff");
                 _miViewGrid.IsChecked = !Data.ListView;
                 _miViewList.IsChecked = Data.ListView;
+                _miApplyTemplate.Items.Clear();
+                if (_manager.Templates.Count == 0)
+                {
+                    _miApplyTemplate.Items.Add(new MenuItem { Header = Loc.T("tpl.none"), IsEnabled = false });
+                }
+                else
+                {
+                    foreach (var tpl in _manager.Templates)
+                    {
+                        var t = tpl;
+                        _miApplyTemplate.Items.Add(Mi(t.Name, () => _manager.ApplyTemplate(Data, t)));
+                    }
+                }
+                _miUndo.IsEnabled = _manager.History.CanUndo;
+                _miRedo.IsEnabled = _manager.History.CanRedo;
                 _miPaste.IsEnabled = FileClipboard.HasFiles();
                 _miPortal.Visibility = IsPortal ? Visibility.Collapsed : Visibility.Visible;
                 _miPortalChange.Visibility = IsPortal ? Visibility.Visible : Visibility.Collapsed;
@@ -1937,11 +2071,13 @@ namespace DeskNest
         private void ToggleRollUp()
         {
             if (!Data.TitleVisible) return;
-            StopHover();
-            if (_hoverExpanded) { _hoverExpanded = false; Data.RolledUp = false; } // zone ouverte par survol : on la garde développée
-            else Data.RolledUp = !Data.RolledUp;
-            ApplyState(true);
-            _manager.RequestSave();
+            _manager.EditNest(Data, Loc.T("undo.roll"), () =>
+            {
+                StopHover();
+                if (_hoverExpanded) { _hoverExpanded = false; Data.RolledUp = false; } // zone ouverte par survol : on la garde développée
+                else Data.RolledUp = !Data.RolledUp;
+                ApplyState(true);
+            });
         }
 
         private void RenameZone()
@@ -1954,9 +2090,9 @@ namespace DeskNest
             }
             var t = InputDialog.Ask(this, Loc.T("m.renameZone"), Data.Title);
             if (string.IsNullOrWhiteSpace(t)) return;
-            Data.Title = t.Trim();
+            var title = t.Trim();
+            _manager.EditNest(Data, Loc.T("undo.rename"), () => Data.Title = title);
             UpdateTitle();
-            _manager.RequestSave();
         }
 
         // ---------- Développement au survol ----------

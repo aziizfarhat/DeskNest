@@ -6,14 +6,16 @@ using System.Text.RegularExpressions;
 
 namespace DeskNest
 {
-    // Textes de l'application dans 10 langues (anglais par défaut).
+    // Textes de l'application dans 12 langues (anglais par défaut).
     public static class Loc
     {
-        // Ordre des traductions : en, fr, it, de, es, pt, ar, zh, ja, ko
+        // Ordre des traductions : en, fr, it, de, es, pt, ar, zh, ja, ko, ru, uk
+        // Les deux dernières utilisent des dictionnaires séparés (voir Ru/Uk plus bas).
         public static readonly (string Code, string Name)[] Languages =
         {
             ("en", "English"), ("fr", "Français"), ("it", "Italiano"), ("de", "Deutsch"), ("es", "Español"),
-            ("pt", "Português"), ("ar", "العربية"), ("zh", "中文 (简体)"), ("ja", "日本語"), ("ko", "한국어")
+            ("pt", "Português"), ("ar", "العربية"), ("zh", "中文 (简体)"), ("ja", "日本語"), ("ko", "한국어"),
+            ("ru", "Русский"), ("uk", "Українська")
         };
 
         private static int _idx;
@@ -65,6 +67,11 @@ namespace DeskNest
         public static string T(string key)
         {
             if (!Table.TryGetValue(key, out var a)) return key;
+            if (_idx >= a.Length)
+            {
+                var dict = Current == "ru" ? Ru : Uk;
+                return dict.TryGetValue(key, out var t) && !string.IsNullOrEmpty(t) ? t : a[0];
+            }
             var s = a[_idx];
             return string.IsNullOrEmpty(s) ? a[0] : s;
         }
@@ -75,7 +82,10 @@ namespace DeskNest
         public static bool IsDefaultZoneTitle(string title)
         {
             if (title == "Nouvelle zone") return true;
-            foreach (var fmt in Table["zone.default"].Distinct())
+            var formats = Table["zone.default"].Distinct()
+                .Concat(Ru.TryGetValue("zone.default", out var ru) ? new[] { ru } : Array.Empty<string>())
+                .Concat(Uk.TryGetValue("zone.default", out var uk) ? new[] { uk } : Array.Empty<string>());
+            foreach (var fmt in formats)
             {
                 var pattern = "^" + Regex.Escape(fmt).Replace("\\{0}", "\\d+") + "$";
                 if (Regex.IsMatch(title, pattern)) return true;
@@ -93,7 +103,26 @@ namespace DeskNest
             A("tray.settings", "Settings…", "Paramètres…", "Impostazioni…", "Einstellungen…", "Configuración…", "Configurações…", "الإعدادات…", "设置…", "設定…", "설정…");
             A("tray.newZone", "New zone", "Nouvelle zone", "Nuova zona", "Neuer Bereich", "Nueva zona", "Nova zona", "منطقة جديدة", "新建区域", "新しいゾーン", "새 영역");
             A("tray.newPortal", "New Folder Portal…", "Nouveau Folder Portal…", "Nuovo Folder Portal…", "Neues Folder Portal…", "Nuevo Folder Portal…", "Novo Folder Portal…", "Folder Portal جديد…", "新建文件夹门户…", "新しいフォルダーポータル…", "새 폴더 포털…");
+            A("tray.newFromTemplate", "New zone from template", "Nouvelle zone à partir d’un modèle", "Nuova zona da modello", "Neuer Bereich aus Vorlage", "Nueva zona desde plantilla", "Nova zona a partir de modelo", "منطقة جديدة من قالب", "从模板新建区域", "テンプレートから新しいゾーン", "템플릿에서 새 영역");
+            A("tpl.none", "No templates", "Aucun modèle", "Nessun modello", "Keine Vorlagen", "Sin plantillas", "Nenhum modelo", "لا توجد قوالب", "没有模板", "テンプレートなし", "템플릿 없음");
+            A("tpl.delete", "Delete a template", "Supprimer un modèle", "Elimina un modello", "Vorlage löschen", "Eliminar una plantilla", "Excluir um modelo", "حذف قالب", "删除模板", "テンプレートを削除", "템플릿 삭제");
+            A("tpl.deleteConfirm", "Delete the template “{0}”?", "Supprimer le modèle « {0} » ?", "Eliminare il modello «{0}»?", "Vorlage „{0}“ löschen?", "¿Eliminar la plantilla «{0}»?", "Excluir o modelo “{0}”?", "حذف القالب «{0}»؟", "删除模板“{0}”？", "テンプレート「{0}」を削除しますか？", "템플릿 “{0}”을(를) 삭제할까요?");
+            A("tray.templates", "Templates…", "Modèles…", "Modelli…", "Vorlagen…", "Plantillas…", "Modelos…", "القوالب…", "模板…", "テンプレート…", "템플릿…");
+            A("tab.templates", "Templates", "Modèles", "Modelli", "Vorlagen", "Plantillas", "Modelos", "القوالب", "模板", "テンプレート", "템플릿");
+            A("m.applyTemplate", "Apply a template", "Appliquer un modèle", "Applica un modello", "Vorlage anwenden", "Aplicar una plantilla", "Aplicar um modelo", "تطبيق قالب", "应用模板", "テンプレートを適用", "템플릿 적용");
+            A("tpl.applyTitle", "Apply a template to a zone", "Appliquer un modèle à une zone", "Applica un modello a una zona", "Vorlage auf einen Bereich anwenden", "Aplicar una plantilla a una zona", "Aplicar um modelo a uma zona", "تطبيق قالب على منطقة", "将模板应用到区域", "テンプレートをゾーンに適用", "템플릿을 영역에 적용");
+            A("tpl.applyHint", "Choose a template and the zone to update. Items are kept.", "Choisissez un modèle et la zone à modifier. Les éléments sont conservés.", "Scegli un modello e la zona da aggiornare. Gli elementi vengono conservati.", "Wählen Sie eine Vorlage und den zu ändernden Bereich. Die Elemente bleiben erhalten.", "Elige una plantilla y la zona que quieres actualizar. Los elementos se conservan.", "Escolha um modelo e a zona a atualizar. Os itens são mantidos.", "اختر قالبًا والمنطقة المراد تحديثها. يتم الاحتفاظ بالعناصر.", "选择模板和要更新的区域。区域中的项目会保留。", "テンプレートと更新するゾーンを選択します。項目は保持されます。", "템플릿과 업데이트할 영역을 선택하세요. 항목은 유지됩니다.");
+            A("tpl.targetZone", "Zone to update", "Zone à modifier", "Zona da aggiornare", "Zu ändernder Bereich", "Zona que se va a actualizar", "Zona a atualizar", "المنطقة المراد تحديثها", "要更新的区域", "更新するゾーン", "업데이트할 영역");
+            A("tpl.apply", "Apply to zone", "Appliquer à la zone", "Applica alla zona", "Auf Bereich anwenden", "Aplicar a la zona", "Aplicar à zona", "تطبيق على المنطقة", "应用到区域", "ゾーンに適用", "영역에 적용");
+            A("tpl.saveTitle", "Save a zone as a template", "Enregistrer une zone comme modèle", "Salva una zona come modello", "Bereich als Vorlage speichern", "Guardar una zona como plantilla", "Salvar uma zona como modelo", "حفظ منطقة كقالب", "将区域保存为模板", "ゾーンをテンプレートとして保存", "영역을 템플릿으로 저장");
+            A("tpl.saveHint", "The template stores the appearance and size, not the items.", "Le modèle enregistre l’apparence et la taille, pas les éléments.", "Il modello salva l'aspetto e le dimensioni, non gli elementi.", "Die Vorlage speichert Aussehen und Größe, nicht die Elemente.", "La plantilla guarda la apariencia y el tamaño, no los elementos.", "O modelo guarda a aparência e o tamanho, não os itens.", "يحفظ القالب المظهر والحجم، وليس العناصر.", "模板保存外观和大小，不保存项目。", "テンプレートは外観とサイズを保存し、項目は保存しません。", "템플릿은 모양과 크기를 저장하며 항목은 저장하지 않습니다.");
+            A("tpl.sourceZone", "Source zone", "Zone source", "Zona di origine", "Quellbereich", "Zona de origen", "Zona de origem", "المنطقة المصدر", "源区域", "元のゾーン", "원본 영역");
+            A("tpl.newZone", "New zone from template", "Nouvelle zone à partir du modèle", "Nuova zona dal modello", "Neuer Bereich aus Vorlage", "Nueva zona desde la plantilla", "Nova zona a partir do modelo", "منطقة جديدة من القالب", "从模板新建区域", "テンプレートから新しいゾーン", "템플릿에서 새 영역");
+            A("tpl.info", "{0} × {1} · {2} · {3}", "{0} × {1} · {2} · {3}", "{0} × {1} · {2} · {3}", "{0} × {1} · {2} · {3}", "{0} × {1} · {2} · {3}", "{0} × {1} · {2} · {3}", "{0} × {1} · {2} · {3}", "{0} × {1} · {2} · {3}", "{0} × {1} · {2} · {3}", "{0} × {1} · {2} · {3}");
+            A("undo.applyTemplate", "Apply template", "Application d’un modèle", "Applica modello", "Vorlage angewendet", "Aplicar plantilla", "Aplicar modelo", "تطبيق قالب", "应用模板", "テンプレートを適用", "템플릿 적용");
             A("tray.toggle", "Hide / show zones (Ctrl+Alt+F)", "Masquer / afficher les zones (Ctrl+Alt+F)", "Nascondi / mostra le zone (Ctrl+Alt+F)", "Bereiche aus-/einblenden (Strg+Alt+F)", "Ocultar / mostrar zonas (Ctrl+Alt+F)", "Ocultar / mostrar zonas (Ctrl+Alt+F)", "إخفاء / إظهار المناطق (Ctrl+Alt+F)", "隐藏 / 显示区域 (Ctrl+Alt+F)", "ゾーンを非表示 / 表示 (Ctrl+Alt+F)", "영역 숨기기 / 표시 (Ctrl+Alt+F)");
+            A("tray.snap", "Snap and alignment guides", "Aimantation et guides d’alignement", "Agganciamento e guide di allineamento", "Einrasten und Ausrichtungslinien", "Ajuste y guías de alineación", "Encaixe e guias de alinhamento", "المحاذاة وأدلة الاصطفاف", "吸附与对齐参考线", "スナップと整列ガイド", "맞춤 및 정렬 가이드");
+            A("tray.distribute", "Arrange zones in a grid", "Répartir les zones sur l’écran", "Disponi le zone in griglia", "Bereiche im Raster anordnen", "Distribuir las zonas en una cuadrícula", "Distribuir as zonas numa grelha", "توزيع المناطق في شبكة", "将区域排成网格", "ゾーンをグリッドに整列", "영역을 격자로 정렬");
             A("tray.autostart", "Start with Windows", "Lancer avec Windows", "Avvia con Windows", "Mit Windows starten", "Iniciar con Windows", "Iniciar com o Windows", "التشغيل مع Windows", "随 Windows 启动", "Windows と同時に起動", "Windows와 함께 시작");
             A("tray.restoreIcons", "Put all icons back on the desktop", "Remettre toutes les icônes sur le bureau", "Rimetti tutte le icone sul desktop", "Alle Symbole auf den Desktop zurücklegen", "Devolver todos los iconos al escritorio", "Devolver todos os ícones à área de trabalho", "إعادة كل الأيقونات إلى سطح المكتب", "将所有图标放回桌面", "すべてのアイコンをデスクトップに戻す", "모든 아이콘을 바탕 화면으로 되돌리기");
             A("tray.openConfig", "Open configuration folder", "Ouvrir le dossier de configuration", "Apri la cartella di configurazione", "Konfigurationsordner öffnen", "Abrir la carpeta de configuración", "Abrir a pasta de configuração", "فتح مجلد الإعدادات", "打开配置文件夹", "設定フォルダーを開く", "구성 폴더 열기");
@@ -112,6 +141,9 @@ namespace DeskNest
 
             // ---------- Menu d'une zone ----------
             A("m.renameZone", "Rename zone", "Renommer la zone", "Rinomina zona", "Bereich umbenennen", "Renombrar zona", "Renomear zona", "إعادة تسمية المنطقة", "重命名区域", "ゾーン名を変更", "영역 이름 바꾸기");
+            A("m.duplicateZone", "Duplicate zone", "Dupliquer la zone", "Duplica zona", "Bereich duplizieren", "Duplicar zona", "Duplicar zona", "تكرار المنطقة", "复制区域", "ゾーンを複製", "영역 복제");
+            A("m.saveTemplate", "Save as template…", "Enregistrer comme modèle…", "Salva come modello…", "Als Vorlage speichern…", "Guardar como plantilla…", "Salvar como modelo…", "حفظ كقالب…", "保存为模板…", "テンプレートとして保存…", "템플릿으로 저장…");
+            A("zone.copyName", "{0} (copy)", "{0} (copie)", "{0} (copia)", "{0} (Kopie)", "{0} (copia)", "{0} (cópia)", "{0} (نسخة)", "{0}（副本）", "{0}（コピー）", "{0} (복사본)");
             A("m.selectAll", "Select all", "Tout sélectionner", "Seleziona tutto", "Alles auswählen", "Seleccionar todo", "Selecionar tudo", "تحديد الكل", "全选", "すべて選択", "모두 선택");
             A("paste", "Paste", "Coller", "Incolla", "Einfügen", "Pegar", "Colar", "لصق", "粘贴", "貼り付け", "붙여넣기");
             A("m.linkFolder", "Link to a folder (Folder Portal)…", "Lier à un dossier (Folder Portal)…", "Collega a una cartella (Folder Portal)…", "Mit einem Ordner verknüpfen (Folder Portal)…", "Vincular a una carpeta (Folder Portal)…", "Vincular a uma pasta (Folder Portal)…", "ربط بمجلد (Folder Portal)…", "关联到文件夹（文件夹门户）…", "フォルダーにリンク（フォルダーポータル）…", "폴더에 연결(폴더 포털)…");
@@ -129,6 +161,11 @@ namespace DeskNest
             A("view.list", "List", "Liste", "Elenco", "Liste", "Lista", "Lista", "قائمة", "列表", "リスト", "목록");
             A("search.hint", "Search items…", "Rechercher un élément…", "Cerca elementi…", "Elemente suchen…", "Buscar elementos…", "Pesquisar itens…", "بحث عن العناصر…", "搜索项目…", "項目を検索…", "항목 검색…");
             A("search.clear", "Clear search", "Effacer la recherche", "Cancella ricerca", "Suche löschen", "Borrar búsqueda", "Limpar pesquisa", "مسح البحث", "清除搜索", "検索をクリア", "검색 지우기");
+            A("tray.search", "Search everywhere… (Ctrl+Shift+Space)", "Rechercher partout… (Ctrl+Maj+Espace)", "Cerca ovunque… (Ctrl+Shift+Spazio)", "Überall suchen… (Strg+Umschalt+Leertaste)", "Buscar en todo… (Ctrl+Mayús+Espacio)", "Pesquisar em tudo… (Ctrl+Shift+Espaço)", "البحث في كل مكان… (Ctrl+Shift+مسافة)", "全局搜索… (Ctrl+Shift+空格)", "すべて検索… (Ctrl+Shift+Space)", "전체 검색… (Ctrl+Shift+Space)");
+            A("search.everywhere", "Search zones, portals and desktop…", "Rechercher dans les zones, les portails et le bureau…", "Cerca nelle zone, nei portali e sul desktop…", "Bereiche, Portale und Desktop durchsuchen…", "Buscar en zonas, portales y escritorio…", "Pesquisar em zonas, portais e área de trabalho…", "ابحث في المناطق والبوابات وسطح المكتب…", "搜索区域、门户和桌面…", "ゾーン、ポータル、デスクトップを検索…", "영역, 포털, 바탕 화면 검색…");
+            A("search.noResults", "No results", "Aucun résultat", "Nessun risultato", "Keine Ergebnisse", "Sin resultados", "Nenhum resultado", "لا توجد نتائج", "没有结果", "結果なし", "결과 없음");
+            A("search.desktop", "Desktop", "Bureau", "Desktop", "Desktop", "Escritorio", "Área de trabalho", "سطح المكتب", "桌面", "デスクトップ", "바탕 화면");
+            A("search.results", "{0} result(s)", "{0} résultat(s)", "{0} risultato/i", "{0} Ergebnis(se)", "{0} resultado(s)", "{0} resultado(s)", "{0} نتيجة", "{0} 个结果", "{0} 件", "{0}개 결과");
             A("m.back", "Back (Alt+Left)", "Retour (Alt+←)", "Indietro (Alt+←)", "Zurück (Alt+←)", "Atrás (Alt+←)", "Voltar (Alt+←)", "رجوع (Alt+←)", "返回 (Alt+←)", "戻る (Alt+←)", "뒤로 (Alt+←)");
             A("m.fonts", "Fonts…", "Polices…", "Caratteri…", "Schriftarten…", "Fuentes…", "Fontes…", "الخطوط…", "字体…", "フォント…", "글꼴…");
             A("m.hideTitle", "Hide title", "Masquer le titre", "Nascondi titolo", "Titel ausblenden", "Ocultar título", "Ocultar título", "إخفاء العنوان", "隐藏标题", "タイトルを非表示", "제목 숨기기");
@@ -142,6 +179,38 @@ namespace DeskNest
             A("m.hoverOff", "Expand on hover: off", "Développement au survol : désactivé", "Espansione al passaggio: disattivata", "Ausklappen bei Mauskontakt: aus", "Expandir al pasar el ratón: desactivado", "Expandir ao passar o mouse: desativado", "التوسيع عند التمرير: معطّل", "悬停展开：关", "ホバーで展開：オフ", "마우스 오버 시 펼치기: 끔");
             A("m.deleteZone", "Delete zone…", "Supprimer la zone…", "Elimina zona…", "Bereich löschen…", "Eliminar zona…", "Excluir zona…", "حذف المنطقة…", "删除区域…", "ゾーンを削除…", "영역 삭제…");
             A("m.tooltip", "Zone menu", "Menu de la zone", "Menu della zona", "Bereichsmenü", "Menú de la zona", "Menu da zona", "قائمة المنطقة", "区域菜单", "ゾーンのメニュー", "영역 메뉴");
+
+            // ---------- Annuler / rétablir ----------
+            A("menu.undo", "Undo", "Annuler", "Annulla", "Rückgängig", "Deshacer", "Desfazer", "تراجع", "撤销", "元に戻す", "실행 취소");
+            A("menu.redo", "Redo", "Rétablir", "Ripeti", "Wiederholen", "Rehacer", "Refazer", "إعادة", "重做", "やり直す", "다시 실행");
+            A("undo.move", "Move zone", "Déplacement de la zone", "Spostamento zona", "Bereich verschoben", "Mover zona", "Mover zona", "نقل المنطقة", "移动区域", "ゾーンの移動", "영역 이동");
+            A("undo.resize", "Resize zone", "Redimensionnement de la zone", "Ridimensionamento zona", "Bereichsgröße geändert", "Redimensionar zona", "Redimensionar zona", "تغيير حجم المنطقة", "调整区域大小", "ゾーンのサイズ変更", "영역 크기 조정");
+            A("undo.rename", "Rename zone", "Renommage de la zone", "Rinomina zona", "Bereich umbenannt", "Renombrar zona", "Renomear zona", "إعادة تسمية المنطقة", "重命名区域", "ゾーン名の変更", "영역 이름 변경");
+            A("undo.newZone", "New zone", "Création de zone", "Nuova zona", "Neuer Bereich", "Nueva zona", "Nova zona", "منطقة جديدة", "新建区域", "新しいゾーン", "새 영역");
+            A("undo.deleteZone", "Delete zone", "Suppression de zone", "Eliminazione zona", "Bereich gelöscht", "Eliminar zona", "Excluir zona", "حذف المنطقة", "删除区域", "ゾーンの削除", "영역 삭제");
+            A("undo.addItem", "Add item", "Ajout d’un élément", "Aggiunta elemento", "Element hinzugefügt", "Añadir elemento", "Adicionar item", "إضافة عنصر", "添加项目", "項目の追加", "항목 추가");
+            A("undo.removeItem", "Remove item", "Retrait d’un élément", "Rimozione elemento", "Element entfernt", "Quitar elemento", "Remover item", "إزالة عنصر", "移除项目", "項目の削除", "항목 제거");
+            A("undo.moveItems", "Move items", "Déplacement d’éléments", "Spostamento elementi", "Elemente verschoben", "Mover elementos", "Mover itens", "نقل عناصر", "移动项目", "項目の移動", "항목 이동");
+            A("undo.zoneEdit", "Edit zone", "Modification de la zone", "Modifica zona", "Bereich bearbeitet", "Editar zona", "Editar zona", "تعديل المنطقة", "编辑区域", "ゾーンの編集", "영역 편집");
+            A("undo.applyAll", "Apply to all zones", "Application à toutes les zones", "Applica a tutte le zone", "Auf alle Bereiche anwenden", "Aplicar a todas las zonas", "Aplicar a todas as zonas", "تطبيق على كل المناطق", "应用到所有区域", "すべてのゾーンに適用", "모든 영역에 적용");
+            A("undo.color", "Change color", "Changement de couleur", "Cambio colore", "Farbe geändert", "Cambiar color", "Alterar cor", "تغيير اللون", "更改颜色", "色の変更", "색상 변경");
+            A("undo.opacity", "Change opacity", "Changement d’opacité", "Cambio opacità", "Deckkraft geändert", "Cambiar opacidad", "Alterar opacidade", "تغيير الشفافية", "更改不透明度", "不透明度の変更", "불투명도 변경");
+            A("undo.iconSize", "Change icon size", "Changement de taille des icônes", "Cambio dimensione icone", "Symbolgröße geändert", "Cambiar tamaño de iconos", "Alterar tamanho dos ícones", "تغيير حجم الأيقونات", "更改图标大小", "アイコンサイズの変更", "아이콘 크기 변경");
+            A("undo.view", "Change view", "Changement d’affichage", "Cambio visualizzazione", "Ansicht geändert", "Cambiar vista", "Alterar vista", "تغيير العرض", "更改视图", "表示の変更", "보기 변경");
+            A("undo.title", "Show / hide title", "Affichage du titre", "Mostra/nascondi titolo", "Titel ein-/ausblenden", "Mostrar u ocultar título", "Mostrar ou ocultar título", "إظهار / إخفاء العنوان", "显示/隐藏标题", "タイトルの表示/非表示", "제목 표시/숨기기");
+            A("undo.lock", "Lock / unlock zone", "Verrouillage de la zone", "Blocco/sblocco zona", "Bereich sperren/entsperren", "Bloquear o desbloquear zona", "Bloquear ou desbloquear zona", "قفل / إلغاء قفل المنطقة", "锁定/解锁区域", "ゾーンのロック/解除", "영역 잠금/해제");
+            A("undo.roll", "Roll up / expand zone", "Réduction / développement de la zone", "Riduzione/espansione zona", "Bereich ein-/ausklappen", "Contraer o expandir zona", "Recolher ou expandir zona", "طيّ / توسيع المنطقة", "折叠/展开区域", "ゾーンの折りたたみ/展開", "영역 접기/펼치기");
+            A("undo.hover", "Expand on hover", "Développement au survol", "Espansione al passaggio", "Ausklappen bei Mauskontakt", "Expandir al pasar el ratón", "Expandir ao passar o mouse", "التوسيع عند التمرير", "悬停展开", "ホバーで展開", "마우스 오버 시 펼치기");
+
+            // ---------- Mises à jour ----------
+            A("g.updates", "Automatically check for updates", "Vérifier automatiquement les mises à jour", "Controlla automaticamente gli aggiornamenti", "Automatisch nach Updates suchen", "Buscar actualizaciones automáticamente", "Verificar atualizações automaticamente", "التحقق من التحديثات تلقائيًا", "自动检查更新", "更新を自動的に確認", "자동으로 업데이트 확인");
+            A("ab.checkUpdates", "Check for updates now", "Rechercher les mises à jour maintenant", "Controlla ora gli aggiornamenti", "Jetzt nach Updates suchen", "Buscar actualizaciones ahora", "Verificar atualizações agora", "التحقق من التحديثات الآن", "立即检查更新", "今すぐ更新を確認", "지금 업데이트 확인");
+            A("tray.updates", "Check for updates…", "Rechercher les mises à jour…", "Controlla gli aggiornamenti…", "Nach Updates suchen…", "Buscar actualizaciones…", "Verificar atualizações…", "التحقق من التحديثات…", "检查更新…", "更新を確認…", "업데이트 확인…");
+            A("upd.none", "DeskNest is up to date.", "DeskNest est à jour.", "DeskNest è aggiornato.", "DeskNest ist auf dem neuesten Stand.", "DeskNest está actualizado.", "O DeskNest está atualizado.", "DeskNest محدّث بالفعل.", "DeskNest 已是最新版本。", "DeskNest は最新です。", "DeskNest가 최신 상태입니다.");
+            A("upd.available", "DeskNest {0} is available (installed version: {1}).\n\nDownload and install it now?", "DeskNest {0} est disponible (version installée : {1}).\n\nTélécharger et installer maintenant ?", "DeskNest {0} è disponibile (versione installata: {1}).\n\nScaricare e installare ora?", "DeskNest {0} ist verfügbar (installierte Version: {1}).\n\nJetzt herunterladen und installieren?", "DeskNest {0} está disponible (versión instalada: {1}).\n\n¿Descargar e instalar ahora?", "O DeskNest {0} está disponível (versão instalada: {1}).\n\nTransferir e instalar agora?", "يتوفر DeskNest {0} (الإصدار المثبّت: {1}).\n\nهل تريد التنزيل والتثبيت الآن؟", "DeskNest {0} 已发布（已安装版本：{1}）。\n\n现在下载并安装吗？", "DeskNest {0} が利用可能です（インストール済み: {1}）。\n\n今すぐダウンロードしてインストールしますか？", "DeskNest {0}을(를) 사용할 수 있습니다(설치된 버전: {1}).\n\n지금 다운로드하여 설치할까요?");
+            A("upd.failed", "Could not check for updates.\n\n{0}", "Impossible de vérifier les mises à jour.\n\n{0}", "Impossibile controllare gli aggiornamenti.\n\n{0}", "Updates konnten nicht geprüft werden.\n\n{0}", "No se pudieron buscar actualizaciones.\n\n{0}", "Não foi possível verificar atualizações.\n\n{0}", "تعذّر التحقق من التحديثات.\n\n{0}", "无法检查更新。\n\n{0}", "更新を確認できませんでした。\n\n{0}", "업데이트를 확인할 수 없습니다.\n\n{0}");
+            A("upd.invalid", "The update could not be verified (invalid or missing signature). Installation cancelled.", "La mise à jour n’a pas pu être vérifiée (signature absente ou invalide). Installation annulée.", "Impossibile verificare l'aggiornamento (firma mancante o non valida). Installazione annullata.", "Das Update konnte nicht überprüft werden (fehlende oder ungültige Signatur). Installation abgebrochen.", "No se pudo verificar la actualización (firma ausente o no válida). Instalación cancelada.", "Não foi possível verificar a atualização (assinatura ausente ou inválida). Instalação cancelada.", "تعذّر التحقق من التحديث (التوقيع مفقود أو غير صالح). تم إلغاء التثبيت.", "无法验证更新（签名缺失或无效）。安装已取消。", "更新を検証できませんでした（署名がないか無効です）。インストールを中止しました。", "업데이트를 확인할 수 없습니다(서명이 없거나 유효하지 않음). 설치를 취소했습니다.");
+            A("upd.installFail", "The update could not be installed.\n\n{0}", "Impossible d’installer la mise à jour.\n\n{0}", "Impossibile installare l'aggiornamento.\n\n{0}", "Das Update konnte nicht installiert werden.\n\n{0}", "No se pudo instalar la actualización.\n\n{0}", "Não foi possível instalar a atualização.\n\n{0}", "تعذّر تثبيت التحديث.\n\n{0}", "无法安装更新。\n\n{0}", "更新をインストールできませんでした。\n\n{0}", "업데이트를 설치할 수 없습니다.\n\n{0}");
 
             A("c.slate", "Slate", "Ardoise", "Ardesia", "Schiefer", "Pizarra", "Ardósia", "أردوازي", "石板灰", "スレート", "슬레이트");
             A("c.blue", "Blue", "Bleu", "Blu", "Blau", "Azul", "Azul", "أزرق", "蓝色", "ブルー", "파랑");
@@ -301,6 +370,7 @@ namespace DeskNest
             A("g.dblclick", "Double-click an empty area of the desktop: hide / show zones", "Double-clic sur une zone vide du bureau : masquer / afficher les zones", "Doppio clic su un'area vuota del desktop: nascondi / mostra le zone", "Doppelklick auf eine leere Desktopfläche: Bereiche aus-/einblenden", "Doble clic en un área vacía del escritorio: ocultar / mostrar zonas", "Clique duplo numa área vazia da área de trabalho: ocultar / mostrar zonas", "نقر مزدوج على منطقة فارغة من سطح المكتب: إخفاء / إظهار المناطق", "双击桌面空白处：隐藏 / 显示区域", "デスクトップの空白をダブルクリック: ゾーンの表示 / 非表示", "바탕 화면 빈 곳 더블 클릭: 영역 숨기기 / 표시");
             A("g.hideIcons", "Remove from the desktop the icons dragged into a zone", "Retirer du bureau les icônes glissées dans une zone", "Rimuovi dal desktop le icone trascinate in una zona", "Symbole, die in einen Bereich gezogen werden, vom Desktop entfernen", "Quitar del escritorio los iconos arrastrados a una zona", "Remover da área de trabalho os ícones arrastados para uma zona", "إزالة الأيقونات المسحوبة إلى منطقة من سطح المكتب", "将拖入区域的图标从桌面移除", "ゾーンにドラッグしたアイコンをデスクトップから取り除く", "영역으로 끌어온 아이콘을 바탕 화면에서 제거");
             A("g.searchBar", "Show a search bar in each zone", "Afficher une barre de recherche dans chaque zone", "Mostra una barra di ricerca in ogni zona", "Suchleiste in jedem Bereich anzeigen", "Mostrar una barra de búsqueda en cada zona", "Mostrar uma barra de pesquisa em cada zona", "إظهار شريط بحث في كل منطقة", "在每个区域中显示搜索栏", "各ゾーンに検索バーを表示", "각 영역에 검색 표시줄 표시");
+            A("g.snap", "Snap zones to screen edges and to each other while moving", "Aimantation des zones aux bords de l’écran et entre elles pendant le déplacement", "Aggancia le zone ai bordi dello schermo e tra loro durante lo spostamento", "Bereiche beim Verschieben am Bildschirmrand und aneinander ausrichten", "Ajustar las zonas a los bordes de la pantalla y entre ellas al moverlas", "Encaixar as zonas nas bordas do ecrã e entre si ao mover", "محاذاة المناطق إلى حواف الشاشة وإلى بعضها أثناء النقل", "移动时将区域吸附到屏幕边缘和彼此之间", "移動時にゾーンを画面端や他のゾーンに吸着", "이동할 때 영역을 화면 가장자리와 서로 맞춤");
             A("g.method", "Method used to remove icons from the desktop", "Méthode pour faire disparaître les icônes du bureau", "Metodo per rimuovere le icone dal desktop", "Methode zum Entfernen der Symbole vom Desktop", "Método para quitar los iconos del escritorio", "Método para remover os ícones da área de trabalho", "طريقة إزالة الأيقونات من سطح المكتب", "从桌面移除图标的方式", "デスクトップからアイコンを取り除く方法", "바탕 화면에서 아이콘을 제거하는 방법");
             A("g.modeMove", "Move the item into a folder managed by DeskNest (recommended)", "Déplacer l'élément dans un dossier géré par DeskNest (recommandé)", "Sposta l'elemento in una cartella gestita da DeskNest (consigliato)", "Element in einen von DeskNest verwalteten Ordner verschieben (empfohlen)", "Mover el elemento a una carpeta gestionada por DeskNest (recomendado)", "Mover o item para uma pasta gerenciada pelo DeskNest (recomendado)", "نقل العنصر إلى مجلد يديره DeskNest (موصى به)", "将项目移到 DeskNest 管理的文件夹（推荐）", "項目を DeskNest が管理するフォルダーに移動（推奨）", "항목을 DeskNest가 관리하는 폴더로 이동(권장)");
             A("g.modeHide", "Only hide it on the desktop (hidden + system attributes)", "Seulement le cacher sur le bureau (attribut caché + système)", "Nascondilo soltanto sul desktop (attributi nascosto + sistema)", "Nur auf dem Desktop ausblenden (Attribute versteckt + System)", "Solo ocultarlo en el escritorio (atributos oculto + sistema)", "Apenas ocultá-lo na área de trabalho (atributos oculto + sistema)", "إخفاؤه فقط على سطح المكتب (سمتا مخفي + نظام)", "仅在桌面上隐藏（隐藏 + 系统属性）", "デスクトップ上で非表示にするだけ（隠し + システム属性）", "바탕 화면에서 숨기기만 함(숨김 + 시스템 특성)");
@@ -392,5 +462,440 @@ namespace DeskNest
             A("ab.text", "Organize your desktop with zones for shortcuts, files and folders.", "Organisez votre bureau avec des zones pour regrouper raccourcis, fichiers et dossiers.", "Organizza il desktop con zone per raccogliere collegamenti, file e cartelle.", "Organisieren Sie Ihren Desktop mit Bereichen für Verknüpfungen, Dateien und Ordner.", "Organiza tu escritorio con zonas para agrupar accesos directos, archivos y carpetas.", "Organize sua área de trabalho com zonas para agrupar atalhos, arquivos e pastas.", "نظّم سطح المكتب باستخدام مناطق لتجميع الاختصارات والملفات والمجلدات.", "使用桌面区域整理快捷方式、文件和文件夹。", "デスクトップ上のゾーンでショートカット、ファイル、フォルダーを整理するアプリです。", "바탕 화면의 영역으로 바로 가기, 파일, 폴더를 정리하는 앱입니다.");
             A("ab.license", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (non-commercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (non commercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (non commerciale).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (nicht kommerziell).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (no comercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (não comercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (غير تجاري).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0（非商业性）。", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0（非営利）。", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0(비상업적).");
         }
+
+        // ---------- Russe et ukrainien ----------
+        // Dictionnaires séparés : les 156 entrées existantes gardent leurs 10 colonnes.
+        // Une clé absente retombe sur l'anglais (Table[key][0]).
+        private static readonly Dictionary<string, string> Ru = new()
+        {
+            ["tray.settings"] = "Параметры…",
+            ["tray.newZone"] = "Новая зона",
+            ["tray.newPortal"] = "Новый Folder Portal…",
+            ["tray.newFromTemplate"] = "Новая зона из шаблона",
+            ["tpl.none"] = "Нет шаблонов",
+            ["tpl.delete"] = "Удалить шаблон",
+            ["tpl.deleteConfirm"] = "Удалить шаблон «{0}»?",
+            ["tray.templates"] = "Шаблоны…",
+            ["tab.templates"] = "Шаблоны",
+            ["m.applyTemplate"] = "Применить шаблон",
+            ["tpl.applyTitle"] = "Применить шаблон к зоне",
+            ["tpl.applyHint"] = "Выберите шаблон и зону для обновления. Элементы сохраняются.",
+            ["tpl.targetZone"] = "Зона для обновления",
+            ["tpl.apply"] = "Применить к зоне",
+            ["tpl.saveTitle"] = "Сохранить зону как шаблон",
+            ["tpl.saveHint"] = "Шаблон сохраняет оформление и размер, а не элементы.",
+            ["tpl.sourceZone"] = "Исходная зона",
+            ["tpl.newZone"] = "Новая зона из шаблона",
+            ["tpl.info"] = "{0} × {1} · {2} · {3}",
+            ["undo.applyTemplate"] = "Применение шаблона",
+            ["tray.toggle"] = "Скрыть / показать зоны (Ctrl+Alt+F)",
+            ["tray.snap"] = "Привязка и направляющие выравнивания",
+            ["tray.distribute"] = "Разложить зоны по сетке",
+            ["tray.autostart"] = "Запускать вместе с Windows",
+            ["tray.restoreIcons"] = "Вернуть все значки на рабочий стол",
+            ["tray.openConfig"] = "Открыть папку конфигурации",
+            ["tray.quit"] = "Выход",
+            ["tray.restoreConfirm"] = "Все значки, которые DeskNest убрал с рабочего стола, будут возвращены туда (они также останутся в своих зонах).\n\nПродолжить?",
+            ["m.renameZone"] = "Переименовать зону",
+            ["m.duplicateZone"] = "Дублировать зону",
+            ["m.saveTemplate"] = "Сохранить как шаблон…",
+            ["zone.copyName"] = "{0} (копия)",
+            ["m.selectAll"] = "Выделить все",
+            ["paste"] = "Вставить",
+            ["m.linkFolder"] = "Связать с папкой (Folder Portal)…",
+            ["m.changeFolder"] = "Сменить папку…",
+            ["m.openFolder"] = "Открыть папку в Проводнике",
+            ["m.detach"] = "Отвязать от папки",
+            ["m.color"] = "Цвет",
+            ["m.opacity"] = "Прозрачность",
+            ["m.iconSize"] = "Размер значков",
+            ["m.small"] = "Маленькие",
+            ["m.medium"] = "Средние",
+            ["m.large"] = "Большие",
+            ["m.view"] = "Вид",
+            ["view.grid"] = "Сетка",
+            ["view.list"] = "Список",
+            ["search.hint"] = "Поиск элементов…",
+            ["search.clear"] = "Очистить поиск",
+            ["tray.search"] = "Искать везде… (Ctrl+Shift+Пробел)",
+            ["search.everywhere"] = "Поиск по зонам, порталам и рабочему столу…",
+            ["search.noResults"] = "Ничего не найдено",
+            ["search.desktop"] = "Рабочий стол",
+            ["search.results"] = "{0} результ.",
+            ["m.back"] = "Назад (Alt+←)",
+            ["m.fonts"] = "Шрифты…",
+            ["m.hideTitle"] = "Скрыть заголовок",
+            ["m.showTitle"] = "Показать заголовок",
+            ["m.rollUp"] = "Свернуть",
+            ["m.expand"] = "Развернуть",
+            ["m.keepExpanded"] = "Оставить развёрнутой",
+            ["m.lock"] = "Закрепить",
+            ["m.unlock"] = "Открепить",
+            ["m.hoverOn"] = "Разворачивать при наведении: вкл.",
+            ["m.hoverOff"] = "Разворачивать при наведении: выкл.",
+            ["m.deleteZone"] = "Удалить зону…",
+            ["m.tooltip"] = "Меню зоны",
+            ["c.slate"] = "Грифельный",
+            ["c.blue"] = "Синий",
+            ["c.green"] = "Зелёный",
+            ["c.purple"] = "Фиолетовый",
+            ["c.red"] = "Красный",
+            ["c.gray"] = "Серый",
+            ["c.black"] = "Чёрный",
+            ["c.brown"] = "Коричневый",
+            ["c.teal"] = "Бирюзовый",
+            ["i.open"] = "Открыть",
+            ["i.openN"] = "Открыть ({0} эл.)",
+            ["i.openWith"] = "Открыть с помощью…",
+            ["i.location"] = "Открыть расположение файла",
+            ["i.cut"] = "Вырезать",
+            ["i.copy"] = "Копировать",
+            ["i.copyPath"] = "Копировать как путь",
+            ["i.rename"] = "Переименовать",
+            ["i.delete"] = "Удалить",
+            ["i.deleteN"] = "Удалить ({0} эл.)",
+            ["i.remove"] = "Убрать из зоны",
+            ["i.removeN"] = "Убрать из зоны ({0} эл.)",
+            ["i.properties"] = "Свойства",
+            ["msg.unexpected"] = "Произошла непредвиденная ошибка. Подробности записаны в журнал диагностики.\n\n{0}",
+            ["msg.hotkeyFailed"] = "Сочетание Ctrl+Alt+F уже используется другой программой. Переключение зон с клавиатуры работать не будет.",
+            ["msg.layoutRestored"] = "Файл конфигурации не удалось прочитать. Восстановлена последняя резервная копия: {0}",
+            ["msg.layoutLost"] = "Файл конфигурации не удалось прочитать, и действительная резервная копия не найдена. Запущена новая пустая раскладка; повреждённый файл сохранён в папке конфигурации.",
+            ["msg.cannotOpen"] = "Не удалось открыть:\n{0}\n\n{1}",
+            ["msg.delete1"] = "Переместить «{0}» в Корзину?",
+            ["msg.deleteN"] = "Переместить эти элементы ({0}) в Корзину?",
+            ["msg.deleteFailed"] = "Не удалось удалить «{0}»: {1}",
+            ["msg.renameInvalid"] = "Имя файла не может содержать следующие символы:\n\\ / : * ? \" < > |",
+            ["msg.renameExists"] = "Элемент с таким именем уже существует.",
+            ["msg.renameFailed"] = "Не удалось переименовать: {0}",
+            ["msg.portalReplace"] = "Текущие элементы этой зоны будут убраны (файлы не удаляются; те, что с рабочего стола, вернутся туда).\n\nПродолжить?",
+            ["msg.deleteZone"] = "Удалить зону «{0}»?\n\nФайлы, на которые она ссылается, не удаляются (те, что с рабочего стола, вернутся туда).",
+            ["msg.folderNotFound"] = "Папка назначения не найдена.",
+            ["msg.folderIntoItself"] = "Папку нельзя переместить в неё саму.",
+            ["msg.opFailed"] = "Не удалось выполнить операцию с «{0}»: {1}",
+            ["msg.publicDesktop"] = "«{0}» находится на общедоступном рабочем столе (общем для всех пользователей). Для удаления с рабочего стола Windows требуются права администратора.\n\nРазрешить?",
+            ["msg.publicDesktopBack"] = "Этот элемент нужно вернуть на общедоступный рабочий стол: Windows требуются права администратора.\n\nРазрешить?",
+            ["msg.cannotRemove"] = "Не удалось убрать «{0}» с рабочего стола (недостаточно прав или элемент используется). Он остаётся видимым на рабочем столе, но добавлен в зону.",
+            ["msg.protectedWarn"] = "В Windows включён показ защищённых системных файлов: скрытые значки останутся видимыми (полупрозрачными) на рабочем столе.\n\nЧтобы скрыть их полностью: Проводник > Параметры папок > Вид > установите «Скрывать защищённые системные файлы». Режим «Перемещение» позволяет обойти эту настройку.",
+            ["msg.cannotRestore"] = "Не удалось вернуть элемент на рабочий стол. Он остаётся в:\n{0}",
+            ["hint.moveInto"] = "Переместить в «{0}»",
+            ["hint.copyInto"] = "Скопировать в «{0}»",
+            ["hint.parent"] = "родительская папка",
+            ["portal.page"] = "{0} / {1}",
+            ["dlg.chooseFolder"] = "Выберите папку для отображения в этой зоне",
+            ["dlg.ok"] = "ОК",
+            ["dlg.cancel"] = "Отмена",
+            ["zone.default"] = "Зона {0}",
+            ["z.hidden"] = "(скрыта)",
+            ["zone.apps"] = "Приложения",
+            ["s.title"] = "DeskNest — Параметры",
+            ["tab.general"] = "Общие",
+            ["tab.zones"] = "Зоны",
+            ["tab.behavior"] = "Поведение",
+            ["tab.appearance"] = "Оформление",
+            ["tab.backups"] = "Резервные копии",
+            ["tab.about"] = "О программе",
+            ["s.close"] = "Закрыть",
+            ["s.typography"] = "Типографика",
+            ["s.colorPick"] = "Выбрать цвет…",
+            ["s.zone"] = "Зона",
+            ["g.enabled"] = "Включить DeskNest (показывать зоны на рабочем столе)",
+            ["g.autostart"] = "Запускать DeskNest вместе с Windows",
+            ["g.hotkey"] = "Сочетание клавиш Ctrl + Alt + F: скрыть / показать зоны",
+            ["g.dblclick"] = "Двойной щелчок по пустой области рабочего стола: скрыть / показать зоны",
+            ["g.hideIcons"] = "Убирать с рабочего стола значки, перетащенные в зону",
+            ["g.searchBar"] = "Показывать строку поиска в каждой зоне",
+            ["g.snap"] = "Привязывать зоны к краям экрана и друг к другу при перемещении",
+            ["g.method"] = "Способ удаления значков с рабочего стола",
+            ["g.modeMove"] = "Перемещать элемент в папку, управляемую DeskNest (рекомендуется)",
+            ["g.modeHide"] = "Только скрывать на рабочем столе (атрибуты «скрытый» + «системный»)",
+            ["g.hint"] = "Режим «Перемещение»: элемент хранится в папке «DeskNest\\Items» вашего профиля и возвращается на прежнее место при удалении из зоны или удалении зоны. Для значков общедоступного рабочего стола Windows запрашивает права администратора. Ничего не удаляется безвозвратно.",
+            ["g.restoreResult"] = "{0} значк(ов) возвращено на рабочий стол.",
+            ["g.language"] = "Язык",
+            ["z.visible"] = "Зона видима",
+            ["z.name"] = "Название",
+            ["z.view"] = "Отображение элементов",
+            ["z.hex"] = "или код цвета (например, #1E1E2E)",
+            ["z.opacity"] = "Прозрачность: {0} %",
+            ["z.titleFont"] = "Шрифт заголовка",
+            ["z.itemFont"] = "Шрифт названий значков",
+            ["z.titleFontSize"] = "Размер шрифта заголовка",
+            ["z.itemFontSize"] = "Размер шрифта названий значков",
+            ["z.defaultFont"] = "(Шрифт по умолчанию)",
+            ["z.locked"] = "Закреплена (положение и размер)",
+            ["z.rolled"] = "Свёрнута",
+            ["z.hover"] = "Разворачивать при наведении (если включена общая опция)",
+            ["z.applyAll"] = "Применить оформление (цвет, прозрачность, значки, шрифты) ко всем зонам",
+            ["z.infoClassic"] = "Классическая зона: {0} эл.",
+            ["z.infoPortal"] = "Folder Portal: {0}",
+            ["b.hover"] = "Разворачивать свёрнутую зону при наведении мыши и сворачивать её, когда мышь уходит",
+            ["b.expandDelay"] = "Задержка перед разворачиванием: {0} мс",
+            ["b.collapseDelay"] = "Задержка перед сворачиванием: {0} мс",
+            ["b.animate"] = "Анимировать сворачивание и разворачивание зон",
+            ["b.animMs"] = "Длительность анимации: {0} мс",
+            ["b.hint"] = "Сначала зону нужно свернуть (двойной щелчок по пустой части заголовка или правый клик > Свернуть). Двойной щелчок по заголовку зоны, развёрнутой при наведении, оставляет её развёрнутой. Опцию можно отключить для каждой зоны отдельно (вкладка «Зоны» или правый клик).",
+            ["a.defaults"] = "Значения по умолчанию для новых зон",
+            ["a.apply"] = "Применить эти значения ко всем существующим зонам",
+            ["a.common"] = "Стиль, общий для всех зон",
+            ["a.radius"] = "Радиус скругления: {0} px",
+            ["a.border"] = "Показывать границы зон",
+            ["k.hint"] = "Раскладка сохраняется автоматически (одна резервная копия в день, хранится 14). Снимок фиксирует раскладку, чтобы вернуться к ней позже.",
+            ["k.snapshot"] = "Создать снимок сейчас",
+            ["k.restore"] = "Восстановить снимок…",
+            ["k.path"] = "Папка конфигурации: {0}",
+            ["k.snapshotOk"] = "Снимок создан:\n{0}",
+            ["k.snapshotFail"] = "Не удалось создать снимок.",
+            ["k.restoreTitle"] = "Выберите снимок для восстановления",
+            ["k.restoreConfirm"] = "Текущая раскладка будет заменена (сначала создаётся страховочный снимок).\n\nПродолжить?",
+            ["k.restoreInvalid"] = "Этот файл не является действительным снимком.",
+            ["k.filter"] = "Раскладки (*.json)|*.json",
+            ["menu.undo"] = "Отменить",
+            ["menu.redo"] = "Повторить",
+            ["undo.move"] = "Перемещение зоны",
+            ["undo.resize"] = "Изменение размера зоны",
+            ["undo.rename"] = "Переименование зоны",
+            ["undo.newZone"] = "Создание зоны",
+            ["undo.deleteZone"] = "Удаление зоны",
+            ["undo.addItem"] = "Добавление элемента",
+            ["undo.removeItem"] = "Удаление элемента",
+            ["undo.moveItems"] = "Перемещение элементов",
+            ["undo.zoneEdit"] = "Изменение зоны",
+            ["undo.applyAll"] = "Применение ко всем зонам",
+            ["undo.color"] = "Изменение цвета",
+            ["undo.opacity"] = "Изменение прозрачности",
+            ["undo.iconSize"] = "Изменение размера значков",
+            ["undo.view"] = "Изменение вида",
+            ["undo.title"] = "Показ / скрытие заголовка",
+            ["undo.lock"] = "Блокировка / разблокировка зоны",
+            ["undo.roll"] = "Сворачивание / разворачивание зоны",
+            ["undo.hover"] = "Разворачивание при наведении",
+            ["g.updates"] = "Автоматически проверять обновления",
+            ["ab.checkUpdates"] = "Проверить обновления сейчас",
+            ["tray.updates"] = "Проверить обновления…",
+            ["upd.none"] = "Установлена последняя версия DeskNest.",
+            ["upd.available"] = "Доступна версия DeskNest {0} (установлена: {1}).\n\nСкачать и установить сейчас?",
+            ["upd.failed"] = "Не удалось проверить обновления.\n\n{0}",
+            ["upd.invalid"] = "Не удалось проверить обновление (подпись отсутствует или недействительна). Установка отменена.",
+            ["upd.installFail"] = "Не удалось установить обновление.\n\n{0}",
+            ["ab.version"] = "Версия {0}",
+            ["ab.text"] = "Упорядочивайте рабочий стол с помощью зон для ярлыков, файлов и папок.",
+            ["ab.license"] = "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (некоммерческая лицензия)."
+        };
+
+        private static readonly Dictionary<string, string> Uk = new()
+        {
+            ["tray.settings"] = "Параметри…",
+            ["tray.newZone"] = "Нова зона",
+            ["tray.newPortal"] = "Новий Folder Portal…",
+            ["tray.newFromTemplate"] = "Нова зона зі шаблону",
+            ["tpl.none"] = "Немає шаблонів",
+            ["tpl.delete"] = "Видалити шаблон",
+            ["tpl.deleteConfirm"] = "Видалити шаблон «{0}»?",
+            ["tray.templates"] = "Шаблони…",
+            ["tab.templates"] = "Шаблони",
+            ["m.applyTemplate"] = "Застосувати шаблон",
+            ["tpl.applyTitle"] = "Застосувати шаблон до зони",
+            ["tpl.applyHint"] = "Виберіть шаблон і зону для оновлення. Елементи зберігаються.",
+            ["tpl.targetZone"] = "Зона для оновлення",
+            ["tpl.apply"] = "Застосувати до зони",
+            ["tpl.saveTitle"] = "Зберегти зону як шаблон",
+            ["tpl.saveHint"] = "Шаблон зберігає оформлення та розмір, а не елементи.",
+            ["tpl.sourceZone"] = "Вихідна зона",
+            ["tpl.newZone"] = "Нова зона зі шаблону",
+            ["tpl.info"] = "{0} × {1} · {2} · {3}",
+            ["undo.applyTemplate"] = "Застосування шаблону",
+            ["tray.toggle"] = "Приховати / показати зони (Ctrl+Alt+F)",
+            ["tray.snap"] = "Прив'язка та напрямні вирівнювання",
+            ["tray.distribute"] = "Розкласти зони за сіткою",
+            ["tray.autostart"] = "Запускати разом із Windows",
+            ["tray.restoreIcons"] = "Повернути всі значки на робочий стіл",
+            ["tray.openConfig"] = "Відкрити папку конфігурації",
+            ["tray.quit"] = "Вихід",
+            ["tray.restoreConfirm"] = "Усі значки, які DeskNest прибрав із робочого стола, буде повернено туди (вони також залишаться у своїх зонах).\n\nПродовжити?",
+            ["m.renameZone"] = "Перейменувати зону",
+            ["m.duplicateZone"] = "Дублювати зону",
+            ["m.saveTemplate"] = "Зберегти як шаблон…",
+            ["zone.copyName"] = "{0} (копія)",
+            ["m.selectAll"] = "Виділити все",
+            ["paste"] = "Вставити",
+            ["m.linkFolder"] = "Зв'язати з папкою (Folder Portal)…",
+            ["m.changeFolder"] = "Змінити папку…",
+            ["m.openFolder"] = "Відкрити папку в Провіднику",
+            ["m.detach"] = "Від'єднати від папки",
+            ["m.color"] = "Колір",
+            ["m.opacity"] = "Прозорість",
+            ["m.iconSize"] = "Розмір значків",
+            ["m.small"] = "Малі",
+            ["m.medium"] = "Середні",
+            ["m.large"] = "Великі",
+            ["m.view"] = "Вигляд",
+            ["view.grid"] = "Сітка",
+            ["view.list"] = "Список",
+            ["search.hint"] = "Пошук елементів…",
+            ["search.clear"] = "Очистити пошук",
+            ["tray.search"] = "Шукати всюди… (Ctrl+Shift+Пробіл)",
+            ["search.everywhere"] = "Пошук у зонах, порталах і на робочому столі…",
+            ["search.noResults"] = "Нічого не знайдено",
+            ["search.desktop"] = "Робочий стіл",
+            ["search.results"] = "{0} результат(ів)",
+            ["m.back"] = "Назад (Alt+←)",
+            ["m.fonts"] = "Шрифти…",
+            ["m.hideTitle"] = "Приховати заголовок",
+            ["m.showTitle"] = "Показати заголовок",
+            ["m.rollUp"] = "Згорнути",
+            ["m.expand"] = "Розгорнути",
+            ["m.keepExpanded"] = "Залишити розгорнутою",
+            ["m.lock"] = "Закріпити",
+            ["m.unlock"] = "Відкріпити",
+            ["m.hoverOn"] = "Розгортати при наведенні: увімк.",
+            ["m.hoverOff"] = "Розгортати при наведенні: вимк.",
+            ["m.deleteZone"] = "Видалити зону…",
+            ["m.tooltip"] = "Меню зони",
+            ["c.slate"] = "Грифельний",
+            ["c.blue"] = "Синій",
+            ["c.green"] = "Зелений",
+            ["c.purple"] = "Фіолетовий",
+            ["c.red"] = "Червоний",
+            ["c.gray"] = "Сірий",
+            ["c.black"] = "Чорний",
+            ["c.brown"] = "Коричневий",
+            ["c.teal"] = "Бірюзовий",
+            ["i.open"] = "Відкрити",
+            ["i.openN"] = "Відкрити ({0} ел.)",
+            ["i.openWith"] = "Відкрити за допомогою…",
+            ["i.location"] = "Відкрити розташування файлу",
+            ["i.cut"] = "Вирізати",
+            ["i.copy"] = "Копіювати",
+            ["i.copyPath"] = "Копіювати як шлях",
+            ["i.rename"] = "Перейменувати",
+            ["i.delete"] = "Видалити",
+            ["i.deleteN"] = "Видалити ({0} ел.)",
+            ["i.remove"] = "Прибрати із зони",
+            ["i.removeN"] = "Прибрати із зони ({0} ел.)",
+            ["i.properties"] = "Властивості",
+            ["msg.unexpected"] = "Сталася непередбачена помилка. Подробиці записано в журнал діагностики.\n\n{0}",
+            ["msg.hotkeyFailed"] = "Сполучення Ctrl+Alt+F уже використовує інша програма. Перемикання зон із клавіатури не працюватиме.",
+            ["msg.layoutRestored"] = "Файл конфігурації не вдалося прочитати. Відновлено останню резервну копію: {0}",
+            ["msg.layoutLost"] = "Файл конфігурації не вдалося прочитати, і чинної резервної копії не знайдено. Запущено нове порожнє компонування; пошкоджений файл збережено в папці конфігурації.",
+            ["msg.cannotOpen"] = "Не вдалося відкрити:\n{0}\n\n{1}",
+            ["msg.delete1"] = "Перемістити «{0}» до Кошика?",
+            ["msg.deleteN"] = "Перемістити ці елементи ({0}) до Кошика?",
+            ["msg.deleteFailed"] = "Не вдалося видалити «{0}»: {1}",
+            ["msg.renameInvalid"] = "Ім'я файлу не може містити такі символи:\n\\ / : * ? \" < > |",
+            ["msg.renameExists"] = "Елемент із таким ім'ям уже існує.",
+            ["msg.renameFailed"] = "Не вдалося перейменувати: {0}",
+            ["msg.portalReplace"] = "Поточні елементи цієї зони буде прибрано (файли не видаляються; ті, що з робочого стола, повернуться туди).\n\nПродовжити?",
+            ["msg.deleteZone"] = "Видалити зону «{0}»?\n\nФайли, на які вона посилається, не видаляються (ті, що з робочого стола, повернуться туди).",
+            ["msg.folderNotFound"] = "Папку призначення не знайдено.",
+            ["msg.folderIntoItself"] = "Папку не можна перемістити в неї саму.",
+            ["msg.opFailed"] = "Не вдалося виконати операцію з «{0}»: {1}",
+            ["msg.publicDesktop"] = "«{0}» розташовано на спільному робочому столі (доступному всім користувачам). Щоб прибрати його з робочого стола, Windows потрібні права адміністратора.\n\nДозволити?",
+            ["msg.publicDesktopBack"] = "Цей елемент потрібно повернути на спільний робочий стіл: Windows потрібні права адміністратора.\n\nДозволити?",
+            ["msg.cannotRemove"] = "Не вдалося прибрати «{0}» з робочого стола (недостатньо прав або елемент використовується). Він залишається видимим на робочому столі, але доданий до зони.",
+            ["msg.protectedWarn"] = "У Windows увімкнено показ захищених системних файлів: приховані значки залишаться видимими (напівпрозорими) на робочому столі.\n\nЩоб приховати їх повністю: Провідник > Параметри папок > Вигляд > позначте «Приховувати захищені системні файли». Режим «Переміщення» дає змогу обійти це налаштування.",
+            ["msg.cannotRestore"] = "Не вдалося повернути елемент на робочий стіл. Він залишається в:\n{0}",
+            ["hint.moveInto"] = "Перемістити до «{0}»",
+            ["hint.copyInto"] = "Скопіювати до «{0}»",
+            ["hint.parent"] = "батьківська папка",
+            ["portal.page"] = "{0} / {1}",
+            ["dlg.chooseFolder"] = "Виберіть папку для відображення в цій зоні",
+            ["dlg.ok"] = "OK",
+            ["dlg.cancel"] = "Скасувати",
+            ["zone.default"] = "Зона {0}",
+            ["z.hidden"] = "(прихована)",
+            ["zone.apps"] = "Програми",
+            ["s.title"] = "DeskNest — Параметри",
+            ["tab.general"] = "Загальні",
+            ["tab.zones"] = "Зони",
+            ["tab.behavior"] = "Поведінка",
+            ["tab.appearance"] = "Оформлення",
+            ["tab.backups"] = "Резервні копії",
+            ["tab.about"] = "Про програму",
+            ["s.close"] = "Закрити",
+            ["s.typography"] = "Типографіка",
+            ["s.colorPick"] = "Вибрати колір…",
+            ["s.zone"] = "Зона",
+            ["g.enabled"] = "Увімкнути DeskNest (показувати зони на робочому столі)",
+            ["g.autostart"] = "Запускати DeskNest разом із Windows",
+            ["g.hotkey"] = "Сполучення клавіш Ctrl + Alt + F: приховати / показати зони",
+            ["g.dblclick"] = "Подвійний клац по порожній області робочого стола: приховати / показати зони",
+            ["g.hideIcons"] = "Прибирати з робочого стола значки, перетягнуті до зони",
+            ["g.searchBar"] = "Показувати рядок пошуку в кожній зоні",
+            ["g.snap"] = "Прив'язувати зони до країв екрана та одна до одної під час переміщення",
+            ["g.method"] = "Спосіб прибирання значків із робочого стола",
+            ["g.modeMove"] = "Переміщувати елемент до папки, якою керує DeskNest (рекомендовано)",
+            ["g.modeHide"] = "Лише приховувати на робочому столі (атрибути «прихований» + «системний»)",
+            ["g.hint"] = "Режим «Переміщення»: елемент зберігається в папці «DeskNest\\Items» вашого профілю та повертається на початкове місце, коли ви прибираєте його із зони або видаляєте зону. Для значків спільного робочого стола Windows запитує права адміністратора. Нічого не видаляється назавжди.",
+            ["g.restoreResult"] = "{0} значк(ів) повернено на робочий стіл.",
+            ["g.language"] = "Мова",
+            ["z.visible"] = "Зона видима",
+            ["z.name"] = "Назва",
+            ["z.view"] = "Відображення елементів",
+            ["z.hex"] = "або код кольору (наприклад, #1E1E2E)",
+            ["z.opacity"] = "Прозорість: {0} %",
+            ["z.titleFont"] = "Шрифт заголовка",
+            ["z.itemFont"] = "Шрифт назв значків",
+            ["z.titleFontSize"] = "Розмір шрифту заголовка",
+            ["z.itemFontSize"] = "Розмір шрифту назв значків",
+            ["z.defaultFont"] = "(Шрифт за замовчуванням)",
+            ["z.locked"] = "Закріплена (положення та розмір)",
+            ["z.rolled"] = "Згорнута",
+            ["z.hover"] = "Розгортати при наведенні (якщо увімкнено загальну опцію)",
+            ["z.applyAll"] = "Застосувати оформлення (колір, прозорість, значки, шрифти) до всіх зон",
+            ["z.infoClassic"] = "Класична зона: {0} ел.",
+            ["z.infoPortal"] = "Folder Portal: {0}",
+            ["b.hover"] = "Розгортати згорнуту зону, коли курсор миші над нею, і згортати її, коли курсор іде",
+            ["b.expandDelay"] = "Затримка перед розгортанням: {0} мс",
+            ["b.collapseDelay"] = "Затримка перед згортанням: {0} мс",
+            ["b.animate"] = "Анімувати згортання та розгортання зон",
+            ["b.animMs"] = "Тривалість анімації: {0} мс",
+            ["b.hint"] = "Спочатку зону потрібно згорнути (подвійний клац по порожній частині заголовка або клац правою кнопкою > Згорнути). Подвійний клац по заголовку зони, розгорнутої при наведенні, залишає її розгорнутою. Опцію можна вимкнути для кожної зони окремо (вкладка «Зони» або клац правою кнопкою).",
+            ["a.defaults"] = "Значення за замовчуванням для нових зон",
+            ["a.apply"] = "Застосувати ці значення до всіх наявних зон",
+            ["a.common"] = "Стиль, спільний для всіх зон",
+            ["a.radius"] = "Радіус заокруглення: {0} px",
+            ["a.border"] = "Показувати межі зон",
+            ["k.hint"] = "Компонування зберігається автоматично (одна резервна копія на день, зберігається 14). Знімок фіксує компонування, щоб повернутися до нього пізніше.",
+            ["k.snapshot"] = "Створити знімок зараз",
+            ["k.restore"] = "Відновити знімок…",
+            ["k.path"] = "Папка конфігурації: {0}",
+            ["k.snapshotOk"] = "Знімок створено:\n{0}",
+            ["k.snapshotFail"] = "Не вдалося створити знімок.",
+            ["k.restoreTitle"] = "Виберіть знімок для відновлення",
+            ["k.restoreConfirm"] = "Поточне компонування буде замінено (спочатку створюється страхувальний знімок).\n\nПродовжити?",
+            ["k.restoreInvalid"] = "Цей файл не є чинним знімком.",
+            ["k.filter"] = "Компонування (*.json)|*.json",
+            ["menu.undo"] = "Скасувати",
+            ["menu.redo"] = "Повторити",
+            ["undo.move"] = "Переміщення зони",
+            ["undo.resize"] = "Зміна розміру зони",
+            ["undo.rename"] = "Перейменування зони",
+            ["undo.newZone"] = "Створення зони",
+            ["undo.deleteZone"] = "Видалення зони",
+            ["undo.addItem"] = "Додавання елемента",
+            ["undo.removeItem"] = "Видалення елемента",
+            ["undo.moveItems"] = "Переміщення елементів",
+            ["undo.zoneEdit"] = "Зміна зони",
+            ["undo.applyAll"] = "Застосування до всіх зон",
+            ["undo.color"] = "Зміна кольору",
+            ["undo.opacity"] = "Зміна прозорості",
+            ["undo.iconSize"] = "Зміна розміру значків",
+            ["undo.view"] = "Зміна вигляду",
+            ["undo.title"] = "Показ / приховування заголовка",
+            ["undo.lock"] = "Блокування / розблокування зони",
+            ["undo.roll"] = "Згортання / розгортання зони",
+            ["undo.hover"] = "Розгортання при наведенні",
+            ["g.updates"] = "Автоматично перевіряти оновлення",
+            ["ab.checkUpdates"] = "Перевірити оновлення зараз",
+            ["tray.updates"] = "Перевірити оновлення…",
+            ["upd.none"] = "Встановлено останню версію DeskNest.",
+            ["upd.available"] = "Доступна версія DeskNest {0} (встановлено: {1}).\n\nЗавантажити й установити зараз?",
+            ["upd.failed"] = "Не вдалося перевірити оновлення.\n\n{0}",
+            ["upd.invalid"] = "Не вдалося перевірити оновлення (підпис відсутній або недійсний). Установлення скасовано.",
+            ["upd.installFail"] = "Не вдалося встановити оновлення.\n\n{0}",
+            ["ab.version"] = "Версія {0}",
+            ["ab.text"] = "Упорядковуйте робочий стіл за допомогою зон для ярликів, файлів і папок.",
+            ["ab.license"] = "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (некомерційна ліцензія)."
+        };
     }
 }

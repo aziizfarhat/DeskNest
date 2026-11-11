@@ -99,6 +99,7 @@ namespace DeskNest
             _manager.Start();
 
             _tray = new TrayIcon(_manager);
+            _manager.ScheduleUpdateCheck();
 
             // Demarrage du serveur de commandes.
             _commandServer = new CommandServer(Dispatcher, HandleCommand);

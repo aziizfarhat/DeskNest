@@ -96,6 +96,8 @@
                                 <CheckBox x:Name="ChkDesktopDbl" l:L.Key="g.dblclick" Click="ChkDesktopDbl_Click"/>
                                 <CheckBox x:Name="ChkHideIcons" l:L.Key="g.hideIcons" Click="ChkHideIcons_Click"/>
                                 <CheckBox x:Name="ChkSearchBar" l:L.Key="g.searchBar" Click="ChkSearchBar_Click"/>
+                                <CheckBox x:Name="ChkSnap" l:L.Key="g.snap" Click="ChkSnap_Click"/>
+                                <CheckBox x:Name="ChkUpdates" l:L.Key="g.updates" Click="ChkUpdates_Click"/>
                             </StackPanel>
                         </Border>
 
@@ -316,6 +318,60 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ===== Modèles ===== -->
+            <TabItem x:Name="TemplatesTab" l:L.Key="tab.templates">
+                <Grid Margin="4,12,4,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="230"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Style="{StaticResource Section}" Margin="0,0,12,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" l:L.Key="tab.templates"
+                                       Style="{StaticResource SectionTitle}"/>
+                            <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                                <Button l:L.Key="tpl.newZone" Click="TemplateNewZone_Click"/>
+                                <Button l:L.Key="tpl.delete" Click="TemplateDelete_Click"/>
+                            </StackPanel>
+                            <ListBox x:Name="TemplateList" DisplayMemberPath="Name"
+                                     BorderThickness="0" Background="Transparent"
+                                     SelectionChanged="TemplateList_SelectionChanged"/>
+                        </DockPanel>
+                    </Border>
+
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="TemplatePanel" IsEnabled="False" Margin="0,0,8,0">
+                            <Border Style="{StaticResource Section}">
+                                <StackPanel>
+                                    <TextBlock l:L.Key="tpl.applyTitle" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock l:L.Key="tpl.applyHint" Style="{StaticResource Hint}" TextWrapping="Wrap"/>
+                                    <TextBlock l:L.Key="tpl.targetZone" Style="{StaticResource Label}"/>
+                                    <ComboBox x:Name="TplTargetZone" DisplayMemberPath="Title" Margin="0,0,0,8"/>
+                                    <Button l:L.Key="tpl.apply" Click="TemplateApply_Click"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Section}">
+                                <StackPanel>
+                                    <TextBlock l:L.Key="tpl.saveTitle" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock l:L.Key="tpl.saveHint" Style="{StaticResource Hint}" TextWrapping="Wrap"/>
+                                    <TextBlock l:L.Key="tpl.sourceZone" Style="{StaticResource Label}"/>
+                                    <ComboBox x:Name="TplSourceZone" DisplayMemberPath="Title" Margin="0,0,0,8"/>
+                                    <Button l:L.Key="m.saveTemplate" Click="TemplateSave_Click"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Section}">
+                                <StackPanel>
+                                    <TextBlock x:Name="TemplateInfo" Style="{StaticResource Hint}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
             <!-- ===== Sauvegardes ===== -->
             <TabItem l:L.Key="tab.backups">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -343,6 +399,8 @@
                                 <TextBlock Text="DeskNest" FontSize="20" FontWeight="Bold"/>
                                 <TextBlock x:Name="AboutVersion" Margin="0,4,0,10"/>
                                 <TextBlock l:L.Key="ab.text" TextWrapping="Wrap"/>
+                                <Button l:L.Key="ab.checkUpdates" Margin="0,12,0,0"
+                                        HorizontalAlignment="Left" Click="CheckUpdates_Click"/>
                                 <TextBlock l:L.Key="ab.license" TextWrapping="Wrap" Margin="0,10,0,0"
                                            Foreground="#666666"/>
                             </StackPanel>

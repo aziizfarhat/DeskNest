@@ -6,7 +6,7 @@ DeskNest is a lightweight Windows desktop organizer that helps you group applica
 
 Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
 
-> **Project status:** Under active development. DeskNest is currently at version 0.7.3.0.
+> **Project status:** Under active development. DeskNest is currently at version 0.8.1.1.
 
 ## Features
 
@@ -25,6 +25,12 @@ Create independent desktop areas to organize your items by category, purpose, or
 - Search the items of a zone from an optional search bar.
 - Link zones to folders.
 - Delete zones.
+- Undo and redo layout changes with `Ctrl+Z` / `Ctrl+Y`.
+- Snap zones to each other and to the screen edges, with alignment guides.
+- Distribute zones evenly across the screen.
+- Duplicate a zone or save it as a reusable template (color, size, fonts, and view mode).
+- Apply a saved template to an existing zone from the zone menu or the Settings › Templates tab.
+- Move items between the desktop and a zone and undo the move with `Ctrl+Z`.
 
 ### Folder Portals
 
@@ -33,6 +39,10 @@ Folder Portals provide convenient access to folder contents directly from your d
 - Create Folder Portals.
 - Link zones to existing folders.
 - Keep frequently used files and folders organized and accessible.
+
+### Global Search
+
+Press `Ctrl+Shift+Space` to open the search palette and search every zone, folder portal, and the desktop at once. Selecting a result reveals the item in its zone or opens it directly. Press `Escape` to close the palette.
 
 ### Windows Integration
 
@@ -44,13 +54,15 @@ DeskNest integrates with the Windows desktop environment.
 - Single-instance application support.
 - Stays visible when using the Windows “Show desktop” command.
 - Native Windows desktop integration.
+- Automatic update checks against GitHub releases, with an optional silent installation.
+- Authenticode code-signing support for release builds, so Windows SmartScreen can verify the installer.
 
 The desktop background context menu is available while DeskNest is running and is removed when the application exits normally.
 The desktop background context menu uses DeskNest's localization system.
 
 ### Multilingual Interface
 
-DeskNest includes translations for ten languages:
+DeskNest includes translations for twelve languages:
 
 - English
 - French
@@ -62,6 +74,8 @@ DeskNest includes translations for ten languages:
 - Simplified Chinese
 - Japanese
 - Korean
+- Russian
+- Ukrainian
 
 ## Screenshots
 
@@ -138,6 +152,7 @@ The script automatically:
 3. Applies ReadyToRun compilation and removes debug symbols.
 4. Detects Inno Setup 6, if installed.
 5. Creates the Windows installer when Inno Setup is available.
+6. Signs the application and installer with `signtool` when a certificate is configured.
 
 **Generated files:**
 
@@ -147,6 +162,17 @@ The script automatically:
 | `installer/DeskNest-Setup.exe` | Windows installer (when Inno Setup 6 is available) |
 
 The target computer does not need the .NET Desktop Runtime to run the standalone release.
+
+### Code Signing
+
+Release builds can be signed with an Authenticode certificate. Set the following environment variables before running `build.bat`:
+
+| Variable | Description |
+|---|---|
+| `DESKNEST_PFX` | Path to the `.pfx` code-signing certificate |
+| `DESKNEST_PFX_PASSWORD` | Password of the certificate (optional) |
+
+When `DESKNEST_PFX` is not set, the build succeeds but remains unsigned. DeskNest only installs automatic updates whose installer has a valid Authenticode signature.
 
 ## Technology
 
@@ -172,6 +198,11 @@ Some of the main source files:
 | `NestManager.cs` | Zone management |
 | `NestWindow.xaml` | Zone interface |
 | `SettingsWindow.xaml` | Application settings |
+| `SearchPalette.xaml` | Global search palette |
+| `Undo.cs` | Undo and redo history |
+| `SnapEngine.cs` | Snapping and alignment calculations |
+| `GuideOverlay.cs` | Alignment guide overlay |
+| `UpdateChecker.cs` | GitHub release checks and installer verification |
 | `DesktopHelper.cs` | Windows desktop integration |
 | `DesktopStore.cs` | Desktop item management |
 | `DesktopWatcher.cs` | Desktop monitoring |

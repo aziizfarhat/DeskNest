@@ -107,6 +107,8 @@ namespace DeskNest
             ChkDesktopDbl.IsChecked = s.DesktopDoubleClickEnabled;
             ChkHideIcons.IsChecked = s.HideDesktopIcons;
             ChkSearchBar.IsChecked = s.ShowSearchBar;
+            ChkSnap.IsChecked = s.SnapEnabled;
+            ChkUpdates.IsChecked = s.AutoUpdate;
             CmbDesktopMode.SelectedIndex = s.DesktopMode == 1 ? 1 : 0;
 
             ChkHover.IsChecked = s.HoverExpand;
@@ -125,6 +127,7 @@ namespace DeskNest
 
             ZoneList.ItemsSource = null;
             ZoneList.ItemsSource = _m.Nests;
+            LoadTemplates();
             UpdateLabels();
             _loading = false;
             if (_m.Nests.Count > 0) ZoneList.SelectedIndex = 0;
@@ -147,6 +150,16 @@ namespace DeskNest
         private void ChkDesktopDbl_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.DesktopDoubleClickEnabled = ChkDesktopDbl.IsChecked == true; _m.SettingsChanged(); }
         private void ChkHideIcons_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.HideDesktopIcons = ChkHideIcons.IsChecked == true; _m.SettingsChanged(); }
         private void ChkSearchBar_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.ShowSearchBar = ChkSearchBar.IsChecked == true; _m.SettingsChanged(); }
+        private void ChkSnap_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.SnapEnabled = ChkSnap.IsChecked == true; _m.SettingsChanged(); }
+        private void ChkUpdates_Click(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _m.Settings.AutoUpdate = ChkUpdates.IsChecked == true;
+            _m.SettingsChanged();
+            if (_m.Settings.AutoUpdate) _m.ScheduleUpdateCheck();
+        }
+        private async void CheckUpdates_Click(object sender, RoutedEventArgs e) =>
+            await _m.CheckForUpdatesAsync(silent: false);
 
         private void CmbDesktopMode_Changed(object sender, SelectionChangedEventArgs e)
         {
@@ -378,16 +391,107 @@ namespace DeskNest
             ZoneList.ScrollIntoView(zone);
         }
 
+        // Ouvre l'onglet Modèles (menu de la zone de notification).
+        public void SelectTemplates()
+        {
+            MainTabs.SelectedItem = TemplatesTab;
+            LoadTemplates();
+        }
+
         private void ApplyAll_Click(object sender, RoutedEventArgs e)
         {
             if (Current is not NestData src) return;
-            foreach (var f in _m.Nests)
+            _m.History.BeginBatch();
+            try
             {
-                f.Color = src.Color; f.Opacity = src.Opacity; f.IconSize = src.IconSize;
-                f.TitleFont = src.TitleFont; f.TitleFontSize = src.TitleFontSize;
-                f.ItemFont = src.ItemFont; f.ItemFontSize = src.ItemFontSize;
-                _m.ZoneChanged(f);
+                foreach (var f in _m.Nests)
+                {
+                    f.Color = src.Color; f.Opacity = src.Opacity; f.IconSize = src.IconSize;
+                    f.TitleFont = src.TitleFont; f.TitleFontSize = src.TitleFontSize;
+                    f.ItemFont = src.ItemFont; f.ItemFontSize = src.ItemFontSize;
+                    _m.ZoneChanged(f);
+                }
             }
+            finally { _m.History.EndBatch(Loc.T("undo.applyAll")); }
+        }
+
+        // ---------- Modèles ----------
+        private void LoadTemplates()
+        {
+            var selected = TemplateList.SelectedItem as NestTemplate;
+            var target = TplTargetZone.SelectedItem as NestData;
+            var source = TplSourceZone.SelectedItem as NestData;
+
+            TemplateList.ItemsSource = null;
+            TemplateList.ItemsSource = _m.Templates;
+
+            TplTargetZone.ItemsSource = null;
+            TplTargetZone.ItemsSource = _m.Nests;
+            TplSourceZone.ItemsSource = null;
+            TplSourceZone.ItemsSource = _m.Nests;
+
+            if (selected != null && _m.Templates.Contains(selected)) TemplateList.SelectedItem = selected;
+            if (TemplateList.SelectedIndex < 0 && _m.Templates.Count > 0) TemplateList.SelectedIndex = 0;
+
+            if (target != null && _m.Nests.Contains(target)) TplTargetZone.SelectedItem = target;
+            if (TplTargetZone.SelectedIndex < 0 && _m.Nests.Count > 0) TplTargetZone.SelectedIndex = 0;
+
+            if (source != null && _m.Nests.Contains(source)) TplSourceZone.SelectedItem = source;
+            if (TplSourceZone.SelectedIndex < 0 && _m.Nests.Count > 0) TplSourceZone.SelectedIndex = 0;
+
+            UpdateTemplatePanel();
+        }
+
+        private void UpdateTemplatePanel()
+        {
+            var t = TemplateList.SelectedItem as NestTemplate;
+            TemplatePanel.IsEnabled = t != null;
+            TemplateInfo.Text = t == null
+                ? Loc.T("tpl.none")
+                : Loc.F("tpl.info", t.Width, t.Height, t.Color,
+                    t.ListView ? Loc.T("view.list") : Loc.T("view.grid"));
+        }
+
+        private void TemplateList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading) return;
+            UpdateTemplatePanel();
+        }
+
+        private void TemplateApply_Click(object sender, RoutedEventArgs e)
+        {
+            if (TemplateList.SelectedItem is not NestTemplate t) return;
+            if (TplTargetZone.SelectedItem is not NestData d) return;
+            _m.ApplyTemplate(d, t);
+            ZoneList.Items.Refresh();
+            if (ReferenceEquals(ZoneList.SelectedItem, d)) ZoneList_SelectionChanged(this, null!);
+        }
+
+        private void TemplateNewZone_Click(object sender, RoutedEventArgs e)
+        {
+            if (TemplateList.SelectedItem is not NestTemplate t) return;
+            _m.CreateNestFromTemplate(t);
+            LoadAll();
+            ZoneList.SelectedIndex = _m.Nests.Count - 1;
+        }
+
+        private void TemplateDelete_Click(object sender, RoutedEventArgs e)
+        {
+            if (TemplateList.SelectedItem is not NestTemplate t) return;
+            var r = MessageBox.Show(this, Loc.F("tpl.deleteConfirm", t.Name), "DeskNest", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No, Loc.MsgOptions);
+            if (r != MessageBoxResult.Yes) return;
+            _m.DeleteTemplate(t);
+            LoadTemplates();
+        }
+
+        private void TemplateSave_Click(object sender, RoutedEventArgs e)
+        {
+            if (TplSourceZone.SelectedItem is not NestData src) return;
+            var name = InputDialog.Ask(this, Loc.T("m.saveTemplate"), src.Title);
+            if (string.IsNullOrWhiteSpace(name)) return;
+            _m.SaveTemplate(src, name);
+            LoadTemplates();
         }
 
         private void NewZone_Click(object sender, RoutedEventArgs e)
@@ -506,11 +610,16 @@ namespace DeskNest
         private void ApplyDefaults_Click(object sender, RoutedEventArgs e)
         {
             var s = _m.Settings;
-            foreach (var f in _m.Nests)
+            _m.History.BeginBatch();
+            try
             {
-                f.Color = s.DefaultColor; f.Opacity = s.DefaultOpacity; f.IconSize = s.DefaultIconSize;
-                _m.ZoneChanged(f);
+                foreach (var f in _m.Nests)
+                {
+                    f.Color = s.DefaultColor; f.Opacity = s.DefaultOpacity; f.IconSize = s.DefaultIconSize;
+                    _m.ZoneChanged(f);
+                }
             }
+            finally { _m.History.EndBatch(Loc.T("undo.applyAll")); }
             ZoneList_SelectionChanged(this, null!);
         }
 

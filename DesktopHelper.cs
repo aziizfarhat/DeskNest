@@ -182,6 +182,17 @@ namespace DeskNest
             return c == "Progman" || c == "WorkerW";
         }
 
+        // Vrai si le point est au-dessus d'une fenêtre de DeskNest (palette de recherche,
+        // zone, paramètres…). À évaluer au moment du clic : la palette peut se fermer
+        // avant le traitement différé et laisser croire à un double-clic sur le bureau.
+        public static bool IsOwnWindowAt(int x, int y)
+        {
+            var h = WindowFromPoint(new POINT { X = x, Y = y });
+            if (h == IntPtr.Zero) return false;
+            GetWindowThreadProcessId(h, out var pid);
+            return pid == (uint)Environment.ProcessId;
+        }
+
         // Vrai si une icône du bureau se trouve sous le point (double-clic pour ouvrir : on ne masque pas).
         public static bool IsIconAt(int x, int y)
         {

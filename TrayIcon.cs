@@ -49,15 +49,71 @@ namespace DeskNest
                 RightToLeft = Loc.IsRtl ? System.Windows.Forms.RightToLeft.Yes : System.Windows.Forms.RightToLeft.No
             };
             menu.Items.Add(Loc.T("tray.settings"), null, (_, _) => _manager.ShowSettings());
+            menu.Items.Add(Loc.T("tray.templates"), null, (_, _) => _manager.ShowTemplates());
+            menu.Items.Add(Loc.T("tray.search"), null, (_, _) => _manager.ShowSearchPalette());
             menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+
+            var undo = new System.Windows.Forms.ToolStripMenuItem(Loc.T("menu.undo"), null, (_, _) => _manager.Undo())
+            { ShortcutKeyDisplayString = "Ctrl+Z" };
+            var redo = new System.Windows.Forms.ToolStripMenuItem(Loc.T("menu.redo"), null, (_, _) => _manager.Redo())
+            { ShortcutKeyDisplayString = "Ctrl+Y" };
+            menu.Items.Add(undo);
+            menu.Items.Add(redo);
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+
             menu.Items.Add(Loc.T("tray.newZone"), null, (_, _) => _manager.CreateNest());
             menu.Items.Add(Loc.T("tray.newPortal"), null, (_, _) => _manager.CreatePortal());
+
+            var fromTemplate = new System.Windows.Forms.ToolStripMenuItem(Loc.T("tray.newFromTemplate"));
+            if (_manager.Templates.Count == 0)
+            {
+                fromTemplate.DropDownItems.Add(new System.Windows.Forms.ToolStripMenuItem(Loc.T("tpl.none")) { Enabled = false });
+            }
+            else
+            {
+                foreach (var template in _manager.Templates)
+                {
+                    var tpl = template;
+                    fromTemplate.DropDownItems.Add(new System.Windows.Forms.ToolStripMenuItem(tpl.Name, null,
+                        (_, _) => _manager.CreateNestFromTemplate(tpl)));
+                }
+                fromTemplate.DropDownItems.Add(new System.Windows.Forms.ToolStripSeparator());
+                var delete = new System.Windows.Forms.ToolStripMenuItem(Loc.T("tpl.delete"));
+                foreach (var template in _manager.Templates)
+                {
+                    var tpl = template;
+                    delete.DropDownItems.Add(new System.Windows.Forms.ToolStripMenuItem(tpl.Name, null, (_, _) =>
+                    {
+                        var r = System.Windows.MessageBox.Show(Loc.F("tpl.deleteConfirm", tpl.Name), "DeskNest",
+                            System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question,
+                            System.Windows.MessageBoxResult.No, Loc.MsgOptions);
+                        if (r == System.Windows.MessageBoxResult.Yes)
+                        {
+                            _manager.DeleteTemplate(tpl);
+                            BuildMenu();
+                        }
+                    }));
+                }
+                fromTemplate.DropDownItems.Add(delete);
+            }
+            menu.Items.Add(fromTemplate);
+
             menu.Items.Add(Loc.T("tray.toggle"), null, (_, _) => _manager.ToggleHidden());
+
+            var snap = new System.Windows.Forms.ToolStripMenuItem(Loc.T("tray.snap"));
+            snap.Click += (_, _) =>
+            {
+                _manager.Settings.SnapEnabled = !_manager.Settings.SnapEnabled;
+                _manager.SettingsChanged();
+            };
+            menu.Items.Add(snap);
+            menu.Items.Add(Loc.T("tray.distribute"), null, (_, _) => _manager.DistributeNests());
             menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
 
             var autostart = new System.Windows.Forms.ToolStripMenuItem(Loc.T("tray.autostart"));
             autostart.Click += (_, _) => SetAutostart(!IsAutostart());
             menu.Items.Add(autostart);
+            menu.Items.Add(Loc.T("tray.updates"), null, async (_, _) => await _manager.CheckForUpdatesAsync(false));
             menu.Items.Add(Loc.T("tray.restoreIcons"), null, (_, _) =>
             {
                 var r = System.Windows.MessageBox.Show(Loc.T("tray.restoreConfirm"), "DeskNest",
@@ -69,7 +125,13 @@ namespace DeskNest
                 Process.Start(new ProcessStartInfo(Storage.Dir) { UseShellExecute = true }));
             menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
             menu.Items.Add(Loc.T("tray.quit"), null, (_, _) => System.Windows.Application.Current.Shutdown());
-            menu.Opening += (_, _) => autostart.Checked = IsAutostart();
+            menu.Opening += (_, _) =>
+            {
+                autostart.Checked = IsAutostart();
+                snap.Checked = _manager.Settings.SnapEnabled;
+                undo.Enabled = _manager.History.CanUndo;
+                redo.Enabled = _manager.History.CanRedo;
+            };
 
             _ni.ContextMenuStrip = menu;
             old?.Dispose();

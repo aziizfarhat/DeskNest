@@ -15,8 +15,20 @@ namespace DeskNest
         private readonly List<NestWindow> _windows = new();
         private readonly DispatcherTimer _saveTimer;
         private GlobalHotkey? _hotkey;
+        private GlobalHotkey? _searchHotkey;
         private MouseHook? _mouseHook;
         private SettingsWindow? _settings;
+        private SearchPaletteWindow? _searchPalette;
+        private GuideOverlay? _guides;
+        private DispatcherTimer? _updateTimer;
+        private bool _updateBusy;
+
+        // Annuler / rétablir (disposition uniquement : les fichiers ne sont jamais restaurés).
+        private readonly Dictionary<Guid, NestData> _baseline = new();
+        private bool _applyingHistory;
+        private DelegateUndo? _pendingZoneCmd;
+        private Guid _pendingZoneId;
+        private DateTime _pendingZoneAt;
         private bool _warnedProtected, _warnedFailure, _warnedHotkey, _hotkeyActive;
         private readonly DispatcherTimer _desktopTimer;
         private readonly DispatcherTimer _desktopWake;
@@ -26,6 +38,300 @@ namespace DeskNest
         public bool Hidden { get; private set; }
         public AppSettings Settings => _data.Settings;
         public IList<NestData> Nests => _data.Nests;
+        public IEnumerable<NestWindow> Windows => _windows;
+
+        // ---------- Annuler / rétablir ----------
+        public UndoStack History { get; } = new();
+
+        public void Undo()
+        {
+            _pendingZoneCmd = null;
+            if (!History.Undo()) return;
+            ApplyVisibility();
+            RequestSave();
+        }
+
+        public void Redo()
+        {
+            _pendingZoneCmd = null;
+            if (!History.Redo()) return;
+            ApplyVisibility();
+            RequestSave();
+        }
+
+        private static NestData CloneNest(NestData d) => new()
+        {
+            Id = d.Id,
+            Title = d.Title,
+            Left = d.Left,
+            Top = d.Top,
+            Width = d.Width,
+            Height = d.Height,
+            Locked = d.Locked,
+            TitleVisible = d.TitleVisible,
+            RolledUp = d.RolledUp,
+            Color = d.Color,
+            Opacity = d.Opacity,
+            IconSize = d.IconSize,
+            ListView = d.ListView,
+            TitleFont = d.TitleFont,
+            TitleFontSize = d.TitleFontSize,
+            ItemFont = d.ItemFont,
+            ItemFontSize = d.ItemFontSize,
+            Enabled = d.Enabled,
+            HoverExpand = d.HoverExpand,
+            Items = new List<string>(d.Items),
+            PortalPath = d.PortalPath,
+            PortalOrder = d.PortalOrder.ToDictionary(kv => kv.Key, kv => new List<string>(kv.Value))
+        };
+
+        private static bool SameLayout(NestData a, NestData b)
+        {
+            if (a.Title != b.Title || a.Locked != b.Locked || a.TitleVisible != b.TitleVisible ||
+                a.RolledUp != b.RolledUp || a.Color != b.Color || a.Opacity != b.Opacity ||
+                a.IconSize != b.IconSize || a.ListView != b.ListView ||
+                a.TitleFont != b.TitleFont || a.TitleFontSize != b.TitleFontSize ||
+                a.ItemFont != b.ItemFont || a.ItemFontSize != b.ItemFontSize ||
+                a.Enabled != b.Enabled || a.HoverExpand != b.HoverExpand ||
+                a.PortalPath != b.PortalPath ||
+                Math.Abs(a.Left - b.Left) > 0.01 || Math.Abs(a.Top - b.Top) > 0.01 ||
+                Math.Abs(a.Width - b.Width) > 0.01 || Math.Abs(a.Height - b.Height) > 0.01)
+                return false;
+            // Les références d'éléments ont leurs propres commandes d'annulation : une
+            // modification d'apparence ne doit jamais les inclure.
+            return true;
+        }
+
+        private void InitBaselines()
+        {
+            _baseline.Clear();
+            foreach (var d in _data.Nests) _baseline[d.Id] = CloneNest(d);
+        }
+
+        private void PushUndo(IUndoable action)
+        {
+            _pendingZoneCmd = null;
+            History.Push(action);
+        }
+
+        // Regroupe les modifications rapprochées d'une même zone (curseur d'opacité, saisie du titre…).
+        private void PushZoneDiff(Guid id, string label, NestData before, NestData after)
+        {
+            if (_applyingHistory) return;
+            var now = DateTime.UtcNow;
+            if (!History.IsBatching && _pendingZoneCmd != null && _pendingZoneId == id &&
+                (now - _pendingZoneAt).TotalMilliseconds < 900)
+            {
+                _pendingZoneCmd.ReplaceRedo(() => ApplyZoneStateById(id, after));
+                _pendingZoneAt = now;
+                return;
+            }
+            var command = new DelegateUndo(label,
+                () => ApplyZoneStateById(id, before),
+                () => ApplyZoneStateById(id, after));
+            if (!History.IsBatching)
+            {
+                _pendingZoneCmd = command;
+                _pendingZoneId = id;
+                _pendingZoneAt = now;
+            }
+            History.Push(command);
+        }
+
+        private void ApplyZoneStateById(Guid id, NestData state)
+        {
+            var live = _data.Nests.FirstOrDefault(x => x.Id == id);
+            if (live == null) return;
+            _applyingHistory = true;
+            try
+            {
+                bool boundsChanged =
+                    Math.Abs(live.Left - state.Left) > 0.01 || Math.Abs(live.Top - state.Top) > 0.01 ||
+                    Math.Abs(live.Width - state.Width) > 0.01 || Math.Abs(live.Height - state.Height) > 0.01;
+
+                live.Title = state.Title;
+                live.Left = state.Left;
+                live.Top = state.Top;
+                live.Width = state.Width;
+                live.Height = state.Height;
+                live.Locked = state.Locked;
+                live.TitleVisible = state.TitleVisible;
+                live.RolledUp = state.RolledUp;
+                live.Color = state.Color;
+                live.Opacity = state.Opacity;
+                live.IconSize = state.IconSize;
+                live.ListView = state.ListView;
+                live.TitleFont = state.TitleFont;
+                live.TitleFontSize = state.TitleFontSize;
+                live.ItemFont = state.ItemFont;
+                live.ItemFontSize = state.ItemFontSize;
+                live.Enabled = state.Enabled;
+                live.HoverExpand = state.HoverExpand;
+                live.PortalPath = state.PortalPath;
+
+                var w = _windows.FirstOrDefault(x => x.Data == live);
+                if (w != null)
+                {
+                    w.ApplyExternalChange();
+                    if (boundsChanged) w.SetBounds(live.Left, live.Top, live.Width, live.Height);
+                    w.ReloadItems();
+                }
+                _baseline[id] = CloneNest(live);
+            }
+            finally { _applyingHistory = false; }
+        }
+
+        private void ApplyBoundsById(Guid id, double left, double top, double width, double height)
+        {
+            var live = _data.Nests.FirstOrDefault(x => x.Id == id);
+            if (live == null) return;
+            _applyingHistory = true;
+            try
+            {
+                live.Left = left;
+                live.Top = top;
+                live.Width = width;
+                live.Height = height;
+                _windows.FirstOrDefault(x => x.Data == live)?.SetBounds(left, top, width, height);
+                _baseline[id] = CloneNest(live);
+            }
+            finally { _applyingHistory = false; }
+        }
+
+        // À appeler après toute modification de zone qui ne passe pas par ZoneChanged (menu contextuel).
+        public void EditNest(NestData d, string label, Action change)
+        {
+            if (_applyingHistory) { change(); return; }
+            var before = _baseline.TryGetValue(d.Id, out var b) ? b : CloneNest(d);
+            change();
+            var after = CloneNest(d);
+            if (!SameLayout(before, after)) PushZoneDiff(d.Id, label, before, after);
+            _baseline[d.Id] = after;
+            RequestSave();
+        }
+
+        public void RecordBounds(NestData d, double left, double top, double width, double height, string label)
+        {
+            if (_applyingHistory) return;
+            if (Math.Abs(d.Left - left) < 0.5 && Math.Abs(d.Top - top) < 0.5 &&
+                Math.Abs(d.Width - width) < 0.5 && Math.Abs(d.Height - height) < 0.5) return;
+            var id = d.Id;
+            double nl = d.Left, nt = d.Top, nw = d.Width, nh = d.Height;
+            PushUndo(new DelegateUndo(label,
+                () => ApplyBoundsById(id, left, top, width, height),
+                () => ApplyBoundsById(id, nl, nt, nw, nh)));
+            _baseline[id] = CloneNest(d);
+        }
+
+        // ---------- Références d'éléments ----------
+        private void RefreshZone(NestData d) =>
+            _windows.FirstOrDefault(w => w.Data == d)?.ReloadItems();
+
+        // Retrouve le chemin actuel d'un élément : son emplacement d'origine, une copie
+        // déplacée dans le stockage, une autre zone qui le référence, ou le bureau
+        // (après un « Del » ou un glisser vers le bureau).
+        public string ResolveItemPath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return path;
+            if (File.Exists(path) || Directory.Exists(path)) return path;
+
+            var moved = _data.Moved.FirstOrDefault(m =>
+                Same(m.OriginalPath, path) && (File.Exists(m.StorePath) || Directory.Exists(m.StorePath)));
+            if (moved != null) return moved.StorePath;
+
+            var name = Path.GetFileName(path.TrimEnd('\\'));
+            if (string.IsNullOrEmpty(name)) return path;
+
+            foreach (var f in _data.Nests)
+                foreach (var p in f.Items)
+                    if (string.Equals(Path.GetFileName(p.TrimEnd('\\')), name, StringComparison.OrdinalIgnoreCase) &&
+                        (File.Exists(p) || Directory.Exists(p)))
+                        return p;
+
+            return FindDesktopEntry(name) ?? path;
+        }
+
+        // Retire une référence et retourne le chemin réellement retiré.
+        private string? RemoveItemRef(Guid id, string path)
+        {
+            var d = _data.Nests.FirstOrDefault(x => x.Id == id);
+            if (d == null) return null;
+            int i = d.Items.FindIndex(p => Same(p, path));
+            if (i < 0) return null;
+            var removed = d.Items[i];
+            d.Items.RemoveAt(i);
+            RefreshZone(d);
+            RequestSave();
+            return removed;
+        }
+
+        // Insère une référence, ré-adopte l'élément s'il est sur le bureau et retourne
+        // le chemin finalement référencé (il peut changer après adoption).
+        private string? InsertItemRef(Guid id, string path, int index)
+        {
+            var d = _data.Nests.FirstOrDefault(x => x.Id == id);
+            if (d == null) return null;
+            if (!d.Items.Any(p => Same(p, path)))
+            {
+                int at = Math.Clamp(index, 0, d.Items.Count);
+                d.Items.Insert(at, path);
+            }
+            _applyingHistory = true;
+            try { AdoptDesktopItemsInEnabledZones(d); } // l'élément avait pu être remis sur le bureau
+            finally { _applyingHistory = false; }
+            RefreshZone(d);
+            RequestSave();
+
+            var exact = d.Items.FirstOrDefault(p => Same(p, path));
+            if (exact != null) return exact;
+            var name = Path.GetFileName(path.TrimEnd('\\'));
+            return d.Items.FirstOrDefault(p =>
+                string.Equals(Path.GetFileName(p.TrimEnd('\\')), name, StringComparison.OrdinalIgnoreCase)) ?? path;
+        }
+
+        // `fromDesktop` : l'élément vient du bureau. Annuler l'ajout le remet sur le bureau.
+        public void RecordItemAdded(NestData d, string path, int index, bool fromDesktop = false)
+        {
+            if (_applyingHistory) return;
+            var id = d.Id;
+            string current = path;
+            PushUndo(new DelegateUndo(Loc.T("undo.addItem"),
+                () =>
+                {
+                    var removed = RemoveItemRef(id, current);
+                    if (removed == null) return;
+                    current = removed;
+                    if (fromDesktop) current = RestoreOnDesktop(removed) ?? removed;
+                },
+                () =>
+                {
+                    var target = fromDesktop ? ResolveItemPath(current) : current;
+                    current = InsertItemRef(id, target, index) ?? target;
+                }));
+        }
+
+        // `restoreOnDesktop` : le retrait remet l'élément sur le bureau (Del, glisser
+        // vers le bureau). Annuler le retrait le ré-adopte dans la zone ; rétablir le
+        // retire à nouveau et le remet sur le bureau.
+        public void RecordItemRemoved(NestData d, string path, int index, bool restoreOnDesktop = false)
+        {
+            if (_applyingHistory) return;
+            var id = d.Id;
+            string current = path;
+            PushUndo(new DelegateUndo(Loc.T("undo.removeItem"),
+                () =>
+                {
+                    var target = restoreOnDesktop ? ResolveItemPath(current) : current;
+                    current = InsertItemRef(id, target, index) ?? target;
+                },
+                () =>
+                {
+                    var removed = RemoveItemRef(id, current);
+                    if (removed == null) return;
+                    current = removed;
+                    if (restoreOnDesktop) current = RestoreOnDesktop(removed) ?? removed;
+                }));
+        }
 
         private static bool Same(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
@@ -137,6 +443,7 @@ namespace DeskNest
 
             foreach (var f in _data.Nests.ToList())
                 OpenWindow(f);
+            InitBaselines();
 
             try
             {
@@ -144,6 +451,15 @@ namespace DeskNest
                 _hotkey.Pressed += ToggleHidden;
             }
             catch (Exception ex) { Diag.Log("raccourci : " + ex.Message); }
+
+            try
+            {
+                _searchHotkey = new GlobalHotkey();
+                _searchHotkey.Pressed += ShowSearchPalette;
+                if (!_searchHotkey.RegisterSearch())
+                    Diag.Log("raccourci Ctrl+Shift+Espace indisponible");
+            }
+            catch (Exception ex) { Diag.Log("raccourci recherche : " + ex.Message); }
 
             ApplySettings();
             try
@@ -370,9 +686,157 @@ namespace DeskNest
             if (zone != null) _settings.SelectZone(zone);
         }
 
+        public void ShowSearchPalette()
+        {
+            if (_searchPalette != null && !_searchPalette.IsClosing)
+            {
+                _searchPalette.FocusQuery();
+                return;
+            }
+
+            var palette = new SearchPaletteWindow(this);
+            palette.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_searchPalette, palette)) _searchPalette = null;
+            };
+            _searchPalette = palette;
+            palette.Show();
+        }
+
+        // Met une zone au premier plan et, si demandé, y sélectionne un élément.
+        public void ActivateZone(Guid id, string? revealPath = null)
+        {
+            var w = _windows.FirstOrDefault(x => x.Data.Id == id);
+            if (w == null) return;
+            if (!w.IsVisible) w.Show();
+            w.Activate();
+            if (revealPath != null) w.RevealItem(revealPath);
+        }
+
         public void SettingsChanged()
         {
             ApplySettings();
+            RequestSave();
+        }
+
+        // ---------- Mises à jour ----------
+        // Vérification différée : le démarrage des zones reste instantané.
+        public void ScheduleUpdateCheck()
+        {
+            if (!Settings.AutoUpdate) return;
+            _updateTimer?.Stop();
+            _updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
+            _updateTimer.Tick += async (_, _) =>
+            {
+                _updateTimer?.Stop();
+                await CheckForUpdatesAsync(silent: true);
+            };
+            _updateTimer.Start();
+        }
+
+        public async Task CheckForUpdatesAsync(bool silent)
+        {
+            if (_updateBusy) return;
+            _updateBusy = true;
+            try
+            {
+                var info = await UpdateChecker.CheckAsync();
+                if (info == null)
+                {
+                    if (!silent)
+                        MessageBox.Show(Loc.T("upd.none"), "DeskNest", MessageBoxButton.OK,
+                            MessageBoxImage.Information, MessageBoxResult.OK, Loc.MsgOptions);
+                    return;
+                }
+
+                var current = UpdateChecker.CurrentVersion();
+                var answer = MessageBox.Show(
+                    Loc.F("upd.available", info.Version.ToString(3), current.ToString(3)),
+                    "DeskNest", MessageBoxButton.YesNo, MessageBoxImage.Question,
+                    MessageBoxResult.No, Loc.MsgOptions);
+                if (answer != MessageBoxResult.Yes) return;
+
+                string file;
+                try { file = await UpdateChecker.DownloadAsync(info); }
+                catch (Exception ex)
+                {
+                    Diag.Log("téléchargement de la mise à jour : " + ex.Message);
+                    MessageBox.Show(Loc.F("upd.failed", ex.Message), "DeskNest", MessageBoxButton.OK,
+                        MessageBoxImage.Error, MessageBoxResult.OK, Loc.MsgOptions);
+                    return;
+                }
+
+                // L'installateur doit être signé : c'est ce qui évite l'avertissement SmartScreen.
+                if (!UpdateChecker.IsSignatureValid(file))
+                {
+                    MessageBox.Show(Loc.T("upd.invalid"), "DeskNest", MessageBoxButton.OK,
+                        MessageBoxImage.Warning, MessageBoxResult.OK, Loc.MsgOptions);
+                    return;
+                }
+
+                try
+                {
+                    UpdateChecker.Install(file);
+                    Application.Current?.Shutdown();
+                }
+                catch (Exception ex)
+                {
+                    Diag.Log("installation de la mise à jour : " + ex.Message);
+                    MessageBox.Show(Loc.F("upd.installFail", ex.Message), "DeskNest", MessageBoxButton.OK,
+                        MessageBoxImage.Error, MessageBoxResult.OK, Loc.MsgOptions);
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Log("vérification de la mise à jour : " + ex.Message);
+                if (!silent)
+                    MessageBox.Show(Loc.F("upd.failed", ex.Message), "DeskNest", MessageBoxButton.OK,
+                        MessageBoxImage.Error, MessageBoxResult.OK, Loc.MsgOptions);
+            }
+            finally { _updateBusy = false; }
+        }
+
+        // ---------- Aimantation et guides ----------
+        public void ShowGuides(int? verticalX, int? horizontalY, Int32Rect area)
+        {
+            if (!Settings.SnapEnabled) return;
+            _guides ??= new GuideOverlay();
+            _guides.Update(verticalX, horizontalY, area);
+        }
+
+        public void HideGuides() => _guides?.Hide();
+
+        // Répartit les zones visibles en grille sur l'écran principal.
+        public void DistributeNests()
+        {
+            var windows = _windows.Where(w => w.IsVisible).ToList();
+            if (windows.Count == 0) return;
+
+            var area = SystemParameters.WorkArea;
+            const double margin = 24, gap = 16;
+            int count = windows.Count;
+            int cols = (int)Math.Ceiling(Math.Sqrt(count));
+            int rows = (int)Math.Ceiling((double)count / cols);
+            double cellW = Math.Max(160, (area.Width - margin * 2 - gap * (cols - 1)) / cols);
+            double cellH = Math.Max(120, (area.Height - margin * 2 - gap * (rows - 1)) / rows);
+
+            History.BeginBatch();
+            try
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    int row = i / cols, col = i % cols;
+                    var d = windows[i].Data;
+                    double l = d.Left, t = d.Top, w = d.Width, h = d.Height;
+                    windows[i].SetBounds(
+                        area.Left + margin + col * (cellW + gap),
+                        area.Top + margin + row * (cellH + gap),
+                        cellW,
+                        cellH);
+                    RecordBounds(d, l, t, w, h, Loc.T("undo.move"));
+                }
+            }
+            finally { History.EndBatch(Loc.T("undo.move")); }
             RequestSave();
         }
 
@@ -423,7 +887,14 @@ namespace DeskNest
                 {
                     var hook = new MouseHook();
                     hook.DoubleClick += (x, y) =>
+                    {
+                        // Le clic est évalué tout de suite, pendant que la palette de
+                        // recherche (ou une zone) est encore sous le curseur. Le traitement
+                        // différé arrive après sa fermeture : le point semblerait alors
+                        // être le bureau et masquerait les zones par erreur.
+                        if (DesktopHelper.IsOwnWindowAt(x, y)) return;
                         Application.Current.Dispatcher.BeginInvoke(new Action(() => OnDesktopDoubleClick(x, y)), DispatcherPriority.Background);
+                    };
                     _mouseHook = hook;
                 }
                 catch (Exception ex) { Diag.Log("hook souris : " + ex.Message); }
@@ -449,6 +920,16 @@ namespace DeskNest
 
             ApplyVisibility();
             RequestSave();
+            RecordZoneBaseline(d);
+        }
+
+        private void RecordZoneBaseline(NestData d)
+        {
+            if (_applyingHistory) return;
+            var after = CloneNest(d);
+            if (_baseline.TryGetValue(d.Id, out var before) && !SameLayout(before, after))
+                PushZoneDiff(d.Id, Loc.T("undo.zoneEdit"), before, after);
+            _baseline[d.Id] = after;
         }
 
         public void SetEnabled(bool on)
@@ -505,12 +986,17 @@ namespace DeskNest
             foreach (var f in _data.Nests.ToList()) OpenWindow(f);
             foreach (var p in _data.HiddenByApp.ToList())
                 if (File.Exists(p) || Directory.Exists(p)) DesktopHelper.SetHidden(p, true);
+            History.Clear();
+            _pendingZoneCmd = null;
+            InitBaselines();
             ApplySettings();
             RequestSave();
             return true;
         }
 
         // ---------- Zones ----------
+        public IList<NestTemplate> Templates => _data.Templates;
+
         public void CreateNest() => AddNest(NewNestData(""));
 
         public void CreatePortal()
@@ -523,16 +1009,168 @@ namespace DeskNest
             AddNest(d);
         }
 
-        private void AddNest(NestData d)
+        // Duplique une zone complète : apparence, taille et références (les fichiers ne sont pas copiés).
+        public void DuplicateNest(NestData source)
+        {
+            var d = new NestData
+            {
+                Title = Loc.F("zone.copyName", source.Title),
+                Color = source.Color,
+                Opacity = source.Opacity,
+                IconSize = source.IconSize,
+                ListView = source.ListView,
+                Width = source.Width,
+                Height = source.Height,
+                TitleVisible = source.TitleVisible,
+                TitleFont = source.TitleFont,
+                TitleFontSize = source.TitleFontSize,
+                ItemFont = source.ItemFont,
+                ItemFontSize = source.ItemFontSize,
+                HoverExpand = source.HoverExpand,
+                PortalPath = source.PortalPath,
+                Items = new List<string>(source.Items)
+            };
+            foreach (var kv in source.PortalOrder)
+                d.PortalOrder[kv.Key] = new List<string>(kv.Value);
+            d.Left = source.Left + 30;
+            d.Top = source.Top + 30;
+            AddNest(d, false);
+        }
+
+        // Enregistre l'apparence d'une zone comme modèle. Un nom existant met le modèle à jour.
+        public void SaveTemplate(NestData source, string name)
+        {
+            name = name.Trim();
+            if (name.Length == 0) return;
+
+            var t = _data.Templates.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (t == null)
+            {
+                t = new NestTemplate();
+                _data.Templates.Add(t);
+            }
+            t.Name = name;
+            t.Color = source.Color;
+            t.Opacity = source.Opacity;
+            t.IconSize = source.IconSize;
+            t.ListView = source.ListView;
+            t.Width = source.Width;
+            t.Height = source.Height;
+            t.TitleVisible = source.TitleVisible;
+            t.TitleFont = source.TitleFont;
+            t.TitleFontSize = source.TitleFontSize;
+            t.ItemFont = source.ItemFont;
+            t.ItemFontSize = source.ItemFontSize;
+            RequestSave();
+        }
+
+        public void CreateNestFromTemplate(NestTemplate t)
+        {
+            var d = new NestData
+            {
+                Title = t.Name,
+                Color = t.Color,
+                Opacity = t.Opacity,
+                IconSize = t.IconSize,
+                ListView = t.ListView,
+                Width = t.Width,
+                Height = t.Height,
+                TitleVisible = t.TitleVisible,
+                TitleFont = t.TitleFont,
+                TitleFontSize = t.TitleFontSize,
+                ItemFont = t.ItemFont,
+                ItemFontSize = t.ItemFontSize
+            };
+            AddNest(d);
+        }
+
+        public void DeleteTemplate(NestTemplate t)
+        {
+            _data.Templates.Remove(t);
+            RequestSave();
+        }
+
+        // Applique l'apparence et la taille d'un modèle à une zone existante (sans toucher aux éléments).
+        public void ApplyTemplate(NestData target, NestTemplate t)
+        {
+            EditNest(target, Loc.T("undo.applyTemplate"), () =>
+            {
+                target.Color = t.Color;
+                target.Opacity = t.Opacity;
+                target.IconSize = t.IconSize;
+                target.ListView = t.ListView;
+                target.Width = t.Width;
+                target.Height = t.Height;
+                target.TitleVisible = t.TitleVisible;
+                target.TitleFont = t.TitleFont;
+                target.TitleFontSize = t.TitleFontSize;
+                target.ItemFont = t.ItemFont;
+                target.ItemFontSize = t.ItemFontSize;
+                if (!target.TitleVisible) target.RolledUp = false;
+            });
+
+            var w = _windows.FirstOrDefault(x => x.Data == target);
+            if (w != null)
+            {
+                w.ApplyExternalChange();
+                w.SetBounds(target.Left, target.Top, target.Width, target.Height);
+            }
+        }
+
+        public void ShowTemplates()
+        {
+            ShowSettings();
+            _settings?.SelectTemplates();
+        }
+
+        private void AddNest(NestData d, bool place = true)
         {
             int n = _data.Nests.Count;
             if (string.IsNullOrEmpty(d.Title)) d.Title = Loc.F("zone.default", n + 1);
-            d.Left = 80 + 30 * (n % 10);
-            d.Top = 80 + 30 * (n % 10);
+            if (place)
+            {
+                d.Left = 80 + 30 * (n % 10);
+                d.Top = 80 + 30 * (n % 10);
+            }
+            int index = _data.Nests.Count;
             _data.Nests.Add(d);
             Hidden = false;
             Settings.Enabled = true; // créer une zone la rend forcément visible
             OpenWindow(d);
+            ApplyVisibility();
+            _baseline[d.Id] = CloneNest(d);
+            PushUndo(new DelegateUndo(Loc.T("undo.newZone"),
+                () => RemoveNestSilent(d),
+                () => ReopenNestAt(d, index)));
+            RequestSave();
+        }
+
+        // Retire une zone sans toucher aux fichiers (annulation d'une création).
+        private void RemoveNestSilent(NestData d)
+        {
+            _data.Nests.Remove(d);
+            _baseline.Remove(d.Id);
+            var w = _windows.FirstOrDefault(x => x.Data == d);
+            if (w != null)
+            {
+                _windows.Remove(w);
+                w.CloseForReal();
+            }
+            ApplyVisibility();
+            RequestSave();
+        }
+
+        // Remet une zone supprimée (ou annulée) à sa place, avec ses références.
+        private void ReopenNestAt(NestData d, int index)
+        {
+            if (_data.Nests.Contains(d)) return;
+            int at = Math.Clamp(index, 0, _data.Nests.Count);
+            _data.Nests.Insert(at, d);
+            OpenWindow(d);
+            _baseline[d.Id] = CloneNest(d);
+            _applyingHistory = true;
+            try { AdoptDesktopItemsInEnabledZones(d); } // les fichiers avaient été remis sur le bureau
+            finally { _applyingHistory = false; }
             ApplyVisibility();
             RequestSave();
         }
@@ -540,10 +1178,16 @@ namespace DeskNest
         public void Remove(NestWindow w)
         {
             var items = w.Data.Items.ToList();
-            _data.Nests.Remove(w.Data);
+            var data = w.Data;
+            int index = _data.Nests.IndexOf(data);
+            _data.Nests.Remove(data);
+            _baseline.Remove(data.Id);
             _windows.Remove(w);
             w.CloseForReal();
             foreach (var p in items) RestoreOnDesktop(p);
+            PushUndo(new DelegateUndo(Loc.T("undo.deleteZone"),
+                () => ReopenNestAt(data, index),
+                () => RemoveNestSilent(data)));
             RequestSave();
         }
 
@@ -561,12 +1205,17 @@ namespace DeskNest
             if (src == null) return;
             bool fromPortal = !string.IsNullOrEmpty(src.Data.PortalPath);
             int at = index;
-            foreach (var p in paths)
+            History.BeginBatch();
+            try
             {
-                if (!fromPortal && !src.RemoveItem(p, false)) continue;
-                target.AddItem(p, at);
-                if (at >= 0) at++;
+                foreach (var p in paths)
+                {
+                    if (!fromPortal && !src.RemoveItem(p, false)) continue;
+                    target.AddItem(p, at);
+                    if (at >= 0) at++;
+                }
             }
+            finally { History.EndBatch(Loc.T("undo.moveItems")); }
         }
 
         // ---------- Icônes du bureau ----------
@@ -680,21 +1329,28 @@ namespace DeskNest
         }
 
         // Appelé quand un élément n'est plus dans aucune zone : il retourne sur le bureau.
-        public void RestoreOnDesktop(string path)
+        // Retourne le chemin actuel (sur le bureau si le déplacement a réussi).
+        public string? RestoreOnDesktop(string path)
         {
-            if (_data.Nests.Any(f => f.Items.Any(p => Same(p, path)))) return; // encore référencé ailleurs
+            if (_data.Nests.Any(f => f.Items.Any(p => Same(p, path)))) return path; // encore référencé ailleurs
 
             int mi = _data.Moved.FindIndex(m => Same(m.StorePath, path));
             if (mi >= 0)
             {
-                if (MoveBack(_data.Moved[mi]) != null) _data.Moved.RemoveAt(mi);
-                else Warn(Loc.F("msg.cannotRestore", path));
+                var restored = MoveBack(_data.Moved[mi]);
+                if (restored != null)
+                {
+                    _data.Moved.RemoveAt(mi);
+                    RequestSave();
+                    return restored;
+                }
+                Warn(Loc.F("msg.cannotRestore", path));
                 RequestSave();
-                return;
+                return path;
             }
 
             int i = _data.HiddenByApp.FindIndex(p => Same(p, path));
-            if (i < 0) return;
+            if (i < 0) return path;
             if (!File.Exists(path) && !Directory.Exists(path))
             {
                 _data.HiddenByApp.RemoveAt(i); // plus rien à restaurer
@@ -702,6 +1358,7 @@ namespace DeskNest
             else if (DesktopHelper.SetHidden(path, false)) _data.HiddenByApp.RemoveAt(i);
             else Warn(Loc.F("msg.cannotRestore", path));
             RequestSave();
+            return path;
         }
 
         // Restauration sans interface, utilisée par le désinstalleur : remet les
@@ -1067,7 +1724,8 @@ namespace DeskNest
                 }
                 if (!File.Exists(p) && !Directory.Exists(p))
                 {
-                    foreach (var w in _windows) w.RemoveItem(p, false);
+                    // Suppression réelle : les références disparaissent sans étape d'annulation.
+                    foreach (var w in _windows) w.RemoveItem(p, false, record: false);
                     ForgetStored(p);
                 }
             }
@@ -1099,6 +1757,7 @@ namespace DeskNest
             _saveTimer.Stop();
             _desktopWake.Stop();
             _desktopTimer.Stop();
+            _updateTimer?.Stop();
             _desktopWatcher?.Dispose();
             _desktopWatcher = null;
 
@@ -1110,6 +1769,8 @@ namespace DeskNest
 
             _mouseHook?.Dispose();
             _hotkey?.Dispose();
+            _searchHotkey?.Dispose();
+            _guides?.Dispose();
             _settings?.Close();
 
             foreach (var w in _windows.ToList())

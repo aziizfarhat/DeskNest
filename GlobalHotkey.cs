@@ -22,11 +22,16 @@ namespace DeskNest
         }
 
         // Ctrl + Alt + F
-        public bool Register()
+        public bool Register() => Register(MOD_CONTROL | MOD_ALT, 0x46);
+
+        // Ctrl + Shift + Space : recherche globale.
+        public bool RegisterSearch() => Register(MOD_CONTROL | 0x4, 0x20);
+
+        private bool Register(uint mods, uint vk)
         {
             // Réenregistrer sans désenregistrer d'abord échoue : l'ancien raccourci resterait actif sans être mis à jour.
             UnregisterHotKey(_source.Handle, 1);
-            return RegisterHotKey(_source.Handle, 1, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 0x46);
+            return RegisterHotKey(_source.Handle, 1, mods | MOD_NOREPEAT, vk);
         }
 
         public void Unregister() => UnregisterHotKey(_source.Handle, 1);

@@ -48,6 +48,26 @@ namespace DeskNest
         public AppSettings Settings { get; set; } = new();
         // Éléments du bureau rangés dans le dossier géré (chemin actuel + emplacement d'origine pour les remettre).
         public List<MovedItem> Moved { get; set; } = new();
+        // Modèles de zones réutilisables (apparence et taille, sans les éléments).
+        public List<NestTemplate> Templates { get; set; } = new();
+    }
+
+    // Modèle de zone : tout ce qui définit son look, réutilisable pour créer une nouvelle zone.
+    public class NestTemplate
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        public string Name { get; set; } = "";
+        public string Color { get; set; } = "#1E1E2E";
+        public double Opacity { get; set; } = 0.75;
+        public int IconSize { get; set; } = 40;
+        public bool ListView { get; set; }
+        public double Width { get; set; } = 320;
+        public double Height { get; set; } = 240;
+        public bool TitleVisible { get; set; } = true;
+        public string TitleFont { get; set; } = "";
+        public int TitleFontSize { get; set; } = 13;
+        public string ItemFont { get; set; } = "";
+        public int ItemFontSize { get; set; } = 11;
     }
 
     public class MovedItem
@@ -63,6 +83,8 @@ namespace DeskNest
         public bool DesktopDoubleClickEnabled { get; set; } = true;
         public bool HideDesktopIcons { get; set; } = true;
         public bool ShowSearchBar { get; set; } = true;           // barre de recherche sous la barre de titre des zones
+        public bool SnapEnabled { get; set; } = true;             // aimantation et guides d'alignement pendant le déplacement
+        public bool AutoUpdate { get; set; } = true;              // vérifier les mises à jour au démarrage
         public int DesktopMode { get; set; } = 0;                 // 0 = déplacer dans le dossier géré, 1 = seulement cacher
         public bool AnimateRoll { get; set; } = true;             // animation du Roll
         public int RollAnimationMs { get; set; } = 180;

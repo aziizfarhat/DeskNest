@@ -122,7 +122,15 @@ namespace DeskNest
             d.Nests ??= new List<NestData>();
             d.HiddenByApp ??= new List<string>();
             d.Moved ??= new List<MovedItem>();
+            d.Templates ??= new List<NestTemplate>();
             d.Settings ??= new AppSettings();
+            foreach (var t in d.Templates)
+            {
+                t.Name ??= "";
+                t.Color ??= "#1E1E2E";
+                t.TitleFont ??= "";
+                t.ItemFont ??= "";
+            }
 
             foreach (var f in d.Nests)
             {
