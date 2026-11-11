@@ -12,6 +12,8 @@ if not defined APPVER (
 )
 
 echo Version : %APPVER%
+set "SETUPNAME=DeskNest-Setup-%APPVER%.exe"
+set "PORTABLENAME=DeskNest-%APPVER%-Portable.zip"
 echo.
 echo Nettoyage de publish...
 if exist publish rmdir /s /q publish
@@ -59,6 +61,16 @@ echo.
 echo Signature : ignoree - build non signe.
 :signed
 
+rem Archive portable : l'executable autonome et la licence, prets a etre dezippes.
+echo.
+echo Creation de l'archive portable (%PORTABLENAME%)...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -LiteralPath 'publish\DeskNest.exe','LICENSE' -DestinationPath 'publish\%PORTABLENAME%' -Force"
+if errorlevel 1 exit /b 1
+if not exist "publish\%PORTABLENAME%" (
+  echo Echec : publish\%PORTABLENAME% n'a pas ete cree.
+  exit /b 1
+)
+
 rem Inno Setup peut etre installe pour tous les utilisateurs ou seulement l'utilisateur courant.
 set "ISCC="
 if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
@@ -66,7 +78,7 @@ if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%P
 if not defined ISCC if exist "%LocalAppData%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LocalAppData%\Programs\Inno Setup 6\ISCC.exe"
 
 if not defined ISCC (
-  echo Inno Setup 6 non trouve : seul publish\DeskNest.exe a ete cree.
+  echo Inno Setup 6 non trouve : publish\DeskNest.exe et publish\%PORTABLENAME% ont ete crees.
   exit /b 0
 )
 
@@ -77,13 +89,13 @@ if errorlevel 1 exit /b 1
 
 if defined SIGNTOOL (
   echo.
-  echo Signature de installer\DeskNest-Setup.exe...
-  call :sign "installer\DeskNest-Setup.exe"
+  echo Signature de installer\%SETUPNAME%...
+  call :sign "installer\%SETUPNAME%"
   if errorlevel 1 exit /b 1
 )
 
 echo.
-echo Termine : publish\DeskNest.exe et installer\DeskNest-Setup.exe
+echo Termine : publish\DeskNest.exe, publish\%PORTABLENAME% et installer\%SETUPNAME%
 exit /b 0
 
 :sign

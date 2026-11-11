@@ -150,16 +150,20 @@ The script automatically:
 1. Reads the application version from `DeskNest.csproj`.
 2. Publishes a self-contained, single-file Windows x64 executable.
 3. Applies ReadyToRun compilation and removes debug symbols.
-4. Detects Inno Setup 6, if installed.
-5. Creates the Windows installer when Inno Setup is available.
-6. Signs the application and installer with `signtool` when a certificate is configured.
+4. Signs the application with `signtool` when a certificate is configured.
+5. Creates the portable ZIP archive.
+6. Detects Inno Setup 6, if installed, and creates the Windows installer.
+7. Signs the installer when a certificate is configured.
 
 **Generated files:**
 
 | Output | Description |
 |---|---|
 | `publish/DeskNest.exe` | Portable standalone executable |
-| `installer/DeskNest-Setup.exe` | Windows installer (when Inno Setup 6 is available) |
+| `publish/DeskNest-<version>-Portable.zip` | Portable archive containing `DeskNest.exe` and `LICENSE` |
+| `installer/DeskNest-Setup-<version>.exe` | Windows installer (when Inno Setup 6 is available) |
+
+For example, with version `0.8.1.1` the script produces `publish/DeskNest-0.8.1.1-Portable.zip` and `installer/DeskNest-Setup-0.8.1.1.exe`.
 
 The target computer does not need the .NET Desktop Runtime to run the standalone release.
 

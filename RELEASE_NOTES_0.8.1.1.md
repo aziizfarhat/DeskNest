@@ -50,7 +50,7 @@ Moving an item between the desktop and a zone is now fully undoable.
 ## Upgrade notes
 
 - Existing zones, settings, templates, item references, and shortcuts are preserved.
-- The installer filename remains `DeskNest-Setup.exe`.
+- The installer is named `DeskNest-Setup-<version>.exe`; the portable archive is named `DeskNest-<version>-Portable.zip`.
 - Windows 10 or Windows 11, 64-bit, is required.
 
 ## Known limitations
