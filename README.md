@@ -6,7 +6,7 @@ DeskNest is a lightweight Windows desktop organizer that helps you group applica
 
 Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
 
-> **Project status:** Under active development. DeskNest is currently at version 0.8.1.1.
+> **Project status:** Under active development. DeskNest is currently at version 0.8.2.0.
 
 ## Features
 
@@ -17,6 +17,9 @@ Create independent desktop areas to organize your items by category, purpose, or
 - Create and rename zones.
 - Select all items within a zone.
 - Customize background colors and opacity.
+- Choose a per-zone background: solid colour, gradient, image, or acrylic (blurred wallpaper).
+- Preview images, videos, and PDF files with thumbnails instead of generic icons.
+- Open items with a single click or a double-click (option in Settings › Behavior).
 - Adjust icon size and fonts.
 - Hide zone titles.
 - Roll up zones to save desktop space.
@@ -99,7 +102,7 @@ The installer provides:
 - A standard Windows uninstall entry.
 - A shortcut in the Start Menu.
 
-The installer interface is currently available in French.
+The installer interface is available in the same twelve languages as DeskNest.
 
 ### Building the Installer
 
@@ -163,7 +166,7 @@ The script automatically:
 | `publish/DeskNest-<version>-Portable.zip` | Portable archive containing `DeskNest.exe` and `LICENSE` |
 | `installer/DeskNest-Setup-<version>.exe` | Windows installer (when Inno Setup 6 is available) |
 
-For example, with version `0.8.1.1` the script produces `publish/DeskNest-0.8.1.1-Portable.zip` and `installer/DeskNest-Setup-0.8.1.1.exe`.
+For example, with version `0.8.2.0` the script produces `publish/DeskNest-0.8.2.0-Portable.zip` and `installer/DeskNest-Setup-0.8.2.0.exe`.
 
 The target computer does not need the .NET Desktop Runtime to run the standalone release.
 

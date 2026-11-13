@@ -14,6 +14,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using IOPath = System.IO.Path;
 
@@ -97,6 +98,7 @@ namespace DeskNest
         // Sélection multiple
         private readonly HashSet<string> _selected = new(StringComparer.OrdinalIgnoreCase);
         private ItemVM? _anchor, _pendingCollapse, _dragCandidate;
+        private bool _draggedSinceDown;
         private bool _marquee;
         private Point _marqueeStart;
         private HashSet<string> _marqueeBase = new(StringComparer.OrdinalIgnoreCase);
@@ -106,6 +108,13 @@ namespace DeskNest
 
         // Affichage Grille / Liste de cette zone.
         private bool _lastListView;
+        private bool _lastShowThumbnails;
+
+        // Fond : image choisie ou papier peint flouté (les pinceaux sont réutilisés pour éviter
+        // de recréer des ressources à chaque redimensionnement).
+        private ImageBrush? _backdropBrush;
+        private ImageBrush? _imageBrush;
+        private string _imageBrushPath = "";
 
         // Recherche : filtre temporaire (non enregistré dans la configuration).
         private string _searchText = "";
@@ -203,6 +212,7 @@ namespace DeskNest
                 Data.Width = e.NewSize.Width;
                 if (!IsRolled) Data.Height = e.NewSize.Height; // la hauteur "développée" n'est jamais écrasée par la hauteur réduite
                 _manager.RequestSave();
+                RefreshBackgroundGeometry();
             };
 
             _searchReady = true;
@@ -363,6 +373,9 @@ namespace DeskNest
             }
         }
 
+        // Réglage Windows « réduire les animations » : toutes les animations de DeskNest le respectent.
+        internal static bool AnimationsEnabled => SystemParameters.ClientAreaAnimation;
+
         // ---------- Apparence / état (avec animation du Roll) ----------
         private void ApplyState(bool animate = false)
         {
@@ -377,17 +390,30 @@ namespace DeskNest
             BeginAnimation(HeightProperty, null);
             var s = _manager.Settings;
             double from = ActualHeight;
-            if (animate && s.AnimateRoll && IsLoaded && IsVisible && from > 0 && Math.Abs(from - target) > 1)
+            if (animate && s.AnimateRoll && AnimationsEnabled && IsLoaded && IsVisible && from > 0 && Math.Abs(from - target) > 1)
             {
                 ContentScroll.Visibility = Visibility.Visible; // le contenu reste visible pendant l'animation
                 MinHeight = 0;
-                Height = from;
-                var anim = new DoubleAnimation(from, target, TimeSpan.FromMilliseconds(Math.Clamp(s.RollAnimationMs, 50, 1000)))
+                // La fenêtre garde sa hauteur maximale pendant toute l'animation : seule la découpe
+                // du panneau est animée. Redimensionner la fenêtre à chaque image (fenêtre en
+                // couches, fond flouté) coûtait trop cher et rendait le roll saccadé.
+                double maxH = Math.Max(from, target);
+                if (Math.Abs(Height - maxH) > 0.5) Height = maxH;
+                // Le flou du fond est recalculé à chaque image : on le retire le temps de
+                // l'animation. FinishState -> ApplyColors le rétablit.
+                Backdrop.Effect = null;
+
+                double w = Math.Max(1, ActualWidth);
+                double r = Math.Clamp(s.CornerRadius, 0, 24);
+                var geo = new RectangleGeometry(new Rect(0, 0, w, from), r, r);
+                Root.Clip = geo;
+                var anim = new RectAnimation(new Rect(0, 0, w, from), new Rect(0, 0, w, target),
+                    TimeSpan.FromMilliseconds(Math.Clamp(s.RollAnimationMs, 50, 1000)))
                 {
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                    EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseOut }
                 };
                 anim.Completed += (_, _) => { if (id == _animId) FinishState(rolled, target); };
-                BeginAnimation(HeightProperty, anim);
+                geo.BeginAnimation(RectangleGeometry.RectProperty, anim);
             }
             else FinishState(rolled, target);
         }
@@ -402,7 +428,12 @@ namespace DeskNest
             UpdatePager();
             ApplyColors();
             // Les SizeChanged provoqués par ce changement d'état sont ignorés (ils ne doivent pas écraser la taille mémorisée).
-            Dispatcher.BeginInvoke(new Action(() => _suspendSize = false), DispatcherPriority.ContextIdle);
+            // La géométrie de découpe est recalculée une fois la nouvelle taille effectivement appliquée.
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _suspendSize = false;
+                RefreshBackgroundGeometry();
+            }), DispatcherPriority.ContextIdle);
         }
 
         private void UpdateTitle()
@@ -417,17 +448,156 @@ namespace DeskNest
 
         private void ApplyColors()
         {
-            Color c;
-            try { c = (Color)ColorConverter.ConvertFromString(Data.Color); }
-            catch { c = Color.FromRgb(30, 30, 46); }
-            byte a = (byte)Math.Round(Math.Clamp(Data.Opacity, 0.1, 1.0) * 255);
-            Root.Background = new SolidColorBrush(Color.FromArgb(a, c.R, c.G, c.B));
-
             var s = _manager.Settings;
+            Color c = ParseColor(Data.Color, Color.FromRgb(30, 30, 46));
+            byte a = (byte)Math.Round(Math.Clamp(Data.Opacity, 0.1, 1.0) * 255);
+
+            // Réinitialise les couches de fond avant d'appliquer le mode courant.
+            Root.Background = Brushes.Transparent;
+            Backdrop.Visibility = Visibility.Collapsed;
+            Backdrop.Background = null;
+            Backdrop.Effect = null;
+            Tint.Visibility = Visibility.Collapsed;
+            Tint.Background = null;
+
+            switch (Math.Clamp(Data.BackgroundMode, 0, 3))
+            {
+                case 1: // dégradé
+                    Root.Background = CreateGradient(Data.GradientStart, Data.GradientEnd, Data.GradientAngle, a, c);
+                    break;
+
+                case 2: // image choisie
+                    if (TryImageBrush(out var imageBrush))
+                    {
+                        Backdrop.Background = imageBrush;
+                        Backdrop.Visibility = Visibility.Visible;
+                        // Voile de couleur : les libellés restent lisibles sur une photo claire.
+                        Tint.Background = new SolidColorBrush(Color.FromArgb((byte)Math.Round(a * 0.55), c.R, c.G, c.B));
+                        Tint.Visibility = Visibility.Visible;
+                    }
+                    else Root.Background = new SolidColorBrush(Color.FromArgb(a, c.R, c.G, c.B));
+                    break;
+
+                case 3: // acrylique : papier peint flouté
+                    if (TryWallpaperBrush(out var wallpaperBrush))
+                    {
+                        Backdrop.Background = wallpaperBrush;
+                        Backdrop.Effect = new BlurEffect
+                        {
+                            Radius = 22,
+                            KernelType = KernelType.Gaussian,
+                            RenderingBias = RenderingBias.Performance
+                        };
+                        Backdrop.Visibility = Visibility.Visible;
+                        Tint.Background = new SolidColorBrush(Color.FromArgb((byte)Math.Round(a * 0.45), c.R, c.G, c.B));
+                        Tint.Visibility = Visibility.Visible;
+                    }
+                    else Root.Background = new SolidColorBrush(Color.FromArgb(a, c.R, c.G, c.B));
+                    break;
+
+                default: // couleur unie
+                    Root.Background = new SolidColorBrush(Color.FromArgb(a, c.R, c.G, c.B));
+                    break;
+            }
+
             double r = Math.Clamp(s.CornerRadius, 0, 24), ri = Math.Max(0, r - 1);
             Root.CornerRadius = new CornerRadius(r);
             Root.BorderThickness = new Thickness(s.ShowBorder ? 1 : 0);
             TitleBar.CornerRadius = IsRolled ? new CornerRadius(ri) : new CornerRadius(ri, ri, 0, 0);
+            Backdrop.CornerRadius = new CornerRadius(r);
+            Tint.CornerRadius = new CornerRadius(r);
+            UpdateClip(r);
+        }
+
+        // Le clip arrondi évite que le flou du fond ne déborde des coins de la zone.
+        private void UpdateClip(double radius)
+        {
+            if (ActualWidth <= 0 || ActualHeight <= 0) return;
+            Root.Clip = new RectangleGeometry(new Rect(0, 0, ActualWidth, ActualHeight), radius, radius);
+        }
+
+        // Redimensionnement : le découpage du papier peint doit suivre la taille en direct.
+        private void RefreshBackgroundGeometry()
+        {
+            if (ActualWidth <= 0 || ActualHeight <= 0) return;
+            UpdateClip(Math.Clamp(_manager.Settings.CornerRadius, 0, 24));
+            if (Math.Clamp(Data.BackgroundMode, 0, 3) != 3) return;
+            if (TryWallpaperBrush(out var brush)) Backdrop.Background = brush;
+        }
+
+        private static Color ParseColor(string? hex, Color fallback)
+        {
+            try { return (Color)ColorConverter.ConvertFromString(hex ?? ""); }
+            catch { return fallback; }
+        }
+
+        private static Brush CreateGradient(string start, string end, double angle, byte alpha, Color fallback)
+        {
+            Color c1 = ParseColor(start, fallback);
+            Color c2 = ParseColor(end, fallback);
+            double rad = angle * Math.PI / 180.0;
+            // Vecteur du dégradé : 0° = gauche → droite, 90° = haut → bas.
+            double dx = Math.Cos(rad), dy = Math.Sin(rad);
+            var brush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0.5 - dx / 2, 0.5 - dy / 2),
+                EndPoint = new Point(0.5 + dx / 2, 0.5 + dy / 2)
+            };
+            brush.GradientStops.Add(new GradientStop(Color.FromArgb(alpha, c1.R, c1.G, c1.B), 0));
+            brush.GradientStops.Add(new GradientStop(Color.FromArgb(alpha, c2.R, c2.G, c2.B), 1));
+            brush.Freeze();
+            return brush;
+        }
+
+        private bool TryImageBrush(out Brush brush)
+        {
+            brush = Brushes.Transparent;
+            var path = Data.BackgroundImage;
+            if (string.IsNullOrWhiteSpace(path)) return false;
+
+            if (_imageBrush == null || !string.Equals(_imageBrushPath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                var img = Wallpaper.LoadImage(path);
+                if (img == null)
+                {
+                    _imageBrush = null;
+                    _imageBrushPath = "";
+                    return false;
+                }
+                _imageBrush = new ImageBrush(img)
+                {
+                    Stretch = Stretch.UniformToFill,
+                    AlignmentX = AlignmentX.Center,
+                    AlignmentY = AlignmentY.Center
+                };
+                _imageBrush.Freeze();
+                _imageBrushPath = path;
+            }
+            brush = _imageBrush;
+            return true;
+        }
+
+        private bool TryWallpaperBrush(out Brush brush)
+        {
+            brush = Brushes.Transparent;
+            double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            var rect = new Rect(Data.Left, Data.Top, Math.Max(1, Data.Width), Math.Max(1, Data.Height));
+            if (!Wallpaper.TryGetCrop(rect, scale, out var image, out var crop)) return false;
+
+            if (_backdropBrush == null || !ReferenceEquals(_backdropBrush.ImageSource, image))
+            {
+                _backdropBrush = new ImageBrush(image)
+                {
+                    Stretch = Stretch.Fill,
+                    ViewboxUnits = BrushMappingMode.Absolute,
+                    ViewportUnits = BrushMappingMode.RelativeToBoundingBox,
+                    Viewport = new Rect(0, 0, 1, 1),
+                    TileMode = TileMode.None
+                };
+            }
+            _backdropBrush.Viewbox = crop;
+            brush = _backdropBrush;
+            return true;
         }
 
         // Polices propres à chaque zone (vide = police par défaut de Windows).
@@ -547,6 +717,7 @@ namespace DeskNest
         // Appelé quand les paramètres ou la zone ont été modifiés depuis la fenêtre de paramètres.
         public void ApplyExternalChange()
         {
+            var watch = Stopwatch.StartNew();
             StopHover();
             _hoverExpanded = false;
             // Masquer la barre de recherche ne doit pas laisser un filtre invisible actif.
@@ -559,8 +730,11 @@ namespace DeskNest
             ApplyFonts();
             bool viewChanged = _lastListView != Data.ListView;
             if (viewChanged) ApplyViewMode();
-            if (_lastIconSize != Data.IconSize || _lastItemFontSize != Data.ItemFontSize || viewChanged)
+            if (_lastIconSize != Data.IconSize || _lastItemFontSize != Data.ItemFontSize || viewChanged ||
+                _lastShowThumbnails != _manager.Settings.ShowThumbnails)
                 RefreshItems();
+            if (watch.ElapsedMilliseconds > 200)
+                Diag.Log($"zone '{Data.Title}' : rafraîchissement lent ({watch.ElapsedMilliseconds} ms)");
         }
 
         public void ReloadItems() => RefreshItems();
@@ -577,6 +751,7 @@ namespace DeskNest
             Data.Height = height;
             if (!IsRolled) Height = height; // une zone réduite garde la hauteur de sa barre de titre
             _manager.RequestSave();
+            ApplyColors();
         }
 
         // Sélectionne un élément précis (utilisé par la recherche globale).
@@ -618,7 +793,7 @@ namespace DeskNest
             foreach (var p in Data.Items)
             {
                 if (HasFilter && !NameMatches(ItemVM.GetName(p))) continue;
-                list.Add(new ItemVM(p, Data.IconSize));
+                list.Add(new ItemVM(p, Data.IconSize, false, false, _manager.Settings.ShowThumbnails));
             }
             return list;
         }
@@ -708,12 +883,12 @@ namespace DeskNest
             if (includeParent)
             {
                 var parent = Directory.GetParent(cur.TrimEnd('\\'));
-                if (parent != null) list.Add(new ItemVM(parent.FullName, Data.IconSize, true, true));
+                if (parent != null) list.Add(new ItemVM(parent.FullName, Data.IconSize, true, true, _manager.Settings.ShowThumbnails));
             }
 
             int count = Math.Min(PortalPageSize, ordered.Count - start);
             for (int i = 0; i < count; i++)
-                list.Add(new ItemVM(ordered[start + i], Data.IconSize, true));
+                list.Add(new ItemVM(ordered[start + i], Data.IconSize, true, false, _manager.Settings.ShowThumbnails));
 
             // Une saisie a pu commencer pendant la lecture du dossier.
             if (_editingTitle || _editingItem != null)
@@ -733,6 +908,7 @@ namespace DeskNest
             _vms = items;
             _lastIconSize = Data.IconSize;
             _lastItemFontSize = Data.ItemFontSize;
+            _lastShowThumbnails = _manager.Settings.ShowThumbnails;
             _selected.RemoveWhere(p => !_vms.Any(v => SamePath(v.FullPath, p)));
             foreach (var v in _vms) v.IsSelected = _selected.Contains(v.FullPath);
             _anchor = null; _pendingCollapse = null; _dragCandidate = null; _renameCandidate = null;
@@ -1450,6 +1626,7 @@ namespace DeskNest
             _manager.HideGuides();
             Root.ReleaseMouseCapture();
             _manager.RecordBounds(Data, _startLeft, _startTop, _startWidth, _startHeight, Loc.T("undo.move"));
+            ApplyColors(); // le papier peint flouté dépend de la position de la zone
         }
 
         // ---------- Redimensionnement manuel (tous les côtés et coins) ----------
@@ -1505,9 +1682,59 @@ namespace DeskNest
             _manager.HideGuides();
             (sender as UIElement)?.ReleaseMouseCapture();
             _manager.RecordBounds(Data, _startLeft, _startTop, _startWidth, _startHeight, Loc.T("undo.resize"));
+            ApplyColors(); // le découpage du papier peint suit la nouvelle taille
         }
 
         // ---------- Clic sur les éléments ----------
+        private void Item_MouseEnter(object sender, MouseEventArgs e)
+        {
+            if (!AnimationsEnabled) return;
+            if (sender is DependencyObject root) AnimateIcon(root, 1.12);
+        }
+
+        private void Item_MouseLeave(object sender, MouseEventArgs e)
+        {
+            if (!AnimationsEnabled) return;
+            if (sender is DependencyObject root) AnimateIcon(root, 1.0);
+        }
+
+        // Animation douce de l'icône au survol (remplace les storyboards du template,
+        // qui ne pouvaient pas être désactivés quand Windows réduit les animations).
+        private static void AnimateIcon(DependencyObject root, double to)
+        {
+            var image = FindChild<Image>(root);
+            if (image == null) return;
+
+            // Le ScaleTransform déclaré dans le DataTemplate est gelé par WPF :
+            // on le remplace par une instance animable (une seule fois par cellule).
+            if (image.RenderTransform is not ScaleTransform scale || scale.IsFrozen)
+            {
+                double sx = image.RenderTransform is ScaleTransform old ? old.ScaleX : 1;
+                double sy = image.RenderTransform is ScaleTransform oldY ? oldY.ScaleY : 1;
+                scale = new ScaleTransform(sx, sy);
+                image.RenderTransform = scale;
+            }
+
+            var ease = new QuarticEase { EasingMode = EasingMode.EaseOut };
+            var duration = TimeSpan.FromMilliseconds(160);
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty,
+                new DoubleAnimation(to, duration) { EasingFunction = ease });
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty,
+                new DoubleAnimation(to, duration) { EasingFunction = ease });
+        }
+
+        private static T? FindChild<T>(DependencyObject root) where T : DependencyObject
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T match) return match;
+                var nested = FindChild<T>(child);
+                if (nested != null) return nested;
+            }
+            return null;
+        }
+
         private void Item_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (IsInsideTextBox(e.OriginalSource)) return; // le champ de renommage gère lui-même ses clics
@@ -1521,8 +1748,14 @@ namespace DeskNest
             _dragCandidate = null;
             _pendingCollapse = null;
             _renameCandidate = null;
+            _draggedSinceDown = false;
 
-            if (e.ClickCount == 2) { ActivateItem(vm); return; }
+            if (e.ClickCount == 2)
+            {
+                // Avec l'ouverture au simple clic, le second clic ne doit pas rouvrir l'élément.
+                if (!_manager.Settings.OpenItemsWithSingleClick) ActivateItem(vm);
+                return;
+            }
             if (vm.IsUp) { ClearSelection(); return; }
 
             var mods = Keyboard.Modifiers;
@@ -1549,7 +1782,12 @@ namespace DeskNest
             _pendingCollapse = null;
             _dragCandidate = null;
 
-            if (renameCandidate != null && vm == renameCandidate) ScheduleRename(renameCandidate);
+            if (renameCandidate != null && vm == renameCandidate) { ScheduleRename(renameCandidate); return; }
+
+            // Ouverture au simple clic (option) : le double-clic reste géré au relâchement du premier clic.
+            if (_manager.Settings.OpenItemsWithSingleClick && e.ClickCount == 1 && !_draggedSinceDown &&
+                vm != null && Keyboard.Modifiers == ModifierKeys.None)
+                ActivateItem(vm);
         }
 
         private void Item_RightDown(object sender, MouseButtonEventArgs e)
@@ -1574,6 +1812,7 @@ namespace DeskNest
             _pendingCollapse = null;
             _dragCandidate = null;
             _renameCandidate = null;
+            _draggedSinceDown = true;
             CancelRenameTimer();
 
             var paths = vms.Select(v => v.FullPath).ToList();
@@ -2119,7 +2358,9 @@ namespace DeskNest
 
         private void OnHoverEnter()
         {
-            if (_hoverExpanded) { StopHover(); return; } // annule la réduction prévue
+            // Une zone déjà développée par survol garde une veille de fermeture : même si
+            // Windows n'envoie pas MouseLeave, elle finira par se réduire.
+            if (_hoverExpanded) { StartHover(HoverMode.Collapse, _manager.Settings.HoverCollapseDelayMs); return; }
             if (HoverEnabled) StartHover(HoverMode.Expand, _manager.Settings.HoverExpandDelayMs);
         }
 
@@ -2137,19 +2378,24 @@ namespace DeskNest
 
             if (mode == HoverMode.Expand)
             {
-                if ((IsMouseOver || _dragOver) && HoverEnabled && !_hoverExpanded)
+                if ((IsCursorOverWindow() || _dragOver) && HoverEnabled && !_hoverExpanded)
                 {
                     _hoverExpanded = true;
                     BringToTopForHover();
                     ApplyState(true);
+                    // Veille : garantit la fermeture même si Windows ne nous envoie pas MouseLeave
+                    // (fenêtre redimensionnée sous le curseur, zone recouverte, etc.).
+                    StartHover(HoverMode.Collapse, 350);
                 }
             }
             else if (mode == HoverMode.Collapse)
             {
-                if (!_hoverExpanded || IsMouseOver) return;
-                if (IsBusy)
+                if (!_hoverExpanded) return;
+                // Le curseur est peut-être encore sur la zone : on revérifie au lieu d'abandonner,
+                // sinon la zone restait ouverte indéfiniment après un passage rapide.
+                if (IsBusy || IsCursorOverWindow())
                 {
-                    StartHover(HoverMode.Collapse, 400);
+                    StartHover(HoverMode.Collapse, 250);
                     return;
                 }
 
@@ -2160,6 +2406,15 @@ namespace DeskNest
 
                 ApplyState(true);
             }
+        }
+
+        // Position réelle du curseur par rapport à la fenêtre : plus fiable que IsMouseOver
+        // après un redimensionnement (développement au survol).
+        private bool IsCursorOverWindow()
+        {
+            if (!IsVisible || ActualWidth <= 0 || ActualHeight <= 0) return false;
+            var p = Mouse.GetPosition(this);
+            return p.X >= 0 && p.Y >= 0 && p.X < ActualWidth && p.Y < ActualHeight;
         }
 
         // ---------- Folder Portal ----------

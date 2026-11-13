@@ -13,16 +13,31 @@ namespace DeskNest
     // Extraction et cache des icônes du shell.
     // - cache LRU borné (les icônes sont figées, donc utilisables depuis n'importe quel thread) ;
     // - icônes 48 px via SHGetImageList (au lieu du 32 px agrandi de SHGetFileInfo) ;
+    // - miniatures (images, vidéos, PDF) via IShellItemImageFactory, avec repli sur l'icône ;
     // - extraction hors du thread UI, avec un nombre limité d'extractions simultanées.
     public static class IconHelper
     {
         private const int CacheLimit = 512;
+        private const int ThumbCacheLimit = 256;
+        private const int ThumbSize = 128;
         private const int ShilExtraLarge = 0x2;
 
         private static readonly object Gate = new();
         private static readonly Dictionary<string, LinkedListNode<Entry>> Cache = new(StringComparer.OrdinalIgnoreCase);
         private static readonly LinkedList<Entry> Lru = new();
         private static readonly Dictionary<string, Task<ImageSource?>> Pending = new(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly Dictionary<string, LinkedListNode<Entry>> ThumbCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly LinkedList<Entry> ThumbLru = new();
+        private static readonly Dictionary<string, Task<ImageSource?>> ThumbPending = new(StringComparer.OrdinalIgnoreCase);
+
+        // Extensions qui savent produire une miniature dans l'Explorateur.
+        private static readonly HashSet<string> ThumbExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".jpe", ".bmp", ".gif", ".webp", ".tif", ".tiff", ".ico", ".heic", ".heif", ".avif",
+            ".mp4", ".m4v", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".mpg", ".mpeg", ".flv", ".ts", ".m2ts", ".3gp", ".ogv",
+            ".pdf"
+        };
 
         // Un seul thread STA dédié : le shell n'aime pas les extractions concurrentes
         // (les premières demandes peuvent échouer quand plusieurs threads initialisent COM en même temps).
@@ -37,12 +52,14 @@ namespace DeskNest
 
         private sealed class Request
         {
-            public Request(string path, TaskCompletionSource<ImageSource?> done)
+            public Request(string path, bool thumbnail, TaskCompletionSource<ImageSource?> done)
             {
                 Path = path;
+                Thumbnail = thumbnail;
                 Done = done;
             }
             public string Path { get; }
+            public bool Thumbnail { get; }
             public TaskCompletionSource<ImageSource?> Done { get; }
         }
 
@@ -60,7 +77,10 @@ namespace DeskNest
         private static void WorkerLoop()
         {
             foreach (var request in Queue.GetConsumingEnumerable())
-                request.Done.TrySetResult(Extract(request.Path));
+            {
+                var result = request.Thumbnail ? ExtractThumbnail(request.Path) : Extract(request.Path);
+                request.Done.TrySetResult(result);
+            }
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -103,6 +123,46 @@ namespace DeskNest
         [DllImport("shell32.dll")]
         private static extern int SHGetImageList(int iImageList, ref Guid riid, out IImageList ppv);
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SIZE
+        {
+            public int cx;
+            public int cy;
+        }
+
+        [Flags]
+        private enum SIIGBF
+        {
+            ResizeToFit = 0x00,
+            BiggerSizeOk = 0x01,
+            MemoryOnly = 0x02,
+            IconOnly = 0x04,
+            ThumbnailOnly = 0x08,
+            InCacheOnly = 0x10,
+            CropToSquare = 0x20,
+            WideThumbnails = 0x40,
+            IconBackground = 0x80,
+            ScaleUp = 0x100
+        }
+
+        // IShellItemImageFactory : le même fournisseur que l'Explorateur, donc les
+        // miniatures des images, vidéos et PDF (quand un fournisseur est installé).
+        [ComImport]
+        [Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b")]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IShellItemImageFactory
+        {
+            [PreserveSig]
+            int GetImage(SIZE size, SIIGBF flags, out IntPtr phbm);
+        }
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+        private static extern void SHCreateItemFromParsingName(string pszPath, IntPtr pbc,
+            [MarshalAs(UnmanagedType.LPStruct)] Guid riid, [MarshalAs(UnmanagedType.Interface)] out object ppv);
+
+        [DllImport("gdi32.dll")]
+        private static extern bool DeleteObject(IntPtr hObject);
+
         [DllImport("user32.dll")]
         private static extern bool DestroyIcon(IntPtr hIcon);
 
@@ -144,7 +204,7 @@ namespace DeskNest
                 {
                     lock (Gate) Pending.Remove(path);
                 }, TaskContinuationOptions.ExecuteSynchronously);
-                Queue.Add(new Request(path, done));
+                Queue.Add(new Request(path, false, done));
                 return done.Task;
             }
         }
@@ -154,6 +214,114 @@ namespace DeskNest
         {
             var cached = GetCached(path);
             return cached ?? Extract(path);
+        }
+
+        // Vrai si le fichier peut fournir une miniature (image, vidéo, PDF).
+        public static bool CanThumbnail(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            try
+            {
+                if (Directory.Exists(path)) return false;
+                return ThumbExtensions.Contains(System.IO.Path.GetExtension(path));
+            }
+            catch { return false; }
+        }
+
+        private static string ThumbKey(string path) => path + "|t" + ThumbSize;
+
+        // Retourne immédiatement une miniature déjà en cache.
+        public static ImageSource? GetCachedThumbnail(string path)
+        {
+            var key = ThumbKey(path);
+            lock (Gate)
+            {
+                if (!ThumbCache.TryGetValue(key, out var node)) return null;
+                ThumbLru.Remove(node);
+                ThumbLru.AddFirst(node);
+                return node.Value.Icon;
+            }
+        }
+
+        // Miniature asynchrone et dédupliquée (repli sur l'icône géré par l'appelant).
+        public static Task<ImageSource?> GetThumbnailAsync(string path)
+        {
+            var key = ThumbKey(path);
+            lock (Gate)
+            {
+                if (ThumbCache.TryGetValue(key, out var node))
+                {
+                    ThumbLru.Remove(node);
+                    ThumbLru.AddFirst(node);
+                    return Task.FromResult<ImageSource?>(node.Value.Icon);
+                }
+                if (ThumbPending.TryGetValue(key, out var pending)) return pending;
+
+                var done = new TaskCompletionSource<ImageSource?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                ThumbPending[key] = done.Task;
+                done.Task.ContinueWith(_ =>
+                {
+                    lock (Gate) ThumbPending.Remove(key);
+                }, TaskContinuationOptions.ExecuteSynchronously);
+                Queue.Add(new Request(path, true, done));
+                return done.Task;
+            }
+        }
+
+        private static void AddToThumbCache(string key, ImageSource image)
+        {
+            lock (Gate)
+            {
+                if (ThumbCache.TryGetValue(key, out var existing))
+                {
+                    existing.Value.Icon = image;
+                    ThumbLru.Remove(existing);
+                    ThumbLru.AddFirst(existing);
+                    return;
+                }
+
+                var node = ThumbLru.AddFirst(new Entry(key, image));
+                ThumbCache[key] = node;
+                while (ThumbCache.Count > ThumbCacheLimit && ThumbLru.Last != null)
+                {
+                    var last = ThumbLru.Last;
+                    ThumbLru.RemoveLast();
+                    ThumbCache.Remove(last.Value.Key);
+                }
+            }
+        }
+
+        private static ImageSource? ExtractThumbnail(string path)
+        {
+            IntPtr hbm = IntPtr.Zero;
+            object? item = null;
+            try
+            {
+                if (!File.Exists(path)) return null;
+
+                var iid = typeof(IShellItemImageFactory).GUID;
+                SHCreateItemFromParsingName(path, IntPtr.Zero, iid, out item);
+                if (item is not IShellItemImageFactory factory) return null;
+
+                var size = new SIZE { cx = ThumbSize, cy = ThumbSize };
+                int hr = factory.GetImage(size, SIIGBF.ThumbnailOnly | SIIGBF.BiggerSizeOk, out hbm);
+                if (hr != 0 || hbm == IntPtr.Zero) return null;
+
+                var src = Imaging.CreateBitmapSourceFromHBitmap(hbm, IntPtr.Zero, Int32Rect.Empty,
+                    BitmapSizeOptions.FromEmptyOptions());
+                src.Freeze();
+                AddToThumbCache(ThumbKey(path), src);
+                return src;
+            }
+            catch { return null; }
+            finally
+            {
+                if (hbm != IntPtr.Zero) DeleteObject(hbm);
+                if (item != null)
+                {
+                    try { Marshal.ReleaseComObject(item); } catch { }
+                }
+            }
         }
 
         private static void AddToCache(string path, ImageSource icon)

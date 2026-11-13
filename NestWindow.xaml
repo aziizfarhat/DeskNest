@@ -102,6 +102,7 @@
                     CornerRadius="6" Background="Transparent" BorderBrush="Transparent" BorderThickness="1"
                     AllowDrop="True" ToolTip="{Binding FullPath}"
                     MouseLeftButtonDown="Item_MouseLeftButtonDown" MouseLeftButtonUp="Item_MouseLeftButtonUp"
+                    MouseEnter="Item_MouseEnter" MouseLeave="Item_MouseLeave"
                     MouseMove="Item_MouseMove" PreviewMouseRightButtonDown="Item_RightDown">
                 <StackPanel>
                     <Image x:Name="Icon" Source="{Binding Icon}" Width="{Binding IconSize}" Height="{Binding IconSize}"
@@ -121,34 +122,11 @@
                 </StackPanel>
             </Border>
             <DataTemplate.Triggers>
-                <!-- Effet de survol -->
+                <!-- Effet de survol : la couleur change ici, l'échelle de l'icône est animée en code
+                     (pour respecter le réglage Windows « réduire les animations »). -->
                 <Trigger SourceName="Cell" Property="IsMouseOver" Value="True">
                     <Setter TargetName="Cell" Property="Background" Value="#33FFFFFF"/>
                     <Setter TargetName="Cell" Property="BorderBrush" Value="#50FFFFFF"/>
-                    <Trigger.EnterActions>
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="Icon"
-                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                                 To="1.12" Duration="0:0:0.12"/>
-                                <DoubleAnimation Storyboard.TargetName="Icon"
-                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                                 To="1.12" Duration="0:0:0.12"/>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </Trigger.EnterActions>
-                    <Trigger.ExitActions>
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="Icon"
-                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                                 To="1" Duration="0:0:0.12"/>
-                                <DoubleAnimation Storyboard.TargetName="Icon"
-                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                                 To="1" Duration="0:0:0.12"/>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </Trigger.ExitActions>
                 </Trigger>
                 <!-- Élément sélectionné -->
                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
@@ -168,6 +146,7 @@
                     Background="Transparent" BorderBrush="Transparent" BorderThickness="1"
                     AllowDrop="True" ToolTip="{Binding FullPath}"
                     MouseLeftButtonDown="Item_MouseLeftButtonDown" MouseLeftButtonUp="Item_MouseLeftButtonUp"
+                    MouseEnter="Item_MouseEnter" MouseLeave="Item_MouseLeave"
                     MouseMove="Item_MouseMove" PreviewMouseRightButtonDown="Item_RightDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -191,34 +170,11 @@
                 </Grid>
             </Border>
             <DataTemplate.Triggers>
-                <!-- Effet de survol -->
+                <!-- Effet de survol : la couleur change ici, l'échelle de l'icône est animée en code
+                     (pour respecter le réglage Windows « réduire les animations »). -->
                 <Trigger SourceName="Cell" Property="IsMouseOver" Value="True">
                     <Setter TargetName="Cell" Property="Background" Value="#33FFFFFF"/>
                     <Setter TargetName="Cell" Property="BorderBrush" Value="#50FFFFFF"/>
-                    <Trigger.EnterActions>
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="Icon"
-                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                                 To="1.12" Duration="0:0:0.12"/>
-                                <DoubleAnimation Storyboard.TargetName="Icon"
-                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                                 To="1.12" Duration="0:0:0.12"/>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </Trigger.EnterActions>
-                    <Trigger.ExitActions>
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="Icon"
-                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                                 To="1" Duration="0:0:0.12"/>
-                                <DoubleAnimation Storyboard.TargetName="Icon"
-                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                                 To="1" Duration="0:0:0.12"/>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </Trigger.ExitActions>
                 </Trigger>
                 <!-- Élément sélectionné -->
                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
@@ -245,6 +201,10 @@
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
+
+            <!-- Fond de la zone : image, dégradé ou papier peint flouté (acrylique). -->
+            <Border x:Name="Backdrop" Grid.RowSpan="4" IsHitTestVisible="False" Visibility="Collapsed"/>
+            <Border x:Name="Tint" Grid.RowSpan="4" IsHitTestVisible="False" Visibility="Collapsed"/>
 
             <Border x:Name="TitleBar" Grid.Row="0" Height="28" Background="#33FFFFFF" CornerRadius="9,9,0,0" AllowDrop="True">
                 <Grid>

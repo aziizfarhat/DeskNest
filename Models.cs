@@ -20,6 +20,12 @@ namespace DeskNest
         public bool RolledUp { get; set; }
         public string Color { get; set; } = "#1E1E2E";
         public double Opacity { get; set; } = 0.75;
+        // Fond de la zone : 0 = couleur unie, 1 = dégradé, 2 = image, 3 = acrylique (flou du papier peint).
+        public int BackgroundMode { get; set; }
+        public string GradientStart { get; set; } = "#1E1E2E";
+        public string GradientEnd { get; set; } = "#4A3426";
+        public double GradientAngle { get; set; } = 45;
+        public string BackgroundImage { get; set; } = "";
         public int IconSize { get; set; } = 40;
         public bool ListView { get; set; }        // false = grille, true = liste (propre à chaque zone)
         public string TitleFont { get; set; } = "";
@@ -50,6 +56,10 @@ namespace DeskNest
         public List<MovedItem> Moved { get; set; } = new();
         // Modèles de zones réutilisables (apparence et taille, sans les éléments).
         public List<NestTemplate> Templates { get; set; } = new();
+        // Vrai uniquement si l'utilisateur a volontairement supprimé la dernière zone.
+        // Sans ce marqueur, un layout.json vide est considéré comme perdu et restauré
+        // depuis la sauvegarde la plus récente (voir Storage.Load).
+        public bool ZonesCleared { get; set; }
     }
 
     // Modèle de zone : tout ce qui définit son look, réutilisable pour créer une nouvelle zone.
@@ -59,6 +69,11 @@ namespace DeskNest
         public string Name { get; set; } = "";
         public string Color { get; set; } = "#1E1E2E";
         public double Opacity { get; set; } = 0.75;
+        public int BackgroundMode { get; set; }
+        public string GradientStart { get; set; } = "#1E1E2E";
+        public string GradientEnd { get; set; } = "#4A3426";
+        public double GradientAngle { get; set; } = 45;
+        public string BackgroundImage { get; set; } = "";
         public int IconSize { get; set; } = 40;
         public bool ListView { get; set; }
         public double Width { get; set; } = 320;
@@ -91,6 +106,8 @@ namespace DeskNest
         public bool HoverExpand { get; set; } = true;            // développer au survol (zones réduites)
         public int HoverExpandDelayMs { get; set; } = 250;
         public int HoverCollapseDelayMs { get; set; } = 500;
+        public bool ShowThumbnails { get; set; } = true;         // miniatures des images, vidéos et PDF
+        public bool OpenItemsWithSingleClick { get; set; }       // ouvrir les éléments d'un simple clic (décoché par défaut)
         public string DefaultColor { get; set; } = "#1E1E2E";
         public double DefaultOpacity { get; set; } = 0.75;
         public int DefaultIconSize { get; set; } = 40;
@@ -170,7 +187,7 @@ namespace DeskNest
             }
         }
 
-        public ItemVM(string path, int iconSize, bool isPortal = false, bool isUp = false)
+        public ItemVM(string path, int iconSize, bool isPortal = false, bool isUp = false, bool showThumbnails = true)
         {
             FullPath = path;
             IconSize = iconSize;
@@ -180,8 +197,17 @@ namespace DeskNest
             if (isUp) Name = "..";
             else Name = GetName(path);
 
-            Icon = IconHelper.GetCached(FullPath);
-            if (Icon == null) LoadIconAsync();
+            // Les images, vidéos et PDF affichent une miniature ; tout le reste garde l'icône.
+            if (showThumbnails && IconHelper.CanThumbnail(FullPath))
+            {
+                Icon = IconHelper.GetCachedThumbnail(FullPath);
+                if (Icon == null) LoadThumbnailAsync();
+            }
+            else
+            {
+                Icon = IconHelper.GetCached(FullPath);
+                if (Icon == null) LoadIconAsync();
+            }
         }
 
         // Nom affiché dans une zone (sans l'extension pour les fichiers, comme l'Explorateur).
@@ -198,6 +224,18 @@ namespace DeskNest
             try
             {
                 var icon = await IconHelper.GetIconAsync(FullPath);
+                if (icon != null && _icon == null) Icon = icon;
+            }
+            catch { }
+        }
+
+        private async void LoadThumbnailAsync()
+        {
+            try
+            {
+                var icon = await IconHelper.GetThumbnailAsync(FullPath);
+                // Pas de fournisseur de miniature (PDF sans extension, codec absent…) : icône du shell.
+                if (icon == null) icon = await IconHelper.GetIconAsync(FullPath);
                 if (icon != null && _icon == null) Icon = icon;
             }
             catch { }

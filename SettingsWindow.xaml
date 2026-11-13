@@ -57,6 +57,17 @@
             <Setter Property="Margin" Value="8,0,0,0"/>
             <Setter Property="MinWidth" Value="0"/>
         </Style>
+        <!-- Tableau des raccourcis clavier -->
+        <Style x:Key="ShortcutKey" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,14,7"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+        </Style>
+        <Style x:Key="ShortcutDesc" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,7"/>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -175,6 +186,77 @@
 
                             <Border Style="{StaticResource Section}">
                                 <StackPanel>
+                                    <TextBlock l:L.Key="bg.title" Style="{StaticResource SectionTitle}"/>
+
+                                    <TextBlock l:L.Key="bg.mode" Style="{StaticResource Label}"/>
+                                    <ComboBox x:Name="ZBgMode" SelectionChanged="ZBgMode_Changed" Margin="0,0,0,6"/>
+
+                                    <!-- Dégradé : deux couleurs et un angle. -->
+                                    <StackPanel x:Name="ZGradPanel">
+                                        <TextBlock l:L.Key="bg.start" Style="{StaticResource Label}"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <Border x:Name="ZGradStartSwatch" Style="{StaticResource Swatch}"/>
+                                            <TextBox x:Name="ZGradStartHex" Style="{StaticResource HexBox}"
+                                                     l:L.TipKey="z.hex" TextChanged="ZGradStartHex_TextChanged"/>
+                                            <Button Style="{StaticResource PickButton}"
+                                                    l:L.TipKey="s.colorPick" Click="PickGradientStart_Click">
+                                                <Grid Width="14" Height="14">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition/><RowDefinition/>
+                                                    </Grid.RowDefinitions>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition/><ColumnDefinition/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Rectangle Grid.Row="0" Grid.Column="0" Fill="#E74C3C"/>
+                                                    <Rectangle Grid.Row="0" Grid.Column="1" Fill="#F1C40F"/>
+                                                    <Rectangle Grid.Row="1" Grid.Column="0" Fill="#2ECC71"/>
+                                                    <Rectangle Grid.Row="1" Grid.Column="1" Fill="#3498DB"/>
+                                                </Grid>
+                                            </Button>
+                                        </StackPanel>
+
+                                        <TextBlock l:L.Key="bg.end" Style="{StaticResource Label}"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <Border x:Name="ZGradEndSwatch" Style="{StaticResource Swatch}"/>
+                                            <TextBox x:Name="ZGradEndHex" Style="{StaticResource HexBox}"
+                                                     l:L.TipKey="z.hex" TextChanged="ZGradEndHex_TextChanged"/>
+                                            <Button Style="{StaticResource PickButton}"
+                                                    l:L.TipKey="s.colorPick" Click="PickGradientEnd_Click">
+                                                <Grid Width="14" Height="14">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition/><RowDefinition/>
+                                                    </Grid.RowDefinitions>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition/><ColumnDefinition/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Rectangle Grid.Row="0" Grid.Column="0" Fill="#E74C3C"/>
+                                                    <Rectangle Grid.Row="0" Grid.Column="1" Fill="#F1C40F"/>
+                                                    <Rectangle Grid.Row="1" Grid.Column="0" Fill="#2ECC71"/>
+                                                    <Rectangle Grid.Row="1" Grid.Column="1" Fill="#3498DB"/>
+                                                </Grid>
+                                            </Button>
+                                        </StackPanel>
+
+                                        <TextBlock x:Name="ZGradAngleLabel" Style="{StaticResource Label}"/>
+                                        <Slider x:Name="ZGradAngle" Minimum="0" Maximum="359" TickFrequency="15"
+                                                IsSnapToTickEnabled="True" ValueChanged="ZGradAngle_Changed"/>
+                                    </StackPanel>
+
+                                    <!-- Image choisie par l'utilisateur. -->
+                                    <StackPanel x:Name="ZImagePanel">
+                                        <TextBlock x:Name="ZImagePath" Style="{StaticResource Hint}" Margin="0,8,0,6"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button l:L.Key="bg.choose" Click="ChooseZoneImage_Click" Margin="0,0,8,0"/>
+                                            <Button l:L.Key="bg.clear" Click="ClearZoneImage_Click"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <TextBlock l:L.Key="bg.hint" Style="{StaticResource Hint}" Margin="0,10,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Section}">
+                                <StackPanel>
                                     <TextBlock l:L.Key="tab.appearance" Style="{StaticResource SectionTitle}"/>
 
                                     <TextBlock x:Name="ZOpacityLabel" Style="{StaticResource Label}"/>
@@ -254,6 +336,12 @@
                                 <TextBlock x:Name="AnimMsLabel" Style="{StaticResource Label}"/>
                                 <Slider x:Name="AnimMs" Minimum="80" Maximum="600" TickFrequency="20"
                                         IsSnapToTickEnabled="True" ValueChanged="AnimMs_Changed"/>
+
+                                <CheckBox x:Name="ChkThumbnails" l:L.Key="b.showThumbnails" Margin="0,18,0,8"
+                                          Click="ChkThumbnails_Click"/>
+
+                                <CheckBox x:Name="ChkSingleClick" l:L.Key="b.singleClick" Margin="0,0,0,8"
+                                          Click="ChkSingleClick_Click"/>
 
                                 <TextBlock l:L.Key="b.hint" Style="{StaticResource Hint}" Margin="0,14,0,0"/>
                             </StackPanel>
@@ -384,6 +472,88 @@
                                 <Button l:L.Key="k.restore" Click="Restore_Click"/>
                                 <Button l:L.Key="tray.openConfig" Click="OpenFolder_Click"/>
                                 <TextBlock x:Name="DataPath" Style="{StaticResource Hint}" Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Raccourcis clavier ===== -->
+            <TabItem l:L.Key="tab.shortcuts">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="4,12,4,12">
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock l:L.Key="sc.global" Style="{StaticResource SectionTitle}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition/><RowDefinition/><RowDefinition/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Ctrl + Alt + F" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" l:L.Key="sc.toggle" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Ctrl + Shift + Space" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="1" l:L.Key="sc.search" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="0" l:L.Key="sc.kDouble" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="1" l:L.Key="sc.desktop" Style="{StaticResource ShortcutDesc}"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock l:L.Key="sc.zone" Style="{StaticResource SectionTitle}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition/><RowDefinition/><RowDefinition/>
+                                        <RowDefinition/><RowDefinition/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" l:L.Key="sc.kDouble" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" l:L.Key="sc.roll" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" l:L.Key="sc.kEsc" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="1" l:L.Key="sc.escape" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Ctrl + Z" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="1" l:L.Key="sc.undo" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Ctrl + Y&#10;Ctrl + Shift + Z" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="1" l:L.Key="sc.redo" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Ctrl + A / C / X / V" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="1" l:L.Key="sc.clipboard" Style="{StaticResource ShortcutDesc}"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock l:L.Key="sc.items" Style="{StaticResource SectionTitle}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition/><RowDefinition/><RowDefinition/>
+                                        <RowDefinition/><RowDefinition/><RowDefinition/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" l:L.Key="sc.kEnter" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" l:L.Key="sc.open" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="F2" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="1" l:L.Key="sc.rename" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="0" l:L.Key="sc.kDel" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="1" l:L.Key="sc.delete" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="0" l:L.Key="sc.kShiftDel" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="1" l:L.Key="sc.deletePermanent" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Alt + ←&#10;Backspace" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="1" l:L.Key="sc.back" Style="{StaticResource ShortcutDesc}"/>
+                                    <TextBlock Grid.Row="5" Grid.Column="0" l:L.Key="sc.kMouseBack" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBlock Grid.Row="5" Grid.Column="1" l:L.Key="sc.mouseBack" Style="{StaticResource ShortcutDesc}"/>
+                                </Grid>
                             </StackPanel>
                         </Border>
                     </StackPanel>

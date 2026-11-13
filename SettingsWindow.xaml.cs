@@ -58,6 +58,11 @@ namespace DeskNest
             ZView.Items.Clear();
             ZView.Items.Add(Loc.T("view.grid"));
             ZView.Items.Add(Loc.T("view.list"));
+            ZBgMode.Items.Clear();
+            ZBgMode.Items.Add(Loc.T("bg.solid"));
+            ZBgMode.Items.Add(Loc.T("bg.gradient"));
+            ZBgMode.Items.Add(Loc.T("bg.image"));
+            ZBgMode.Items.Add(Loc.T("bg.acrylic"));
         }
 
         private void OnLanguageChanged()
@@ -92,6 +97,7 @@ namespace DeskNest
             AboutVersion.Text = Loc.F("ab.version", version);
             HeaderVersion.Text = Loc.F("ab.version", version);
             if (Current is NestData d) ZOpacityLabel.Text = Loc.F("z.opacity", (int)(d.Opacity * 100));
+            if (Current is NestData g) ZGradAngleLabel.Text = Loc.F("bg.angle", (int)g.GradientAngle);
         }
 
         // ---------- Chargement ----------
@@ -116,6 +122,8 @@ namespace DeskNest
             CollapseDelay.Value = s.HoverCollapseDelayMs;
             ChkAnimate.IsChecked = s.AnimateRoll;
             AnimMs.Value = s.RollAnimationMs;
+            ChkThumbnails.IsChecked = s.ShowThumbnails;
+            ChkSingleClick.IsChecked = s.OpenItemsWithSingleClick;
 
             DColor.SelectedIndex = IndexOfPreset(s.DefaultColor);
             DHex.Text = s.DefaultColor;
@@ -206,6 +214,13 @@ namespace DeskNest
             ZLocked.IsChecked = d.Locked;
             ZRolled.IsChecked = d.RolledUp;
             ZHover.IsChecked = d.HoverExpand;
+            ZBgMode.SelectedIndex = Math.Clamp(d.BackgroundMode, 0, 3);
+            ZGradStartHex.Text = d.GradientStart;
+            ZGradEndHex.Text = d.GradientEnd;
+            ZGradAngle.Value = d.GradientAngle;
+            ZGradAngleLabel.Text = Loc.F("bg.angle", (int)d.GradientAngle);
+            UpdateBgSwatches();
+            UpdateBgPanels();
             ZInfo.Text = string.IsNullOrEmpty(d.PortalPath)
                 ? Loc.F("z.infoClassic", d.Items.Count)
                 : Loc.F("z.infoPortal", d.PortalPath);
@@ -221,7 +236,7 @@ namespace DeskNest
             d.RolledUp = ZRolled.IsChecked == true;
             d.HoverExpand = ZHover.IsChecked == true;
             if (!d.TitleVisible) { d.RolledUp = false; ZRolled.IsChecked = false; }
-            _m.ZoneChanged(d);
+            _m.ZoneChanged(d); // la visibilité peut changer : vérifie aussi les fichiers du bureau
             ZoneList.Items.Refresh();
         }
 
@@ -229,7 +244,7 @@ namespace DeskNest
         {
             if (_loading || Current is not NestData d || string.IsNullOrWhiteSpace(ZName.Text)) return;
             d.Title = ZName.Text.Trim();
-            _m.ZoneChanged(d);
+            _m.ZoneAppearanceChanged(d);
             ZoneList.Items.Refresh();
         }
 
@@ -239,7 +254,7 @@ namespace DeskNest
             d.Color = Palette.Presets[ZColor.SelectedIndex].Hex;
             _loading = true; ZHex.Text = d.Color; _loading = false;
             UpdateZoneSwatch();
-            _m.ZoneChanged(d);
+            _m.ZoneAppearanceChanged(d);
         }
 
         private void ZHex_TextChanged(object sender, TextChangedEventArgs e)
@@ -249,7 +264,7 @@ namespace DeskNest
             d.Color = ZHex.Text;
             _loading = true; ZColor.SelectedIndex = IndexOfPreset(d.Color); _loading = false;
             UpdateZoneSwatch();
-            _m.ZoneChanged(d);
+            _m.ZoneAppearanceChanged(d);
         }
 
         private void PickZoneColor_Click(object sender, RoutedEventArgs e)
@@ -263,7 +278,7 @@ namespace DeskNest
             ZColor.SelectedIndex = IndexOfPreset(d.Color);
             _loading = false;
             UpdateZoneSwatch();
-            _m.ZoneChanged(d);
+            _m.ZoneAppearanceChanged(d);
         }
 
         private static System.Drawing.Color ToDrawingColor(string hex)
@@ -310,21 +325,123 @@ namespace DeskNest
         {
             if (_loading) return;
             ZOpacityLabel.Text = Loc.F("z.opacity", (int)ZOpacity.Value);
-            if (Current is NestData d) { d.Opacity = ZOpacity.Value / 100.0; _m.ZoneChanged(d); }
+            if (Current is NestData d) { d.Opacity = ZOpacity.Value / 100.0; _m.ZoneAppearanceChanged(d); }
         }
 
         private void ZIcon_Changed(object sender, SelectionChangedEventArgs e)
         {
             if (_loading || Current is not NestData d || ZIcon.SelectedIndex < 0) return;
             d.IconSize = Sizes[ZIcon.SelectedIndex];
-            _m.ZoneChanged(d);
+            _m.ZoneAppearanceChanged(d);
         }
 
         private void ZView_Changed(object sender, SelectionChangedEventArgs e)
         {
             if (_loading || Current is not NestData d || ZView.SelectedIndex < 0) return;
             d.ListView = ZView.SelectedIndex == 1;
-            _m.ZoneChanged(d);
+            _m.ZoneAppearanceChanged(d);
+        }
+
+        // ---------- Fond de la zone ----------
+        private void UpdateBgSwatches()
+        {
+            if (Current is not NestData d) return;
+            ZGradStartSwatch.Background = ToBrush(d.GradientStart);
+            ZGradEndSwatch.Background = ToBrush(d.GradientEnd);
+        }
+
+        // Affiche uniquement les réglages utiles au mode choisi.
+        private void UpdateBgPanels()
+        {
+            int mode = ZBgMode.SelectedIndex;
+            ZGradPanel.Visibility = mode == 1 ? Visibility.Visible : Visibility.Collapsed;
+            ZImagePanel.Visibility = mode == 2 ? Visibility.Visible : Visibility.Collapsed;
+            if (Current is NestData d)
+                ZImagePath.Text = string.IsNullOrWhiteSpace(d.BackgroundImage)
+                    ? Loc.T("bg.none")
+                    : d.BackgroundImage;
+        }
+
+        private void ZBgMode_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading || Current is not NestData d || ZBgMode.SelectedIndex < 0) return;
+            d.BackgroundMode = ZBgMode.SelectedIndex;
+            UpdateBgPanels();
+            _m.ZoneAppearanceChanged(d);
+        }
+
+        private void ZGradStartHex_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_loading || Current is not NestData d) return;
+            if (!Regex.IsMatch(ZGradStartHex.Text, "^#[0-9A-Fa-f]{6}$")) return;
+            d.GradientStart = ZGradStartHex.Text;
+            UpdateBgSwatches();
+            _m.ZoneAppearanceChanged(d);
+        }
+
+        private void ZGradEndHex_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_loading || Current is not NestData d) return;
+            if (!Regex.IsMatch(ZGradEndHex.Text, "^#[0-9A-Fa-f]{6}$")) return;
+            d.GradientEnd = ZGradEndHex.Text;
+            UpdateBgSwatches();
+            _m.ZoneAppearanceChanged(d);
+        }
+
+        private void PickGradientStart_Click(object sender, RoutedEventArgs e)
+        {
+            if (Current is not NestData d) return;
+            var picked = PickColor(d.GradientStart);
+            if (picked == null) return;
+            d.GradientStart = picked;
+            _loading = true; ZGradStartHex.Text = picked; _loading = false;
+            UpdateBgSwatches();
+            _m.ZoneAppearanceChanged(d);
+        }
+
+        private void PickGradientEnd_Click(object sender, RoutedEventArgs e)
+        {
+            if (Current is not NestData d) return;
+            var picked = PickColor(d.GradientEnd);
+            if (picked == null) return;
+            d.GradientEnd = picked;
+            _loading = true; ZGradEndHex.Text = picked; _loading = false;
+            UpdateBgSwatches();
+            _m.ZoneAppearanceChanged(d);
+        }
+
+        private void ZGradAngle_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_loading || Current is not NestData d) return;
+            d.GradientAngle = ZGradAngle.Value;
+            ZGradAngleLabel.Text = Loc.F("bg.angle", (int)ZGradAngle.Value);
+            _m.ZoneAppearanceChanged(d);
+        }
+
+        private void ChooseZoneImage_Click(object sender, RoutedEventArgs e)
+        {
+            if (Current is not NestData d) return;
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = Loc.T("bg.choose"),
+                Filter = Loc.T("bg.filter"),
+                CheckFileExists = true
+            };
+            if (dlg.ShowDialog(this) != true) return;
+
+            d.BackgroundImage = dlg.FileName;
+            d.BackgroundMode = 2; // choisir une image bascule la zone en mode image
+            _loading = true; ZBgMode.SelectedIndex = 2; _loading = false;
+            UpdateBgPanels();
+            _m.ZoneAppearanceChanged(d);
+        }
+
+        private void ClearZoneImage_Click(object sender, RoutedEventArgs e)
+        {
+            if (Current is not NestData d || string.IsNullOrEmpty(d.BackgroundImage)) return;
+            d.BackgroundImage = "";
+            UpdateBgPanels();
+            _m.ZoneAppearanceChanged(d);
         }
 
         private static void FillFontCombo(ComboBox cb, List<string> fonts)
@@ -353,14 +470,14 @@ namespace DeskNest
         {
             if (_loading || Current is not NestData d || ZTitleFont.SelectedIndex < 0) return;
             d.TitleFont = FontName(ZTitleFont);
-            _m.ZoneChanged(d);
+            _m.ZoneAppearanceChanged(d);
         }
 
         private void ZItemFont_Changed(object sender, SelectionChangedEventArgs e)
         {
             if (_loading || Current is not NestData d || ZItemFont.SelectedIndex < 0) return;
             d.ItemFont = FontName(ZItemFont);
-            _m.ZoneChanged(d);
+            _m.ZoneAppearanceChanged(d);
         }
 
         private void ZTitleFontSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -370,7 +487,7 @@ namespace DeskNest
             d.TitleFontSize = (int)Math.Round(ZTitleFontSize.Value);
             ZTitleFontSizeValue.Text = d.TitleFontSize.ToString();
 
-            _m.ZoneChanged(d);
+            _m.ZoneAppearanceChanged(d);
         }
 
         private void ZItemFontSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -380,7 +497,7 @@ namespace DeskNest
             d.ItemFontSize = (int)Math.Round(ZItemFontSize.Value);
             ZItemFontSizeValue.Text = d.ItemFontSize.ToString();
 
-            _m.ZoneChanged(d);
+            _m.ZoneAppearanceChanged(d);
         }
 
         // Ouvre l'onglet Zones sur la zone demandée (menu « Polices… » d'une zone).
@@ -407,9 +524,12 @@ namespace DeskNest
                 foreach (var f in _m.Nests)
                 {
                     f.Color = src.Color; f.Opacity = src.Opacity; f.IconSize = src.IconSize;
+                    f.BackgroundMode = src.BackgroundMode; f.GradientStart = src.GradientStart;
+                    f.GradientEnd = src.GradientEnd; f.GradientAngle = src.GradientAngle;
+                    f.BackgroundImage = src.BackgroundImage;
                     f.TitleFont = src.TitleFont; f.TitleFontSize = src.TitleFontSize;
                     f.ItemFont = src.ItemFont; f.ItemFontSize = src.ItemFontSize;
-                    _m.ZoneChanged(f);
+                    _m.ZoneAppearanceChanged(f);
                 }
             }
             finally { _m.History.EndBatch(Loc.T("undo.applyAll")); }
@@ -559,6 +679,20 @@ namespace DeskNest
             _m.RequestSave();
         }
 
+        private void ChkThumbnails_Click(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _m.Settings.ShowThumbnails = ChkThumbnails.IsChecked == true;
+            _m.SettingsChanged();
+        }
+
+        private void ChkSingleClick_Click(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _m.Settings.OpenItemsWithSingleClick = ChkSingleClick.IsChecked == true;
+            _m.SettingsChanged();
+        }
+
         // ---------- Apparence ----------
         private void DColor_Changed(object sender, SelectionChangedEventArgs e)
         {
@@ -616,7 +750,8 @@ namespace DeskNest
                 foreach (var f in _m.Nests)
                 {
                     f.Color = s.DefaultColor; f.Opacity = s.DefaultOpacity; f.IconSize = s.DefaultIconSize;
-                    _m.ZoneChanged(f);
+                    f.BackgroundMode = 0; f.BackgroundImage = ""; // retour au fond uni par défaut
+                    _m.ZoneAppearanceChanged(f);
                 }
             }
             finally { _m.History.EndBatch(Loc.T("undo.applyAll")); }

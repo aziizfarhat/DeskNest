@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -72,6 +73,11 @@ namespace DeskNest
             RolledUp = d.RolledUp,
             Color = d.Color,
             Opacity = d.Opacity,
+            BackgroundMode = d.BackgroundMode,
+            GradientStart = d.GradientStart,
+            GradientEnd = d.GradientEnd,
+            GradientAngle = d.GradientAngle,
+            BackgroundImage = d.BackgroundImage,
             IconSize = d.IconSize,
             ListView = d.ListView,
             TitleFont = d.TitleFont,
@@ -89,6 +95,9 @@ namespace DeskNest
         {
             if (a.Title != b.Title || a.Locked != b.Locked || a.TitleVisible != b.TitleVisible ||
                 a.RolledUp != b.RolledUp || a.Color != b.Color || a.Opacity != b.Opacity ||
+                a.BackgroundMode != b.BackgroundMode || a.GradientStart != b.GradientStart ||
+                a.GradientEnd != b.GradientEnd || Math.Abs(a.GradientAngle - b.GradientAngle) > 0.01 ||
+                a.BackgroundImage != b.BackgroundImage ||
                 a.IconSize != b.IconSize || a.ListView != b.ListView ||
                 a.TitleFont != b.TitleFont || a.TitleFontSize != b.TitleFontSize ||
                 a.ItemFont != b.ItemFont || a.ItemFontSize != b.ItemFontSize ||
@@ -159,6 +168,11 @@ namespace DeskNest
                 live.RolledUp = state.RolledUp;
                 live.Color = state.Color;
                 live.Opacity = state.Opacity;
+                live.BackgroundMode = state.BackgroundMode;
+                live.GradientStart = state.GradientStart;
+                live.GradientEnd = state.GradientEnd;
+                live.GradientAngle = state.GradientAngle;
+                live.BackgroundImage = state.BackgroundImage;
                 live.IconSize = state.IconSize;
                 live.ListView = state.ListView;
                 live.TitleFont = state.TitleFont;
@@ -436,6 +450,7 @@ namespace DeskNest
                 var first = NewNestData(Loc.T("zone.apps"));
                 first.Left = 80; first.Top = 80;
                 _data.Nests.Add(first);
+                _data.ZonesCleared = false;
             }
 
             // Reprend les fichiers gérés avant d'afficher les Nests.
@@ -483,6 +498,10 @@ namespace DeskNest
 
         private void OpenWindow(NestData d)
         {
+            // Une seule fenêtre par zone : un import ou un JSON contenant des doublons
+            // ne doit pas superposer deux fenêtres identiques.
+            if (_windows.Any(w => w.Data == d || w.Data.Id == d.Id)) return;
+
             var w = new NestWindow(this, d);
             _windows.Add(w);
             // Filet de sécurité : si la fenêtre est réellement fermée (fermeture
@@ -715,8 +734,11 @@ namespace DeskNest
 
         public void SettingsChanged()
         {
+            var watch = Stopwatch.StartNew();
             ApplySettings();
             RequestSave();
+            if (watch.ElapsedMilliseconds > 200)
+                Diag.Log($"paramètres : application lente ({watch.ElapsedMilliseconds} ms)");
         }
 
         // ---------- Mises à jour ----------
@@ -908,6 +930,7 @@ namespace DeskNest
 
         public void ZoneChanged(NestData d)
         {
+            var watch = Stopwatch.StartNew();
             // Masquer une zone ne doit pas faire disparaître ses fichiers du bureau.
             bool restored = !d.Enabled && RestoreItemsNoLongerVisible();
             // Réactiver une zone doit au contraire reprendre les éléments
@@ -921,6 +944,22 @@ namespace DeskNest
             ApplyVisibility();
             RequestSave();
             RecordZoneBaseline(d);
+            if (watch.ElapsedMilliseconds > 200)
+                Diag.Log($"zone : modification lente ({watch.ElapsedMilliseconds} ms)");
+        }
+
+        // Modification d'apparence (couleur, police, fond, taille…). Aucun impact sur les
+        // fichiers du bureau : on évite ainsi les vérifications de dossier à chaque
+        // mouvement de curseur dans la fenêtre de paramètres.
+        public void ZoneAppearanceChanged(NestData d)
+        {
+            var watch = Stopwatch.StartNew();
+            _windows.FirstOrDefault(w => w.Data == d)?.ApplyExternalChange();
+            ApplyVisibility();
+            RequestSave();
+            RecordZoneBaseline(d);
+            if (watch.ElapsedMilliseconds > 200)
+                Diag.Log($"zone : apparence lente ({watch.ElapsedMilliseconds} ms)");
         }
 
         private void RecordZoneBaseline(NestData d)
@@ -979,6 +1018,7 @@ namespace DeskNest
             _windows.Clear();
             _data = d;
             _data.Settings ??= new AppSettings();
+            _data.ZonesCleared = _data.Nests.Count == 0;
             // On garde la trace des éléments rangés par l'état précédent pour pouvoir les remettre un jour.
             foreach (var m in oldMoved)
                 if (!_data.Moved.Any(x => Same(x.StorePath, m.StorePath))) _data.Moved.Add(m);
@@ -1017,6 +1057,11 @@ namespace DeskNest
                 Title = Loc.F("zone.copyName", source.Title),
                 Color = source.Color,
                 Opacity = source.Opacity,
+                BackgroundMode = source.BackgroundMode,
+                GradientStart = source.GradientStart,
+                GradientEnd = source.GradientEnd,
+                GradientAngle = source.GradientAngle,
+                BackgroundImage = source.BackgroundImage,
                 IconSize = source.IconSize,
                 ListView = source.ListView,
                 Width = source.Width,
@@ -1052,6 +1097,11 @@ namespace DeskNest
             t.Name = name;
             t.Color = source.Color;
             t.Opacity = source.Opacity;
+            t.BackgroundMode = source.BackgroundMode;
+            t.GradientStart = source.GradientStart;
+            t.GradientEnd = source.GradientEnd;
+            t.GradientAngle = source.GradientAngle;
+            t.BackgroundImage = source.BackgroundImage;
             t.IconSize = source.IconSize;
             t.ListView = source.ListView;
             t.Width = source.Width;
@@ -1071,6 +1121,11 @@ namespace DeskNest
                 Title = t.Name,
                 Color = t.Color,
                 Opacity = t.Opacity,
+                BackgroundMode = t.BackgroundMode,
+                GradientStart = t.GradientStart,
+                GradientEnd = t.GradientEnd,
+                GradientAngle = t.GradientAngle,
+                BackgroundImage = t.BackgroundImage,
                 IconSize = t.IconSize,
                 ListView = t.ListView,
                 Width = t.Width,
@@ -1097,6 +1152,11 @@ namespace DeskNest
             {
                 target.Color = t.Color;
                 target.Opacity = t.Opacity;
+                target.BackgroundMode = t.BackgroundMode;
+                target.GradientStart = t.GradientStart;
+                target.GradientEnd = t.GradientEnd;
+                target.GradientAngle = t.GradientAngle;
+                target.BackgroundImage = t.BackgroundImage;
                 target.IconSize = t.IconSize;
                 target.ListView = t.ListView;
                 target.Width = t.Width;
@@ -1134,6 +1194,7 @@ namespace DeskNest
             }
             int index = _data.Nests.Count;
             _data.Nests.Add(d);
+            _data.ZonesCleared = false;
             Hidden = false;
             Settings.Enabled = true; // créer une zone la rend forcément visible
             OpenWindow(d);
@@ -1149,6 +1210,7 @@ namespace DeskNest
         private void RemoveNestSilent(NestData d)
         {
             _data.Nests.Remove(d);
+            _data.ZonesCleared = _data.Nests.Count == 0;
             _baseline.Remove(d.Id);
             var w = _windows.FirstOrDefault(x => x.Data == d);
             if (w != null)
@@ -1166,6 +1228,7 @@ namespace DeskNest
             if (_data.Nests.Contains(d)) return;
             int at = Math.Clamp(index, 0, _data.Nests.Count);
             _data.Nests.Insert(at, d);
+            _data.ZonesCleared = false;
             OpenWindow(d);
             _baseline[d.Id] = CloneNest(d);
             _applyingHistory = true;
@@ -1181,6 +1244,7 @@ namespace DeskNest
             var data = w.Data;
             int index = _data.Nests.IndexOf(data);
             _data.Nests.Remove(data);
+            _data.ZonesCleared = _data.Nests.Count == 0;
             _baseline.Remove(data.Id);
             _windows.Remove(w);
             w.CloseForReal();
@@ -1422,6 +1486,7 @@ namespace DeskNest
             }
 
             Storage.Save(data);
+            Storage.Flush(); // le processus de désinstallation se termine juste après
 
             // Le dossier de stockage ne doit pas rester vide après désinstallation.
             try
@@ -1766,6 +1831,7 @@ namespace DeskNest
 
             // Sauvegarde les associations pour le prochain démarrage.
             Storage.Save(_data);
+            Storage.Flush(); // l'écriture se fait en arrière-plan : on l'attend avant de quitter
 
             _mouseHook?.Dispose();
             _hotkey?.Dispose();

@@ -410,6 +410,8 @@ namespace DeskNest
             A("b.collapseDelay", "Delay before collapsing: {0} ms", "Délai avant réduction : {0} ms", "Ritardo prima della riduzione: {0} ms", "Verzögerung vor dem Einklappen: {0} ms", "Retraso antes de contraer: {0} ms", "Atraso antes de recolher: {0} ms", "التأخير قبل الطيّ: {0} مللي ثانية", "折叠前延迟：{0} 毫秒", "折りたたみまでの遅延: {0} ms", "접기 전 지연: {0} ms");
             A("b.animate", "Animate the Roll (collapsing and expanding zones)", "Animer le Roll (réduction et développement des zones)", "Anima il Roll (riduzione ed espansione delle zone)", "Roll animieren (Ein- und Ausklappen der Bereiche)", "Animar el Roll (contraer y expandir zonas)", "Animar o Roll (recolher e expandir zonas)", "تحريك الطيّ (طيّ المناطق وتوسيعها)", "为折叠/展开添加动画", "Roll をアニメーション表示（ゾーンの折りたたみと展開）", "Roll 애니메이션(영역 접기 및 펼치기)");
             A("b.animMs", "Animation duration: {0} ms", "Durée de l'animation : {0} ms", "Durata dell'animazione: {0} ms", "Animationsdauer: {0} ms", "Duración de la animación: {0} ms", "Duração da animação: {0} ms", "مدة الحركة: {0} مللي ثانية", "动画时长：{0} 毫秒", "アニメーションの長さ: {0} ms", "애니메이션 지속 시간: {0} ms");
+            A("b.showThumbnails", "Show thumbnails for images, videos and PDF files", "Afficher les miniatures des images, vidéos et fichiers PDF", "Mostra le miniature di immagini, video e file PDF", "Miniaturansichten für Bilder, Videos und PDF-Dateien anzeigen", "Mostrar miniaturas de imágenes, vídeos y archivos PDF", "Mostrar miniaturas de imagens, vídeos e ficheiros PDF", "إظهار المصغرات للصور ومقاطع الفيديو وملفات PDF", "显示图片、视频和 PDF 文件的缩略图", "画像・動画・PDF ファイルのサムネイルを表示", "이미지, 동영상, PDF 파일의 미리보기 표시");
+            A("b.singleClick", "Open items with a single click (otherwise double-click)", "Ouvrir les éléments d'un simple clic (sinon double-clic)", "Apri gli elementi con un solo clic (altrimenti doppio clic)", "Elemente mit einem einzigen Klick öffnen (sonst Doppelklick)", "Abrir elementos con un solo clic (si no, doble clic)", "Abrir itens com um único clique (caso contrário, duplo clique)", "فتح العناصر بنقرة واحدة (وإلا بنقرتين)", "单击打开项目（否则双击）", "シングルクリックで項目を開く（それ以外はダブルクリック）", "한 번 클릭으로 항목 열기 (그렇지 않으면 두 번 클릭)");
             A("b.hint",
                 "A zone must first be rolled up (double-click an empty part of its title bar, or right-click > Roll up). Double-clicking the title bar of a zone expanded by hover keeps it expanded. The option can also be turned off zone by zone (Zones tab or right-click).",
                 "Une zone doit d'abord être réduite (double-clic sur une partie vide de sa barre de titre, ou clic droit > Réduire). Un double-clic sur la barre de titre d'une zone développée par survol la garde développée. L'option peut aussi être désactivée zone par zone (onglet Zones ou clic droit).",
@@ -461,6 +463,46 @@ namespace DeskNest
             A("ab.version", "Version {0}", "Version {0}", "Versione {0}", "Version {0}", "Versión {0}", "Versão {0}", "الإصدار {0}", "版本 {0}", "バージョン {0}", "버전 {0}");
             A("ab.text", "Organize your desktop with zones for shortcuts, files and folders.", "Organisez votre bureau avec des zones pour regrouper raccourcis, fichiers et dossiers.", "Organizza il desktop con zone per raccogliere collegamenti, file e cartelle.", "Organisieren Sie Ihren Desktop mit Bereichen für Verknüpfungen, Dateien und Ordner.", "Organiza tu escritorio con zonas para agrupar accesos directos, archivos y carpetas.", "Organize sua área de trabalho com zonas para agrupar atalhos, arquivos e pastas.", "نظّم سطح المكتب باستخدام مناطق لتجميع الاختصارات والملفات والمجلدات.", "使用桌面区域整理快捷方式、文件和文件夹。", "デスクトップ上のゾーンでショートカット、ファイル、フォルダーを整理するアプリです。", "바탕 화면의 영역으로 바로 가기, 파일, 폴더를 정리하는 앱입니다.");
             A("ab.license", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (non-commercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (non commercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (non commerciale).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (nicht kommerziell).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (no comercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (não comercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (غير تجاري).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0（非商业性）。", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0（非営利）。", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0(비상업적).");
+            // ---------- Fond de la zone ----------
+            A("bg.title", "Zone background", "Fond de la zone", "Sfondo della zona", "Bereichshintergrund", "Fondo de la zona", "Fundo da zona", "خلفية المنطقة", "区域背景", "ゾーンの背景", "영역 배경");
+            A("bg.mode", "Background type", "Type de fond", "Tipo di sfondo", "Hintergrundtyp", "Tipo de fondo", "Tipo de fundo", "نوع الخلفية", "背景类型", "背景の種類", "배경 유형");
+            A("bg.solid", "Solid colour", "Couleur unie", "Colore pieno", "Einfarbig", "Color sólido", "Cor sólida", "لون موحد", "纯色", "単色", "단색");
+            A("bg.gradient", "Gradient", "Dégradé", "Sfumatura", "Farbverlauf", "Degradado", "Gradiente", "تدرج", "渐变", "グラデーション", "그라데이션");
+            A("bg.image", "Image", "Image", "Immagine", "Bild", "Imagen", "Imagem", "صورة", "图片", "画像", "이미지");
+            A("bg.acrylic", "Acrylic (blurred wallpaper)", "Acrylique (papier peint flouté)", "Acrilico (sfondo sfocato)", "Acryl (unscharfes Hintergrundbild)", "Acrílico (fondo borroso)", "Acrílico (papel de parede desfocado)", "أكريليك (خلفية ضبابية)", "亚克力（模糊壁纸）", "アクリル（壁紙をぼかす）", "아크릴(배경 화면 흐리게)");
+            A("bg.start", "Start colour", "Couleur de départ", "Colore iniziale", "Startfarbe", "Color inicial", "Cor inicial", "لون البداية", "起始颜色", "開始色", "시작 색");
+            A("bg.end", "End colour", "Couleur d'arrivée", "Colore finale", "Endfarbe", "Color final", "Cor final", "لون النهاية", "结束颜色", "終了色", "끝 색");
+            A("bg.angle", "Angle: {0}°", "Angle : {0}°", "Angolo: {0}°", "Winkel: {0}°", "Ángulo: {0}°", "Ângulo: {0}°", "الزاوية: {0}°", "角度：{0}°", "角度: {0}°", "각도: {0}°");
+            A("bg.choose", "Choose an image…", "Choisir une image…", "Scegli un'immagine…", "Bild auswählen…", "Elegir una imagen…", "Escolher uma imagem…", "اختيار صورة…", "选择图片…", "画像を選択…", "이미지 선택…");
+            A("bg.clear", "Clear image", "Effacer l'image", "Rimuovi immagine", "Bild entfernen", "Quitar imagen", "Remover imagem", "إزالة الصورة", "清除图片", "画像をクリア", "이미지 지우기");
+            A("bg.none", "No image selected", "Aucune image sélectionnée", "Nessuna immagine selezionata", "Kein Bild ausgewählt", "Ninguna imagen seleccionada", "Nenhuma imagem selecionada", "لم يتم اختيار صورة", "未选择图片", "画像が選択されていません", "선택한 이미지 없음");
+            A("bg.filter", "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|All files (*.*)|*.*", "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|Tous les fichiers (*.*)|*.*", "Immagini|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|Tutti i file (*.*)|*.*", "Bilder|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|Alle Dateien (*.*)|*.*", "Imágenes|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|Todos los archivos (*.*)|*.*", "Imagens|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|Todos os arquivos (*.*)|*.*", "الصور|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|كل الملفات (*.*)|*.*", "图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|所有文件 (*.*)|*.*", "画像|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|すべてのファイル (*.*)|*.*", "이미지|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|모든 파일 (*.*)|*.*");
+            A("bg.hint", "Acrylic blurs the wallpaper behind the zone. Image and gradient follow the zone's transparency.", "L'acrylique floute le papier peint derrière la zone. L'image et le dégradé suivent la transparence de la zone.", "L'acrilico sfoca lo sfondo dietro la zona. L'immagine e la sfumatura seguono la trasparenza della zona.", "Acryl verwischt das Hintergrundbild hinter dem Bereich. Bild und Farbverlauf folgen der Transparenz des Bereichs.", "El acrílico desenfoca el fondo detrás de la zona. La imagen y el degradado siguen la transparencia de la zona.", "O acrílico desfoca o papel de parede atrás da zona. A imagem e o gradiente seguem a transparência da zona.", "تضبب مادة الأكريليك الخلفية خلف المنطقة. تتبع الصورة والتدرج شفافية المنطقة.", "亚克力会模糊区域后面的壁纸。图片和渐变会遵循区域的透明度。", "アクリルはゾーンの後ろの壁紙をぼかします。画像とグラデーションはゾーンの透明度に従います。", "아크릴은 영역 뒤의 배경 화면을 흐리게 합니다. 이미지와 그라데이션은 영역의 투명도를 따릅니다.");
+            // ---------- Raccourcis clavier ----------
+            A("tab.shortcuts", "Shortcuts", "Raccourcis", "Scorciatoie", "Tastenkürzel", "Atajos", "Atalhos", "الاختصارات", "快捷键", "ショートカット", "단축키");
+            A("sc.global", "General", "Général", "Generale", "Allgemein", "General", "Geral", "عام", "常规", "全般", "일반");
+            A("sc.zone", "Zones", "Zones", "Zone", "Bereiche", "Zonas", "Zonas", "المناطق", "区域", "ゾーン", "영역");
+            A("sc.items", "Items", "Éléments", "Elementi", "Elemente", "Elementos", "Itens", "العناصر", "项目", "項目", "항목");
+            A("sc.toggle", "Hide or show all zones", "Masquer ou afficher toutes les zones", "Nascondi o mostra tutte le zone", "Alle Bereiche aus-/einblenden", "Ocultar o mostrar todas las zonas", "Ocultar ou mostrar todas as zonas", "إخفاء أو إظهار كل المناطق", "隐藏或显示所有区域", "すべてのゾーンを非表示 / 表示", "모든 영역 숨기기 또는 표시");
+            A("sc.search", "Search everywhere", "Rechercher partout", "Cerca ovunque", "Überall suchen", "Buscar en todo", "Pesquisar em tudo", "البحث في كل مكان", "全局搜索", "すべて検索", "전체 검색");
+            A("sc.desktop", "Hide or show zones by double-clicking the desktop", "Masquer ou afficher les zones en double-cliquant sur le bureau", "Nascondi o mostra le zone facendo doppio clic sul desktop", "Bereiche per Doppelklick auf den Desktop aus-/einblenden", "Ocultar o mostrar las zonas haciendo doble clic en el escritorio", "Ocultar ou mostrar as zonas com duplo clique na área de trabalho", "إخفاء أو إظهار المناطق بالنقر المزدوج على سطح المكتب", "双击桌面隐藏或显示区域", "デスクトップをダブルクリックしてゾーンを非表示 / 表示", "바탕 화면을 두 번 클릭하여 영역 숨기기 또는 표시");
+            A("sc.roll", "Roll up or unroll the zone by double-clicking its title", "Enrouler ou dérouler la zone en double-cliquant sur son titre", "Arrotola o srotola la zona facendo doppio clic sul titolo", "Bereich durch Doppelklick auf den Titel ein-/ausrollen", "Enrollar o desenrollar la zona haciendo doble clic en su título", "Enrolar ou desenrolar a zona com duplo clique no título", "طي المنطقة أو فتحها بالنقر المزدوج على عنوانها", "双击标题卷起或展开区域", "タイトルをダブルクリックしてゾーンを折りたたむ / 展開", "제목을 두 번 클릭하여 영역 말기 또는 펼치기");
+            A("sc.escape", "Cancel the selection or the search", "Annuler la sélection ou la recherche", "Annulla la selezione o la ricerca", "Auswahl oder Suche abbrechen", "Cancelar la selección o la búsqueda", "Cancelar a seleção ou a pesquisa", "إلغاء التحديد أو البحث", "取消选择或搜索", "選択または検索をキャンセル", "선택 또는 검색 취소");
+            A("sc.undo", "Undo the last action", "Annuler la dernière action", "Annulla l'ultima azione", "Letzte Aktion rückgängig machen", "Deshacer la última acción", "Desfazer a última ação", "التراجع عن آخر إجراء", "撤销上一个操作", "最後の操作を元に戻す", "마지막 작업 실행 취소");
+            A("sc.redo", "Redo the undone action", "Rétablir l'action annulée", "Ripeti l'azione annullata", "Rückgängig gemachte Aktion wiederholen", "Rehacer la acción deshecha", "Refazer a ação desfeita", "إعادة الإجراء الذي تم التراجع عنه", "重做已撤销的操作", "元に戻した操作をやり直す", "취소한 작업 다시 실행");
+            A("sc.clipboard", "Select all / copy / cut / paste", "Tout sélectionner / copier / couper / coller", "Seleziona tutto / copia / taglia / incolla", "Alles auswählen / kopieren / ausschneiden / einfügen", "Seleccionar todo / copiar / cortar / pegar", "Selecionar tudo / copiar / cortar / colar", "تحديد الكل / نسخ / قص / لصق", "全选 / 复制 / 剪切 / 粘贴", "すべて選択 / コピー / 切り取り / 貼り付け", "모두 선택 / 복사 / 잘라내기 / 붙여넣기");
+            A("sc.open", "Open the selected item", "Ouvrir l'élément sélectionné", "Apri l'elemento selezionato", "Ausgewähltes Element öffnen", "Abrir el elemento seleccionado", "Abrir o item selecionado", "فتح العنصر المحدد", "打开所选项目", "選択した項目を開く", "선택한 항목 열기");
+            A("sc.rename", "Rename the selected item", "Renommer l'élément sélectionné", "Rinomina l'elemento selezionato", "Ausgewähltes Element umbenennen", "Cambiar el nombre del elemento seleccionado", "Renomear o item selecionado", "إعادة تسمية العنصر المحدد", "重命名所选项目", "選択した項目の名前を変更", "선택한 항목 이름 바꾸기");
+            A("sc.delete", "Remove the item from the zone", "Retirer l'élément de la zone", "Rimuovi l'elemento dalla zona", "Element aus dem Bereich entfernen", "Quitar el elemento de la zona", "Remover o item da zona", "إزالة العنصر من المنطقة", "从区域中移除项目", "項目をゾーンから削除", "영역에서 항목 제거");
+            A("sc.deletePermanent", "Delete permanently (Recycle Bin)", "Supprimer définitivement (corbeille)", "Elimina definitivamente (cestino)", "Endgültig löschen (Papierkorb)", "Eliminar definitivamente (papelera de reciclaje)", "Excluir permanentemente (lixeira)", "حذف نهائي (سلة المحذوفات)", "永久删除（回收站）", "完全に削除（ごみ箱）", "영구 삭제(휴지통)");
+            A("sc.back", "Go back to the previous folder (Folder Portal)", "Revenir au dossier précédent (Folder Portal)", "Torna alla cartella precedente (Folder Portal)", "Zum vorherigen Ordner zurückkehren (Folder Portal)", "Volver a la carpeta anterior (Folder Portal)", "Voltar à pasta anterior (Folder Portal)", "العودة إلى المجلد السابق (Folder Portal)", "返回上一个文件夹（Folder Portal）", "前のフォルダーに戻る（Folder Portal）", "이전 폴더로 돌아가기(Folder Portal)");
+            A("sc.mouseBack", "Previous folder with the mouse (Folder Portal)", "Dossier précédent à la souris (Folder Portal)", "Cartella precedente con il mouse (Folder Portal)", "Vorheriger Ordner per Maus (Folder Portal)", "Carpeta anterior con el ratón (Folder Portal)", "Pasta anterior com o rato (Folder Portal)", "المجلد السابق بالفأرة (Folder Portal)", "用鼠标返回上一个文件夹（Folder Portal）", "マウスで前のフォルダーへ（Folder Portal）", "마우스로 이전 폴더로(Folder Portal)");
+            A("sc.kEsc", "Esc", "Échap", "Esc", "Esc", "Esc", "Esc", "Esc", "Esc", "Esc", "Esc");
+            A("sc.kEnter", "Enter", "Entrée", "Invio", "Eingabe", "Intro", "Enter", "Enter", "回车", "Enter", "Enter");
+            A("sc.kDel", "Del", "Suppr", "Canc", "Entf", "Supr", "Del", "Del", "Delete", "Del", "Del");
+            A("sc.kShiftDel", "Shift + Del", "Maj + Suppr", "Maiusc + Canc", "Umschalt + Entf", "Mayús + Supr", "Shift + Del", "Shift + Del", "Shift + Delete", "Shift + Del", "Shift + Del");
+            A("sc.kDouble", "Double-click", "Double-clic", "Doppio clic", "Doppelklick", "Doble clic", "Duplo clique", "نقر مزدوج", "双击", "ダブルクリック", "두 번 클릭");
+            A("sc.kMouseBack", "Mouse back button", "Bouton précédent", "Pulsante indietro", "Zurück-Taste", "Botón Atrás", "Botão Voltar", "زر الرجوع بالفأرة", "鼠标后退键", "マウスの戻るボタン", "마우스 뒤로 버튼");
         }
 
         // ---------- Russe et ukrainien ----------
@@ -633,6 +675,8 @@ namespace DeskNest
             ["b.collapseDelay"] = "Задержка перед сворачиванием: {0} мс",
             ["b.animate"] = "Анимировать сворачивание и разворачивание зон",
             ["b.animMs"] = "Длительность анимации: {0} мс",
+            ["b.showThumbnails"] = "Показывать миниатюры изображений, видео и PDF-файлов",
+            ["b.singleClick"] = "Открывать элементы одним щелчком (иначе двойным щелчком)",
             ["b.hint"] = "Сначала зону нужно свернуть (двойной щелчок по пустой части заголовка или правый клик > Свернуть). Двойной щелчок по заголовку зоны, развёрнутой при наведении, оставляет её развёрнутой. Опцию можно отключить для каждой зоны отдельно (вкладка «Зоны» или правый клик).",
             ["a.defaults"] = "Значения по умолчанию для новых зон",
             ["a.apply"] = "Применить эти значения ко всем существующим зонам",
@@ -679,7 +723,45 @@ namespace DeskNest
             ["upd.installFail"] = "Не удалось установить обновление.\n\n{0}",
             ["ab.version"] = "Версия {0}",
             ["ab.text"] = "Упорядочивайте рабочий стол с помощью зон для ярлыков, файлов и папок.",
-            ["ab.license"] = "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (некоммерческая лицензия)."
+            ["ab.license"] = "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (некоммерческая лицензия).",
+            ["bg.title"] = "Фон зоны",
+            ["bg.mode"] = "Тип фона",
+            ["bg.solid"] = "Сплошной цвет",
+            ["bg.gradient"] = "Градиент",
+            ["bg.image"] = "Изображение",
+            ["bg.acrylic"] = "Акрил (размытые обои)",
+            ["bg.start"] = "Начальный цвет",
+            ["bg.end"] = "Конечный цвет",
+            ["bg.angle"] = "Угол: {0}°",
+            ["bg.choose"] = "Выбрать изображение…",
+            ["bg.clear"] = "Убрать изображение",
+            ["bg.none"] = "Изображение не выбрано",
+            ["bg.filter"] = "Изображения|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|Все файлы (*.*)|*.*",
+            ["bg.hint"] = "Акрил размывает обои за зоной. Изображение и градиент учитывают прозрачность зоны.",
+            ["tab.shortcuts"] = "Сочетания клавиш",
+            ["sc.global"] = "Общие",
+            ["sc.zone"] = "Зоны",
+            ["sc.items"] = "Элементы",
+            ["sc.toggle"] = "Скрыть или показать все зоны",
+            ["sc.search"] = "Искать везде",
+            ["sc.desktop"] = "Скрыть или показать зоны двойным щелчком по рабочему столу",
+            ["sc.roll"] = "Свернуть или развернуть зону двойным щелчком по заголовку",
+            ["sc.escape"] = "Отменить выбор или поиск",
+            ["sc.undo"] = "Отменить последнее действие",
+            ["sc.redo"] = "Повторить отменённое действие",
+            ["sc.clipboard"] = "Выбрать все / копировать / вырезать / вставить",
+            ["sc.open"] = "Открыть выбранный элемент",
+            ["sc.rename"] = "Переименовать выбранный элемент",
+            ["sc.delete"] = "Убрать элемент из зоны",
+            ["sc.deletePermanent"] = "Удалить навсегда (корзина)",
+            ["sc.back"] = "Вернуться в предыдущую папку (Folder Portal)",
+            ["sc.mouseBack"] = "Предыдущая папка мышью (Folder Portal)",
+            ["sc.kEsc"] = "Esc",
+            ["sc.kEnter"] = "Ввод",
+            ["sc.kDel"] = "Delete",
+            ["sc.kShiftDel"] = "Shift + Delete",
+            ["sc.kDouble"] = "Двойной щелчок",
+            ["sc.kMouseBack"] = "Кнопка «назад» мыши"
         };
 
         private static readonly Dictionary<string, string> Uk = new()
@@ -849,6 +931,8 @@ namespace DeskNest
             ["b.collapseDelay"] = "Затримка перед згортанням: {0} мс",
             ["b.animate"] = "Анімувати згортання та розгортання зон",
             ["b.animMs"] = "Тривалість анімації: {0} мс",
+            ["b.showThumbnails"] = "Показувати мініатюри зображень, відео та PDF-файлів",
+            ["b.singleClick"] = "Відкривати елементи одним клацанням (інакше подвійним клацанням)",
             ["b.hint"] = "Спочатку зону потрібно згорнути (подвійний клац по порожній частині заголовка або клац правою кнопкою > Згорнути). Подвійний клац по заголовку зони, розгорнутої при наведенні, залишає її розгорнутою. Опцію можна вимкнути для кожної зони окремо (вкладка «Зони» або клац правою кнопкою).",
             ["a.defaults"] = "Значення за замовчуванням для нових зон",
             ["a.apply"] = "Застосувати ці значення до всіх наявних зон",
@@ -895,7 +979,45 @@ namespace DeskNest
             ["upd.installFail"] = "Не вдалося встановити оновлення.\n\n{0}",
             ["ab.version"] = "Версія {0}",
             ["ab.text"] = "Упорядковуйте робочий стіл за допомогою зон для ярликів, файлів і папок.",
-            ["ab.license"] = "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (некомерційна ліцензія)."
+            ["ab.license"] = "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (некомерційна ліцензія).",
+            ["bg.title"] = "Фон зони",
+            ["bg.mode"] = "Тип фону",
+            ["bg.solid"] = "Суцільний колір",
+            ["bg.gradient"] = "Градієнт",
+            ["bg.image"] = "Зображення",
+            ["bg.acrylic"] = "Акрил (розмиті шпалери)",
+            ["bg.start"] = "Початковий колір",
+            ["bg.end"] = "Кінцевий колір",
+            ["bg.angle"] = "Кут: {0}°",
+            ["bg.choose"] = "Вибрати зображення…",
+            ["bg.clear"] = "Прибрати зображення",
+            ["bg.none"] = "Зображення не вибрано",
+            ["bg.filter"] = "Зображення|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff|Усі файли (*.*)|*.*",
+            ["bg.hint"] = "Акрил розмиває шпалери за зоною. Зображення й градієнт враховують прозорість зони.",
+            ["tab.shortcuts"] = "Сполучення клавіш",
+            ["sc.global"] = "Загальні",
+            ["sc.zone"] = "Зони",
+            ["sc.items"] = "Елементи",
+            ["sc.toggle"] = "Приховати або показати всі зони",
+            ["sc.search"] = "Шукати всюди",
+            ["sc.desktop"] = "Приховати або показати зони подвійним клацанням по робочому столі",
+            ["sc.roll"] = "Згорнути або розгорнути зону подвійним клацанням по заголовку",
+            ["sc.escape"] = "Скасувати вибір або пошук",
+            ["sc.undo"] = "Скасувати останню дію",
+            ["sc.redo"] = "Повторити скасовану дію",
+            ["sc.clipboard"] = "Вибрати все / копіювати / вирізати / вставити",
+            ["sc.open"] = "Відкрити вибраний елемент",
+            ["sc.rename"] = "Перейменувати вибраний елемент",
+            ["sc.delete"] = "Прибрати елемент із зони",
+            ["sc.deletePermanent"] = "Видалити назавжди (кошик)",
+            ["sc.back"] = "Повернутися до попередньої папки (Folder Portal)",
+            ["sc.mouseBack"] = "Попередня папка мишею (Folder Portal)",
+            ["sc.kEsc"] = "Esc",
+            ["sc.kEnter"] = "Enter",
+            ["sc.kDel"] = "Delete",
+            ["sc.kShiftDel"] = "Shift + Delete",
+            ["sc.kDouble"] = "Подвійне клацання",
+            ["sc.kMouseBack"] = "Кнопка «назад» миші"
         };
     }
 }
