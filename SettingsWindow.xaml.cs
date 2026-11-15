@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Navigation;
 
 namespace DeskNest
 {
@@ -808,6 +809,13 @@ namespace DeskNest
         private void OpenFolder_Click(object sender, RoutedEventArgs e)
         {
             try { Process.Start(new ProcessStartInfo(Storage.Dir) { UseShellExecute = true }); } catch { }
+        }
+
+        // Lien vers le dépôt GitHub de DeskNest (page À propos).
+        private void GitHub_RequestNavigate(object sender, RequestNavigateEventArgs e)
+        {
+            try { Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); } catch { }
+            e.Handled = true;
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) => Close();

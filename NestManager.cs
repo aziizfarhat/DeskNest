@@ -304,7 +304,9 @@ namespace DeskNest
         }
 
         // `fromDesktop` : l'élément vient du bureau. Annuler l'ajout le remet sur le bureau.
-        public void RecordItemAdded(NestData d, string path, int index, bool fromDesktop = false)
+        // `originalDesktopPath` conserve son emplacement d'origine avant le transfert.
+        public void RecordItemAdded(NestData d, string path, int index, bool fromDesktop = false,
+            string? originalDesktopPath = null)
         {
             if (_applyingHistory) return;
             var id = d.Id;
@@ -315,7 +317,7 @@ namespace DeskNest
                     var removed = RemoveItemRef(id, current);
                     if (removed == null) return;
                     current = removed;
-                    if (fromDesktop) current = RestoreOnDesktop(removed) ?? removed;
+                    if (fromDesktop) current = RestoreOnDesktop(removed, originalDesktopPath) ?? removed;
                 },
                 () =>
                 {
@@ -327,7 +329,10 @@ namespace DeskNest
         // `restoreOnDesktop` : le retrait remet l'élément sur le bureau (Del, glisser
         // vers le bureau). Annuler le retrait le ré-adopte dans la zone ; rétablir le
         // retire à nouveau et le remet sur le bureau.
-        public void RecordItemRemoved(NestData d, string path, int index, bool restoreOnDesktop = false)
+        // `desktopPath` conserve l'emplacement exact occupé sur le bureau au moment
+        // du retrait, pour que rétablir le remette au même endroit.
+        public void RecordItemRemoved(NestData d, string path, int index, bool restoreOnDesktop = false,
+            string? desktopPath = null)
         {
             if (_applyingHistory) return;
             var id = d.Id;
@@ -335,7 +340,13 @@ namespace DeskNest
             PushUndo(new DelegateUndo(Loc.T("undo.removeItem"),
                 () =>
                 {
-                    var target = restoreOnDesktop ? ResolveItemPath(current) : current;
+                    string target = current;
+                    if (restoreOnDesktop)
+                    {
+                        target = desktopPath != null && (File.Exists(desktopPath) || Directory.Exists(desktopPath))
+                            ? desktopPath
+                            : ResolveItemPath(desktopPath ?? current);
+                    }
                     current = InsertItemRef(id, target, index) ?? target;
                 },
                 () =>
@@ -343,7 +354,7 @@ namespace DeskNest
                     var removed = RemoveItemRef(id, current);
                     if (removed == null) return;
                     current = removed;
-                    if (restoreOnDesktop) current = RestoreOnDesktop(removed) ?? removed;
+                    if (restoreOnDesktop) current = RestoreOnDesktop(removed, desktopPath) ?? removed;
                 }));
         }
 
@@ -1375,16 +1386,18 @@ namespace DeskNest
             return changed;
         }
 
-        // Remet un élément rangé à son emplacement d'origine. Retourne le nouveau chemin, ou null en cas d'échec.
-        private string? MoveBack(MovedItem m)
+        // Remet un élément rangé à son emplacement d'origine (ou à l'emplacement
+        // préféré, s'il est encore libre). Retourne le nouveau chemin, ou null en cas d'échec.
+        private string? MoveBack(MovedItem m, string? preferredPath = null)
         {
             if (!File.Exists(m.StorePath) && !Directory.Exists(m.StorePath)) return m.OriginalPath; // plus rien à remettre
-            var destDir = System.IO.Path.GetDirectoryName(m.OriginalPath.TrimEnd('\\'));
+            var target = string.IsNullOrWhiteSpace(preferredPath) ? m.OriginalPath : preferredPath!;
+            var destDir = System.IO.Path.GetDirectoryName(target.TrimEnd('\\'));
             if (string.IsNullOrEmpty(destDir)) destDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             bool isDir = Directory.Exists(m.StorePath);
-            var dst = DesktopStore.UniquePath(destDir, System.IO.Path.GetFileName(m.OriginalPath.TrimEnd('\\')), isDir);
+            var dst = DesktopStore.UniquePath(destDir, System.IO.Path.GetFileName(target.TrimEnd('\\')), isDir);
             bool ok = DesktopStore.TryMove(m.StorePath, dst, out bool denied);
-            if (!ok && denied && DesktopHelper.IsOnPublicDesktop(m.OriginalPath))
+            if (!ok && denied && DesktopHelper.IsOnPublicDesktop(target))
             {
                 var r = MessageBox.Show(Loc.T("msg.publicDesktopBack"), "DeskNest", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No, Loc.MsgOptions);
                 if (r == MessageBoxResult.Yes) ok = DesktopStore.TryMoveElevated(m.StorePath, dst);
@@ -1393,15 +1406,16 @@ namespace DeskNest
         }
 
         // Appelé quand un élément n'est plus dans aucune zone : il retourne sur le bureau.
+        // `preferredDesktopPath` permet de retrouver exactement son ancien emplacement.
         // Retourne le chemin actuel (sur le bureau si le déplacement a réussi).
-        public string? RestoreOnDesktop(string path)
+        public string? RestoreOnDesktop(string path, string? preferredDesktopPath = null)
         {
             if (_data.Nests.Any(f => f.Items.Any(p => Same(p, path)))) return path; // encore référencé ailleurs
 
             int mi = _data.Moved.FindIndex(m => Same(m.StorePath, path));
             if (mi >= 0)
             {
-                var restored = MoveBack(_data.Moved[mi]);
+                var restored = MoveBack(_data.Moved[mi], preferredDesktopPath);
                 if (restored != null)
                 {
                     _data.Moved.RemoveAt(mi);

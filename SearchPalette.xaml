@@ -5,8 +5,9 @@
         Title="DeskNest" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" ShowActivated="True" ResizeMode="NoResize" Topmost="True"
         Width="680" Height="470" WindowStartupLocation="CenterScreen"
-        TextOptions.TextFormattingMode="Display" PreviewKeyDown="Window_PreviewKeyDown">
-    <Border Margin="20" Background="#F21E1E2E" CornerRadius="12"
+        TextOptions.TextFormattingMode="Display" PreviewKeyDown="Window_PreviewKeyDown"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+    <Border x:Name="PaletteBorder" Margin="20" Background="#F21E1E2E" CornerRadius="12"
             BorderBrush="#33FFFFFF" BorderThickness="1">
         <Border.Effect>
             <DropShadowEffect BlurRadius="26" ShadowDepth="5" Opacity="0.55" Color="#000000"/>

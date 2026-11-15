@@ -1,12 +1,14 @@
 # DeskNest
 
+<img src="logo/logo_name.png" alt="DeskNest" width="240">
+
 **Organize your Windows desktop with customizable zones and folder portals.**
 
 DeskNest is a lightweight Windows desktop organizer that helps you group applications, shortcuts, files, and folders into customizable desktop areas called *Nests*.
 
 Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
 
-> **Project status:** Under active development. DeskNest is currently at version 0.8.2.0.
+> **Project status:** Under active development. DeskNest is currently at version 0.8.2.1.
 
 ## Features
 
@@ -33,7 +35,7 @@ Create independent desktop areas to organize your items by category, purpose, or
 - Distribute zones evenly across the screen.
 - Duplicate a zone or save it as a reusable template (color, size, fonts, and view mode).
 - Apply a saved template to an existing zone from the zone menu or the Settings › Templates tab.
-- Move items between the desktop and a zone and undo the move with `Ctrl+Z`.
+- Move items between the desktop and a zone and undo the move with `Ctrl+Z`; the item returns to its original zone or desktop position.
 
 ### Folder Portals
 
@@ -45,7 +47,7 @@ Folder Portals provide convenient access to folder contents directly from your d
 
 ### Global Search
 
-Press `Ctrl+Shift+Space` to open the search palette and search every zone, folder portal, and the desktop at once. Selecting a result reveals the item in its zone or opens it directly. Press `Escape` to close the palette.
+Press `Ctrl+Shift+Space` to open the search palette and search every zone, folder portal, and the desktop at once. Selecting a result reveals the item in its zone or opens it directly. The palette takes keyboard focus as soon as it opens, so typing never reaches the desktop or another application. Press `Escape` or click outside the palette to close it.
 
 ### Windows Integration
 
@@ -166,7 +168,7 @@ The script automatically:
 | `publish/DeskNest-<version>-Portable.zip` | Portable archive containing `DeskNest.exe` and `LICENSE` |
 | `installer/DeskNest-Setup-<version>.exe` | Windows installer (when Inno Setup 6 is available) |
 
-For example, with version `0.8.2.0` the script produces `publish/DeskNest-0.8.2.0-Portable.zip` and `installer/DeskNest-Setup-0.8.2.0.exe`.
+For example, with version `0.8.2.1` the script produces `publish/DeskNest-0.8.2.1-Portable.zip` and `installer/DeskNest-Setup-0.8.2.1.exe`.
 
 The target computer does not need the .NET Desktop Runtime to run the standalone release.
 

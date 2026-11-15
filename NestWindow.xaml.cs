@@ -99,6 +99,10 @@ namespace DeskNest
         private readonly HashSet<string> _selected = new(StringComparer.OrdinalIgnoreCase);
         private ItemVM? _anchor, _pendingCollapse, _dragCandidate;
         private bool _draggedSinceDown;
+        // Anti double-ouverture au simple clic : un même élément n'est pas relancé
+        // deux fois dans le délai de double-clic de Windows.
+        private string? _lastSingleClickPath;
+        private DateTime _lastSingleClickAt;
         private bool _marquee;
         private Point _marqueeStart;
         private HashSet<string> _marqueeBase = new(StringComparer.OrdinalIgnoreCase);
@@ -1052,14 +1056,14 @@ namespace DeskNest
         }
 
         // ---------- Éléments ----------
-        public void AddItem(string path, int index = -1, bool fromDesktop = false)
+        public void AddItem(string path, int index = -1, bool fromDesktop = false, string? originalDesktopPath = null)
         {
             if (IsPortal) return;
             if (Data.Items.Any(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase))) return;
             bool append = index < 0 || index > Data.Items.Count;
             if (append) Data.Items.Add(path);
             else Data.Items.Insert(index, path);
-            _manager.RecordItemAdded(Data, path, append ? Data.Items.Count - 1 : index, fromDesktop);
+            _manager.RecordItemAdded(Data, path, append ? Data.Items.Count - 1 : index, fromDesktop, originalDesktopPath);
             Dispatcher.BeginInvoke(new Action(RefreshItems));
             _manager.RequestSave();
         }
@@ -1073,23 +1077,30 @@ namespace DeskNest
             Dispatcher.BeginInvoke(new Action(RefreshItems));
 
             string current = path;
-            if (restoreOnDesktop) current = _manager.RestoreOnDesktop(path) ?? path;
-            if (record) _manager.RecordItemRemoved(Data, current, i, restoreOnDesktop);
+            string? desktopPath = null;
+            if (restoreOnDesktop)
+            {
+                var restored = _manager.RestoreOnDesktop(path);
+                if (restored != null && DesktopHelper.IsOnDesktop(restored)) desktopPath = restored;
+                current = restored ?? path;
+            }
+            if (record) _manager.RecordItemRemoved(Data, current, i, restoreOnDesktop, desktopPath);
             _manager.RequestSave();
             return true;
         }
 
         // L'élément a été déplacé hors de DeskNest (bureau, Explorateur) : on retire la
         // référence, mais l'action reste annulable pour que Ctrl+Z le ramène dans la zone.
-        public void RemoveItemExternal(string path)
+        // `desktopPath` est l'emplacement atteint sur le bureau, quand il est connu.
+        public void RemoveItemExternal(string path, string? desktopPath = null)
         {
             int i = Data.Items.FindIndex(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
             if (i < 0) return;
             Data.Items.RemoveAt(i);
             _selected.Remove(path);
             Dispatcher.BeginInvoke(new Action(RefreshItems));
-            var current = _manager.ResolveItemPath(path);
-            _manager.RecordItemRemoved(Data, current, i, true);
+            var current = desktopPath ?? _manager.ResolveItemPath(path);
+            _manager.RecordItemRemoved(Data, current, i, true, desktopPath);
             _manager.RequestSave();
         }
 
@@ -1157,6 +1168,20 @@ namespace DeskNest
                 return;
             }
             OpenPath(vm.FullPath);
+        }
+
+        // Ouvre au simple clic en ignorant un second déclenchement trop rapproché
+        // (double-clic, relâchement du bouton traité deux fois...).
+        private void ActivateSingleClick(ItemVM vm)
+        {
+            var now = DateTime.UtcNow;
+            if (_lastSingleClickPath != null && SamePath(_lastSingleClickPath, vm.FullPath) &&
+                (now - _lastSingleClickAt).TotalMilliseconds <= GetDoubleClickTime())
+                return;
+
+            _lastSingleClickPath = vm.FullPath;
+            _lastSingleClickAt = now;
+            ActivateItem(vm);
         }
 
         // ---------- Actions façon Windows sur la sélection : copier, couper, coller, renommer, supprimer, propriétés ----------
@@ -1424,7 +1449,15 @@ namespace DeskNest
 
         private void RemoveSelected()
         {
-            foreach (var v in SelectedVms().Where(v => v.CanRemove).ToList()) RemoveItem(v.FullPath, true);
+            var targets = SelectedVms().Where(v => v.CanRemove).ToList();
+            if (targets.Count == 0) return;
+            // Un seul Ctrl+Z remet toute la sélection dans la zone, à ses positions d'origine.
+            _manager.History.BeginBatch();
+            try
+            {
+                foreach (var v in targets) RemoveItem(v.FullPath, true);
+            }
+            finally { _manager.History.EndBatch(Loc.T("undo.removeItem")); }
         }
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -1787,7 +1820,7 @@ namespace DeskNest
             // Ouverture au simple clic (option) : le double-clic reste géré au relâchement du premier clic.
             if (_manager.Settings.OpenItemsWithSingleClick && e.ClickCount == 1 && !_draggedSinceDown &&
                 vm != null && Keyboard.Modifiers == ModifierKeys.None)
-                ActivateItem(vm);
+                ActivateSingleClick(vm);
         }
 
         private void Item_RightDown(object sender, MouseButtonEventArgs e)
@@ -1852,14 +1885,26 @@ namespace DeskNest
             t.Tick += (_, _) =>
             {
                 ticks++;
-                foreach (var p in pending.ToList())
+                // Tous les éléments déposés ensemble forment une seule étape d'annulation.
+                _manager.History.BeginBatch();
+                try
                 {
-                    if (File.Exists(p) || Directory.Exists(p)) continue;
-                    pending.Remove(p);               // le fichier a quitté son emplacement : il a été déplacé
-                    _manager.ForgetStored(p);
-                    // Le retrait est enregistré : Ctrl+Z ramène l'élément dans la zone.
-                    if (!IsPortal) RemoveItemExternal(p);
+                    foreach (var p in pending.ToList())
+                    {
+                        if (File.Exists(p) || Directory.Exists(p)) continue;
+                        pending.Remove(p);               // le fichier a quitté son emplacement : il a été déplacé
+
+                        // Mémoriser l'emplacement atteint sur le bureau avant d'oublier
+                        // l'enregistrement de déplacement (utile pour rétablir).
+                        var desktopPath = _manager.ResolveItemPath(p);
+                        if (desktopPath == null || !DesktopHelper.IsOnDesktop(desktopPath)) desktopPath = null;
+
+                        _manager.ForgetStored(p);
+                        // Le retrait est enregistré : Ctrl+Z ramène l'élément dans la zone.
+                        if (!IsPortal) RemoveItemExternal(p, desktopPath);
+                    }
                 }
+                finally { _manager.History.EndBatch(Loc.T("undo.removeItem")); }
                 if (pending.Count == 0) { t.Stop(); return; }
                 if (ticks < 60) return;
 
@@ -2173,8 +2218,9 @@ namespace DeskNest
                 {
                     if (Data.Items.Any(p => string.Equals(p, f, StringComparison.OrdinalIgnoreCase))) continue;
                     bool fromDesktop = DesktopHelper.IsOnDesktop(f);
+                    string? originalDesktopPath = fromDesktop ? f : null; // avant tout déplacement
                     var effective = _manager.TakeFromDesktop(f); // l'élément quitte le bureau
-                    AddItem(effective, idx, fromDesktop);
+                    AddItem(effective, idx, fromDesktop, originalDesktopPath);
                     if (idx >= 0) idx++;
                 }
             }
