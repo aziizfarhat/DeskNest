@@ -1550,7 +1550,9 @@ namespace DeskNest
             Storage.Save(data);
             Storage.Flush(); // le processus de désinstallation se termine juste après
 
-            // Le dossier de stockage ne doit pas rester vide après désinstallation.
+            // Le dossier de stockage ne doit pas rester après désinstallation,
+            // mais on ne le supprime que s'il est vide : un fichier qu'on n'a pas
+            // pu remettre sur le bureau ne doit jamais être effacé.
             try
             {
                 var store = DesktopStore.Dir;

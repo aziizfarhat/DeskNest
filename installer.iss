@@ -150,7 +150,9 @@ Filename: "{app}\DeskNest.exe"; Description: "{cm:LaunchApp}"; Flags: nowait pos
 
 [UninstallRun]
 ; Remet sur le bureau les éléments rangés dans %USERPROFILE%\DeskNest\Items
-; avant que l'exécutable ne soit supprimé.
+; avant que l'exécutable ne soit supprimé. Le mode --restore-all ne supprime
+; ensuite le dossier de stockage que s'il est vide (sinon les fichiers restants
+; sont conservés).
 Filename: "{app}\DeskNest.exe"; Parameters: "--restore-all"; RunOnceId: "RestoreAllItems"; Flags: runhidden waituntilterminated skipifdoesntexist
 
 [Code]
