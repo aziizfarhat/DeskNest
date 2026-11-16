@@ -1580,14 +1580,15 @@ namespace DeskNest
             {
                 var restored = MoveBack(m);
                 if (restored == null) continue;
-                foreach (var f in _data.Nests)
-                    for (int i = 0; i < f.Items.Count; i++)
-                        if (Same(f.Items[i], m.StorePath)) f.Items[i] = restored; // les zones pointent vers le bureau
+                // Les zones qui référençaient l'élément pointent vers le bureau.
+                RebaseReferences(_data.Nests, m.StorePath, restored);
                 _data.Moved.Remove(m);
                 n++;
             }
             foreach (var w in _windows) w.ReloadItems();
-            RequestSave();
+            // Commande explicite de l'utilisateur : l'état doit être sur disque
+            // avant de rendre la main (pas d'attente du minuteur de 500 ms).
+            Storage.SaveNow(_data);
             return n;
         }
 

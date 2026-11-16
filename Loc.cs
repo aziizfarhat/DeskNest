@@ -124,20 +124,20 @@ namespace DeskNest
             A("tray.snap", "Snap and alignment guides", "Aimantation et guides d’alignement", "Agganciamento e guide di allineamento", "Einrasten und Ausrichtungslinien", "Ajuste y guías de alineación", "Encaixe e guias de alinhamento", "المحاذاة وأدلة الاصطفاف", "吸附与对齐参考线", "スナップと整列ガイド", "맞춤 및 정렬 가이드");
             A("tray.distribute", "Arrange zones in a grid", "Répartir les zones sur l’écran", "Disponi le zone in griglia", "Bereiche im Raster anordnen", "Distribuir las zonas en una cuadrícula", "Distribuir as zonas numa grelha", "توزيع المناطق في شبكة", "将区域排成网格", "ゾーンをグリッドに整列", "영역을 격자로 정렬");
             A("tray.autostart", "Start with Windows", "Lancer avec Windows", "Avvia con Windows", "Mit Windows starten", "Iniciar con Windows", "Iniciar com o Windows", "التشغيل مع Windows", "随 Windows 启动", "Windows と同時に起動", "Windows와 함께 시작");
-            A("tray.restoreIcons", "Put all icons back on the desktop", "Remettre toutes les icônes sur le bureau", "Rimetti tutte le icone sul desktop", "Alle Symbole auf den Desktop zurücklegen", "Devolver todos los iconos al escritorio", "Devolver todos os ícones à área de trabalho", "إعادة كل الأيقونات إلى سطح المكتب", "将所有图标放回桌面", "すべてのアイコンをデスクトップに戻す", "모든 아이콘을 바탕 화면으로 되돌리기");
+            A("tray.restoreAll", "Restore all items to desktop", "Restaurer tous les éléments sur le bureau", "Ripristina tutti gli elementi sul desktop", "Alle Elemente auf dem Desktop wiederherstellen", "Restaurar todos los elementos en el escritorio", "Restaurar todos os itens na área de trabalho", "استعادة كل العناصر إلى سطح المكتب", "将所有项目恢复到桌面", "すべての項目をデスクトップに戻す", "모든 항목을 바탕 화면으로 복원");
             A("tray.openConfig", "Open configuration folder", "Ouvrir le dossier de configuration", "Apri la cartella di configurazione", "Konfigurationsordner öffnen", "Abrir la carpeta de configuración", "Abrir a pasta de configuração", "فتح مجلد الإعدادات", "打开配置文件夹", "設定フォルダーを開く", "구성 폴더 열기");
             A("tray.quit", "Quit", "Quitter", "Esci", "Beenden", "Salir", "Sair", "إنهاء", "退出", "終了", "종료");
             A("tray.restoreConfirm",
-                "All icons that DeskNest removed from the desktop will be put back there (they will also stay in their zones).\n\nContinue?",
-                "Toutes les icônes que DeskNest a retirées du bureau y seront remises (elles resteront aussi dans leurs zones).\n\nContinuer ?",
-                "Tutte le icone che DeskNest ha tolto dal desktop verranno rimesse al loro posto (resteranno anche nelle loro zone).\n\nContinuare?",
-                "Alle Symbole, die DeskNest vom Desktop entfernt hat, werden dorthin zurückgelegt (sie bleiben auch in ihren Bereichen).\n\nFortfahren?",
-                "Todos los iconos que DeskNest quitó del escritorio volverán a él (también seguirán en sus zonas).\n\n¿Continuar?",
-                "Todos os ícones que o DeskNest removeu da área de trabalho voltarão para ela (também continuarão nas suas zonas).\n\nContinuar?",
-                "ستتم إعادة جميع الأيقونات التي أزالها DeskNest من سطح المكتب إليه (وستبقى أيضًا في مناطقها).\n\nمتابعة؟",
-                "DeskNest 从桌面移走的所有图标都将放回桌面（它们也会保留在各自的区域中）。\n\n是否继续？",
-                "DeskNest がデスクトップから移動したアイコンをすべてデスクトップに戻します（ゾーン内にも残ります）。\n\n続行しますか？",
-                "DeskNest가 바탕 화면에서 옮긴 모든 아이콘이 바탕 화면으로 돌아갑니다(각 영역에도 그대로 남습니다).\n\n계속하시겠습니까?");
+                "All items that DeskNest removed from the desktop will be put back there (they will also stay in their zones).\n\nContinue?",
+                "Tous les éléments que DeskNest a retirés du bureau y seront remis (ils resteront aussi dans leurs zones).\n\nContinuer ?",
+                "Tutti gli elementi che DeskNest ha tolto dal desktop verranno rimessi al loro posto (resteranno anche nelle loro zone).\n\nContinuare?",
+                "Alle Elemente, die DeskNest vom Desktop entfernt hat, werden dorthin zurückgelegt (sie bleiben auch in ihren Bereichen).\n\nFortfahren?",
+                "Todos los elementos que DeskNest quitó del escritorio volverán a él (también seguirán en sus zonas).\n\n¿Continuar?",
+                "Todos os itens que o DeskNest removeu da área de trabalho voltarão para ela (também continuarão nas suas zonas).\n\nContinuar?",
+                "ستتم إعادة جميع العناصر التي أزالها DeskNest من سطح المكتب إليه (وستبقى أيضًا في مناطقها).\n\nمتابعة؟",
+                "DeskNest 从桌面移走的所有项目都将放回桌面（它们也会保留在各自的区域中）。\n\n是否继续？",
+                "DeskNest がデスクトップから移動した項目をすべてデスクトップに戻します（ゾーン内にも残ります）。\n\n続行しますか？",
+                "DeskNest가 바탕 화면에서 옮긴 모든 항목이 바탕 화면으로 돌아갑니다(각 영역에도 그대로 남습니다).\n\n계속하시겠습니까?");
 
             // ---------- Menu d'une zone ----------
             A("m.renameZone", "Rename zone", "Renommer la zone", "Rinomina zona", "Bereich umbenennen", "Renombrar zona", "Renomear zona", "إعادة تسمية المنطقة", "重命名区域", "ゾーン名を変更", "영역 이름 바꾸기");
@@ -534,10 +534,10 @@ namespace DeskNest
             ["tray.snap"] = "Привязка и направляющие выравнивания",
             ["tray.distribute"] = "Разложить зоны по сетке",
             ["tray.autostart"] = "Запускать вместе с Windows",
-            ["tray.restoreIcons"] = "Вернуть все значки на рабочий стол",
+            ["tray.restoreAll"] = "Вернуть все элементы на рабочий стол",
             ["tray.openConfig"] = "Открыть папку конфигурации",
             ["tray.quit"] = "Выход",
-            ["tray.restoreConfirm"] = "Все значки, которые DeskNest убрал с рабочего стола, будут возвращены туда (они также останутся в своих зонах).\n\nПродолжить?",
+            ["tray.restoreConfirm"] = "Все элементы, которые DeskNest убрал с рабочего стола, будут возвращены туда (они также останутся в своих зонах).\n\nПродолжить?",
             ["m.renameZone"] = "Переименовать зону",
             ["m.duplicateZone"] = "Дублировать зону",
             ["m.saveTemplate"] = "Сохранить как шаблон…",
@@ -790,10 +790,10 @@ namespace DeskNest
             ["tray.snap"] = "Прив'язка та напрямні вирівнювання",
             ["tray.distribute"] = "Розкласти зони за сіткою",
             ["tray.autostart"] = "Запускати разом із Windows",
-            ["tray.restoreIcons"] = "Повернути всі значки на робочий стіл",
+            ["tray.restoreAll"] = "Повернути всі елементи на робочий стіл",
             ["tray.openConfig"] = "Відкрити папку конфігурації",
             ["tray.quit"] = "Вихід",
-            ["tray.restoreConfirm"] = "Усі значки, які DeskNest прибрав із робочого стола, буде повернено туди (вони також залишаться у своїх зонах).\n\nПродовжити?",
+            ["tray.restoreConfirm"] = "Усі елементи, які DeskNest прибрав із робочого стола, буде повернено туди (вони також залишаться у своїх зонах).\n\nПродовжити?",
             ["m.renameZone"] = "Перейменувати зону",
             ["m.duplicateZone"] = "Дублювати зону",
             ["m.saveTemplate"] = "Зберегти як шаблон…",

@@ -195,7 +195,7 @@
                                 <ComboBox x:Name="CmbDesktopMode" Margin="0,0,0,8"
                                           SelectionChanged="CmbDesktopMode_Changed"/>
                                 <TextBlock l:L.Key="g.hint" Style="{StaticResource Hint}"/>
-                                <Button l:L.Key="tray.restoreIcons" Click="RestoreIcons_Click"/>
+                                <Button l:L.Key="tray.restoreAll" Click="RestoreIcons_Click"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
