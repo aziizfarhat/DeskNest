@@ -56,6 +56,7 @@ namespace DeskNest
         }
 
         private static string FilePath => System.IO.Path.Combine(Dir, "layout.json");
+        private static string BakPath => System.IO.Path.Combine(Dir, "layout.json.bak");
         private static string LastGoodPath => System.IO.Path.Combine(Dir, "layout-last-good.json");
         private static readonly JsonSerializerOptions Opt = new() { WriteIndented = true };
 
@@ -98,6 +99,21 @@ namespace DeskNest
                 // restaure la sauvegarde la plus récente au lieu de perdre les zones.
                 if (d.Nests.Count > 0 || d.ZonesCleared) return d;
                 Diag.Log("chargement : layout.json sans zone, restauration d'une sauvegarde");
+            }
+
+            // Le fichier principal est illisible ou vide : on essaie d'abord la copie
+            // de l'état précédent écrite atomiquement à côté de layout.json.
+            if (File.Exists(BakPath))
+            {
+                var bak = TryReadLayout(BakPath);
+                if (bak != null)
+                {
+                    Issue = LoadIssue.RestoredBackup;
+                    RestoredFrom = System.IO.Path.GetFileName(BakPath);
+                    Diag.Log($"chargement : sauvegarde restaurée ({RestoredFrom})");
+                    return bak;
+                }
+                Diag.Log("chargement : layout.json.bak illisible ou vide");
             }
 
             var backup = NewestValidBackup();
@@ -238,7 +254,24 @@ namespace DeskNest
                 Directory.CreateDirectory(Dir);
                 var tmp = FilePath + ".tmp";
                 File.WriteAllText(tmp, json);
-                File.Move(tmp, FilePath, true); // écrire d'abord : une sauvegarde ne doit jamais annuler la sauvegarde
+
+                // Écriture atomique : le fichier principal n'est jamais partiellement
+                // remplacé. L'ancien état reste disponible dans layout.json.bak.
+                if (File.Exists(FilePath))
+                {
+                    try { File.Replace(tmp, FilePath, BakPath, true); }
+                    catch
+                    {
+                        // Dernier recours (système de fichiers exotique) : ne jamais
+                        // perdre la nouvelle sauvegarde.
+                        File.Copy(tmp, FilePath, true);
+                        try { File.Delete(tmp); } catch { }
+                    }
+                }
+                else
+                {
+                    File.Move(tmp, FilePath);
+                }
 
                 // Copie « dernier état valide » : utilisée au démarrage si layout.json est vide.
                 if (hasZones)
@@ -366,6 +399,9 @@ namespace DeskNest
                 var candidates = new List<string>();
                 var bdir = System.IO.Path.Combine(Dir, "backups");
                 if (Directory.Exists(bdir)) candidates.AddRange(Directory.GetFiles(bdir, "layout-*.json"));
+                // Le fichier principal est corrompu ou vide : l'état précédent est
+                // dans layout.json.bak (écriture atomique via File.Replace).
+                if (File.Exists(BakPath)) candidates.Add(BakPath);
                 if (File.Exists(LastGoodPath)) candidates.Add(LastGoodPath);
 
                 foreach (var f in candidates.OrderByDescending(File.GetLastWriteTimeUtc))
