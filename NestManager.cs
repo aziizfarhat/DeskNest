@@ -1090,14 +1090,16 @@ namespace DeskNest
                 try
                 {
                     var hook = new MouseHook();
-                    hook.DoubleClick += (x, y) =>
+                    hook.DoubleClick += (x, y, window) =>
                     {
-                        // Le clic est évalué tout de suite, pendant que la palette de
-                        // recherche (ou une zone) est encore sous le curseur. Le traitement
-                        // différé arrive après sa fermeture : le point semblerait alors
-                        // être le bureau et masquerait les zones par erreur.
-                        if (DesktopHelper.IsOwnWindowAt(x, y)) return;
-                        Application.Current.Dispatcher.BeginInvoke(new Action(() => OnDesktopDoubleClick(x, y)), DispatcherPriority.Background);
+                        // Le handle a été capturé pendant le clic : le traitement
+                        // différé peut donc se faire sur le dispatcher sans risquer
+                        // de confondre une fenêtre DeskNest déjà fermée avec le bureau.
+                        Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            if (DesktopHelper.IsOwnWindow(window)) return;
+                            OnDesktopDoubleClick(x, y);
+                        }), DispatcherPriority.Background);
                     };
                     _mouseHook = hook;
                 }
