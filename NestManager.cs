@@ -590,10 +590,54 @@ namespace DeskNest
             return changed;
         }
 
+        // Au démarrage : tout élément présent dans le stockage mais absent de
+        // `Moved` et d'aucune zone est un orphelin (sauvegarde perdue, ancienne
+        // version, copie manuelle…). On le remet sur le bureau au lieu de le
+        // laisser invisible dans le dossier géré.
+        private void RestoreOrphanedStoreItems()
+        {
+            string store;
+            try { store = DesktopStore.Dir; }
+            catch (Exception ex) { Diag.Log("stockage : dossier inaccessible — " + ex.Message); return; }
+            if (!Directory.Exists(store)) return;
+
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            if (string.IsNullOrEmpty(desktop))
+            {
+                Diag.Log("stockage : dossier Bureau introuvable, balayage impossible");
+                return;
+            }
+
+            try
+            {
+                foreach (var entry in Directory.EnumerateFileSystemEntries(store))
+                {
+                    if (_data.Moved.Any(m => Same(m.StorePath, entry))) continue;
+                    if (_data.Nests.Any(f => f.Items.Any(p => Same(p, entry)))) continue;
+
+                    bool isDir = Directory.Exists(entry);
+                    var name = Path.GetFileName(entry.TrimEnd('\\'));
+                    if (string.IsNullOrEmpty(name)) continue;
+
+                    var dst = DesktopStore.UniquePath(desktop, name, isDir);
+                    if (DesktopStore.TryMove(entry, dst, out bool denied))
+                        Diag.Log($"stockage : élément orphelin restauré sur le bureau : {entry} -> {dst}");
+                    else
+                        Diag.Log($"stockage : impossible de restaurer l'élément orphelin {entry}" +
+                                 (denied ? " (accès refusé)" : ""));
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Log("stockage : balayage impossible — " + ex.Message);
+            }
+        }
+
         // Au démarrage : replace les éléments dans le dossier de stockage
         // et réapplique le masquage des éléments gérés par DeskNest.
         private void RestoreManagedItemsOnStartup()
         {
+            RestoreOrphanedStoreItems();
             bool changed = RepairMissingStoreReferences();
             if (RestoreItemsNoLongerVisible()) changed = true;
 
