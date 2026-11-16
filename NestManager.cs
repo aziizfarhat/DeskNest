@@ -36,6 +36,13 @@ namespace DeskNest
         private DesktopWatcher? _desktopWatcher;
         private int _desktopWakeQueued;
 
+        // Démarrage : les éléments du Bureau public sont traités après l'affichage des
+        // zones. Une seule question est posée pour tous les éléments concernés.
+        private readonly List<PendingPublicDesktopMove> _pendingPublicDesktopMoves = new();
+        private bool _deferPublicDesktopPrompts;
+        private bool? _publicDesktopRestoreAnswer;
+        private sealed record PendingPublicDesktopMove(string Source, string Destination, bool IsRestore);
+
         public bool Hidden { get; private set; }
         public AppSettings Settings => _data.Settings;
         public IList<NestData> Nests => _data.Nests;
@@ -495,6 +502,11 @@ namespace DeskNest
             }
             catch (Exception ex) { Diag.Log("suivi bureau : " + ex.Message); }
             _desktopTimer.Start();
+
+            // L'invite du Bureau public attend que les zones soient visibles : au
+            // démarrage, aucune boîte de dialogue ne doit retarder leur affichage.
+            Application.Current?.Dispatcher.BeginInvoke(
+                new Action(ProcessPendingPublicDesktopMoves), DispatcherPriority.ApplicationIdle);
         }
 
         private NestData NewNestData(string title) => new NestData
@@ -635,76 +647,149 @@ namespace DeskNest
 
         // Au démarrage : replace les éléments dans le dossier de stockage
         // et réapplique le masquage des éléments gérés par DeskNest.
+        // Les éléments du Bureau public sont mis en attente : la question
+        // d'élévation n'est posée qu'après l'affichage des zones.
         private void RestoreManagedItemsOnStartup()
         {
-            RestoreOrphanedStoreItems();
-            bool changed = RepairMissingStoreReferences();
-            if (RestoreItemsNoLongerVisible()) changed = true;
-
-            foreach (var m in _data.Moved.ToList())
+            _pendingPublicDesktopMoves.Clear();
+            _deferPublicDesktopPrompts = true;
+            try
             {
-                if (!IsReferencedByEnabledNormalNest(m.StorePath))
-                    continue;
+                RestoreOrphanedStoreItems();
+                bool changed = RepairMissingStoreReferences();
+                if (RestoreItemsNoLongerVisible()) changed = true;
 
-                // Le fichier est déjà dans le stockage : par sécurité, on
-                // s'assure que les zones pointent bien vers cet emplacement.
-                if (File.Exists(m.StorePath) || Directory.Exists(m.StorePath))
+                foreach (var m in _data.Moved.ToList())
                 {
+                    if (!IsReferencedByEnabledNormalNest(m.StorePath))
+                        continue;
+
+                    // Le fichier est déjà dans le stockage : par sécurité, on
+                    // s'assure que les zones pointent bien vers cet emplacement.
+                    if (File.Exists(m.StorePath) || Directory.Exists(m.StorePath))
+                    {
+                        if (RebaseReferences(_data.Nests, m.OriginalPath, m.StorePath))
+                            changed = true;
+                        continue;
+                    }
+
+                    // Le fichier n'existe plus à son emplacement d'origine.
+                    if (!File.Exists(m.OriginalPath) && !Directory.Exists(m.OriginalPath))
+                        continue;
+
+                    bool ok = DesktopStore.TryMove(m.OriginalPath, m.StorePath, out bool denied);
+
+                    if (!ok && denied && DesktopHelper.IsOnPublicDesktop(m.OriginalPath))
+                    {
+                        // La décision est prise plus tard, avec les autres éléments.
+                        _pendingPublicDesktopMoves.Add(
+                            new PendingPublicDesktopMove(m.OriginalPath, m.StorePath, true));
+                        continue;
+                    }
+
+                    if (!ok)
+                    {
+                        Diag.Log($"impossible de reprendre l'élément : {m.OriginalPath}");
+                        continue;
+                    }
+
+                    // Le fichier a quitté le bureau : les zones suivent.
                     if (RebaseReferences(_data.Nests, m.OriginalPath, m.StorePath))
                         changed = true;
-                    continue;
                 }
 
-                // Le fichier n'existe plus à son emplacement d'origine.
-                if (!File.Exists(m.OriginalPath) && !Directory.Exists(m.OriginalPath))
-                    continue;
-
-                bool ok = DesktopStore.TryMove(m.OriginalPath, m.StorePath, out bool denied);
-
-                if (!ok && denied && DesktopHelper.IsOnPublicDesktop(m.OriginalPath))
+                // Réapplique les attributs caché + système aux éléments concernés.
+                foreach (var p in _data.HiddenByApp.ToList())
                 {
+                    if (!IsReferencedByEnabledNormalNest(p))
+                        continue;
 
-                    var name = Path.GetFileName(m.OriginalPath.TrimEnd('\\'));
-
-                    var r = MessageBox.Show(
-                        Loc.F("msg.publicDesktop", name),
-                        "DeskNest",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question,
-                        MessageBoxResult.No,
-                        Loc.MsgOptions);
-
-                    if (r == MessageBoxResult.Yes)
-                        ok = DesktopStore.TryMoveElevated(m.OriginalPath, m.StorePath);
+                    if (File.Exists(p) || Directory.Exists(p))
+                        DesktopHelper.SetHidden(p, true);
                 }
 
-                if (!ok)
-                {
-                    Diag.Log($"impossible de reprendre l'élément : {m.OriginalPath}");
-                    continue;
-                }
-
-                // Le fichier a quitté le bureau : les zones suivent.
-                if (RebaseReferences(_data.Nests, m.OriginalPath, m.StorePath))
+                // Réinstallation, ou zone réactivée : les fichiers remis sur le
+                // bureau doivent être repris en charge par leur zone.
+                if (AdoptDesktopItemsInEnabledZones())
                     changed = true;
+
+                if (changed) RequestSave();
+            }
+            finally
+            {
+                _deferPublicDesktopPrompts = false;
+            }
+        }
+
+        // Traite les déplacements du Bureau public mis en attente au démarrage.
+        // Une seule question est posée pour tous les éléments ; la réponse vaut
+        // pour le reste de cette session.
+        private void ProcessPendingPublicDesktopMoves()
+        {
+            if (_pendingPublicDesktopMoves.Count == 0) return;
+
+            var pending = _pendingPublicDesktopMoves.ToList();
+            _pendingPublicDesktopMoves.Clear();
+
+            bool allow;
+            if (_publicDesktopRestoreAnswer.HasValue)
+            {
+                allow = _publicDesktopRestoreAnswer.Value;
+            }
+            else
+            {
+                var answer = MessageBox.Show(
+                    Loc.F("msg.publicDesktopBatch", pending.Count),
+                    "DeskNest",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question,
+                    MessageBoxResult.No,
+                    Loc.MsgOptions);
+                allow = answer == MessageBoxResult.Yes;
+                _publicDesktopRestoreAnswer = allow;
             }
 
-            // Réapplique les attributs caché + système aux éléments concernés.
-            foreach (var p in _data.HiddenByApp.ToList())
+            bool changed = false;
+            foreach (var item in pending)
             {
-                if (!IsReferencedByEnabledNormalNest(p))
+                if (!File.Exists(item.Source) && !Directory.Exists(item.Source))
+                    continue;
+                if (File.Exists(item.Destination) || Directory.Exists(item.Destination))
                     continue;
 
-                if (File.Exists(p) || Directory.Exists(p))
-                    DesktopHelper.SetHidden(p, true);
+                bool moved = allow && DesktopStore.TryMoveElevated(item.Source, item.Destination);
+                if (moved)
+                {
+                    if (!_data.Moved.Any(m => Same(m.StorePath, item.Destination)))
+                    {
+                        _data.Moved.Add(new MovedItem
+                        {
+                            StorePath = item.Destination,
+                            OriginalPath = item.Source
+                        });
+                    }
+                    RebaseReferences(_data.Nests, item.Source, item.Destination);
+                    changed = true;
+                }
+                else if (!item.IsRestore)
+                {
+                    // Refus ou échec de l'élévation : on retombe sur le masquage
+                    // par attributs, comme avant le démarrage différé.
+                    if (HideByAttributes(item.Source)) changed = true;
+                }
+                else
+                {
+                    Diag.Log($"impossible de reprendre l'élément : {item.Source}");
+                }
             }
 
-            // Réinstallation, ou zone réactivée : les fichiers remis sur le
-            // bureau doivent être repris en charge par leur zone.
-            if (AdoptDesktopItemsInEnabledZones())
-                changed = true;
+            if (!changed) return;
 
-            if (changed) RequestSave();
+            // Les associations viennent de changer : écriture immédiate pour
+            // qu'un arrêt brutal ne perde pas les éléments déplacés.
+            Storage.SaveNow(_data);
+            foreach (var w in _windows) w.ReloadItems();
+            RequestSave();
         }
 
         // À la fermeture : restaure les éléments sur le bureau,
@@ -1363,6 +1448,14 @@ namespace DeskNest
                 bool ok = DesktopStore.TryMove(path, dst, out bool denied);
                 if (!ok && denied && DesktopHelper.IsOnPublicDesktop(path))
                 {
+                    if (_deferPublicDesktopPrompts)
+                    {
+                        // Au démarrage, la question est posée après l'affichage
+                        // des zones (voir ProcessPendingPublicDesktopMoves).
+                        _pendingPublicDesktopMoves.Add(new PendingPublicDesktopMove(path, dst, false));
+                        return path;
+                    }
+
                     var r = MessageBox.Show(Loc.F("msg.publicDesktop", name), "DeskNest", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No, Loc.MsgOptions);
                     if (r == MessageBoxResult.Yes) ok = DesktopStore.TryMoveElevated(path, dst);
                 }
