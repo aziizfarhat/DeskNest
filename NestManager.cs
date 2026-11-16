@@ -843,10 +843,19 @@ namespace DeskNest
                     return;
                 }
 
-                // L'installateur doit être signé : c'est ce qui évite l'avertissement SmartScreen.
-                if (!UpdateChecker.IsSignatureValid(file))
+                // L'installateur est vérifié par son empreinte SHA-256 publiée avec la
+                // release. La signature Authenticode n'est contrôlée que si un
+                // certificat est disponible (UpdateChecker.RequireSignature).
+                var verification = await UpdateChecker.VerifyAsync(info, file);
+                if (verification != UpdateChecker.VerificationResult.Ok)
                 {
-                    MessageBox.Show(Loc.T("upd.invalid"), "DeskNest", MessageBoxButton.OK,
+                    string key = verification switch
+                    {
+                        UpdateChecker.VerificationResult.SignatureInvalid => "upd.invalid",
+                        UpdateChecker.VerificationResult.MissingChecksum => "upd.noChecksum",
+                        _ => "upd.badChecksum"
+                    };
+                    MessageBox.Show(Loc.T(key), "DeskNest", MessageBoxButton.OK,
                         MessageBoxImage.Warning, MessageBoxResult.OK, Loc.MsgOptions);
                     return;
                 }

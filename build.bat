@@ -94,8 +94,15 @@ if defined SIGNTOOL (
   if errorlevel 1 exit /b 1
 )
 
+rem Empreinte SHA-256 publiée avec la release : l'application la vérifie
+rem avant de lancer l'installateur (voir UpdateChecker.VerifyAsync).
 echo.
-echo Termine : publish\DeskNest.exe, publish\%PORTABLENAME% et installer\%SETUPNAME%
+echo Calcul de l'empreinte SHA-256 de l'installateur...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='installer\%SETUPNAME%'; $h=(Get-FileHash -Algorithm SHA256 -LiteralPath $p).Hash.ToLowerInvariant(); Set-Content -LiteralPath ($p + '.sha256') -Value ($h + '  ' + [IO.Path]::GetFileName($p)) -Encoding ASCII"
+if errorlevel 1 exit /b 1
+
+echo.
+echo Termine : publish\DeskNest.exe, publish\%PORTABLENAME%, installer\%SETUPNAME% et installer\%SETUPNAME%.sha256
 exit /b 0
 
 :sign
