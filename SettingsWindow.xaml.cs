@@ -94,7 +94,8 @@ namespace DeskNest
             DOpacityLabel.Text = Loc.F("z.opacity", (int)(s.DefaultOpacity * 100));
             RadiusLabel.Text = Loc.F("a.radius", s.CornerRadius);
             DataPath.Text = Loc.F("k.path", Storage.Dir);
-            var version = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "?";
+            var version = UpdateChecker.FormatVersion(
+                typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0));
             AboutVersion.Text = Loc.F("ab.version", version);
             HeaderVersion.Text = Loc.F("ab.version", version);
             if (Current is NestData d) ZOpacityLabel.Text = Loc.F("z.opacity", (int)(d.Opacity * 100));

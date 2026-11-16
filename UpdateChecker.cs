@@ -40,11 +40,15 @@ namespace DeskNest
         {
             var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
             client.DefaultRequestHeaders.UserAgent.Add(
-                new ProductInfoHeaderValue("DeskNest", CurrentVersion().ToString(3)));
+                new ProductInfoHeaderValue("DeskNest", FormatVersion(CurrentVersion())));
             client.DefaultRequestHeaders.Accept.Add(
                 new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
             return client;
         }
+
+        // Version complète (4 nombres) : 0.8.3.1 ne doit jamais être affichée 0.8.3.
+        public static string FormatVersion(Version version) =>
+            $"{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}.{Math.Max(version.Revision, 0)}";
 
         public static Version CurrentVersion() =>
             typeof(UpdateChecker).Assembly.GetName().Version ?? new Version(0, 0, 0);
@@ -144,7 +148,7 @@ namespace DeskNest
         }
 
         private static Version Normalize(Version v) =>
-            new(v.Major, v.Minor, Math.Max(v.Build, 0));
+            new(v.Major, v.Minor, Math.Max(v.Build, 0), Math.Max(v.Revision, 0));
 
         // Télécharge l'installateur dans le dossier temporaire de l'utilisateur.
         public static async Task<string> DownloadAsync(UpdateInfo info, CancellationToken ct = default)

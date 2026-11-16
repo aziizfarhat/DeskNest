@@ -828,7 +828,8 @@ namespace DeskNest
 
                 var current = UpdateChecker.CurrentVersion();
                 var answer = MessageBox.Show(
-                    Loc.F("upd.available", info.Version.ToString(3), current.ToString(3)),
+                    Loc.F("upd.available", UpdateChecker.FormatVersion(info.Version),
+                        UpdateChecker.FormatVersion(current)),
                     "DeskNest", MessageBoxButton.YesNo, MessageBoxImage.Question,
                     MessageBoxResult.No, Loc.MsgOptions);
                 if (answer != MessageBoxResult.Yes) return;
