@@ -1315,7 +1315,9 @@ namespace DeskNest
                 if (ok)
                 {
                     _data.Moved.Add(new MovedItem { StorePath = dst, OriginalPath = path });
-                    RequestSave();
+                    // Écriture immédiate : si DeskNest s'arrête maintenant, le fichier
+                    // déjà déplacé dans le stockage reste associé à son emplacement d'origine.
+                    Storage.SaveNow(_data);
                     return dst;
                 }
             }
@@ -1419,7 +1421,9 @@ namespace DeskNest
                 if (restored != null)
                 {
                     _data.Moved.RemoveAt(mi);
-                    RequestSave();
+                    // Le fichier a quitté le stockage : l'enregistrement doit disparaître
+                    // tout de suite, sinon un arrêt brutal le ferait reprendre au démarrage.
+                    Storage.SaveNow(_data);
                     return restored;
                 }
                 Warn(Loc.F("msg.cannotRestore", path));

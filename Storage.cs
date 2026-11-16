@@ -116,14 +116,29 @@ namespace DeskNest
             return new AppData();
         }
 
+        private static AppData? TryReadLayout(string path)
+        {
+            try
+            {
+                var d = JsonSerializer.Deserialize<AppData>(File.ReadAllText(path));
+                if (d == null) return null;
+                d = Normalize(d);
+                // Une sauvegarde vide n'est jamais une restauration utile.
+                return d.Nests.Count > 0 ? d : null;
+            }
+            catch { return null; }
+        }
+
         // ---------- Sauvegarde non bloquante ----------
         // La sérialisation se fait sur le thread appelant (les données ne sont pas thread-safe),
         // puis l'écriture disque et les sauvegardes quotidiennes sont faites en arrière-plan.
         // Une rafale de modifications (curseur d'opacité, glissement…) ne produit qu'une écriture.
         private static readonly object WriteGate = new();
+        private static readonly object IoGate = new();
         private static string? _pendingJson;
         private static bool _pendingHasZones;
         private static bool _writerActive;
+        private static int _syncWrites;
 
         public static void Save(AppData data)
         {
@@ -156,24 +171,66 @@ namespace DeskNest
             thread.Start();
         }
 
+        // Écrit immédiatement l'état sur disque. Utilisé quand un fichier vient d'être
+        // déplacé dans le stockage : même si l'application se termine brutalement,
+        // la correspondance « élément rangé / emplacement d'origine » est déjà enregistrée.
+        public static void SaveNow(AppData data)
+        {
+            string json;
+            bool hasZones;
+            var watch = Stopwatch.StartNew();
+            try
+            {
+                Normalize(data);
+                hasZones = data.Nests.Count > 0;
+                json = JsonSerializer.Serialize(data, Opt);
+            }
+            catch (Exception ex)
+            {
+                Diag.Log("sauvegarde immédiate : " + ex.Message);
+                return;
+            }
+
+            Interlocked.Increment(ref _syncWrites);
+            try
+            {
+                // IoGate sérialise les écritures : une sauvegarde asynchrone déjà
+                // partie ne peut pas écraser cet état plus récent.
+                lock (IoGate)
+                {
+                    lock (WriteGate) _pendingJson = null;
+                    WriteJsonCore(json, hasZones);
+                }
+            }
+            finally { Interlocked.Decrement(ref _syncWrites); }
+
+            if (watch.ElapsedMilliseconds > 200)
+                Diag.Log($"sauvegarde immédiate : écriture lente ({watch.ElapsedMilliseconds} ms)");
+        }
+
         private static void WriterLoop()
         {
             while (true)
             {
                 string? json;
                 bool hasZones;
-                lock (WriteGate)
+                // IoGate reste tenu pendant la capture et l'écriture : SaveNow ne
+                // peut pas s'intercaler entre les deux.
+                lock (IoGate)
                 {
-                    json = _pendingJson;
-                    hasZones = _pendingHasZones;
-                    _pendingJson = null;
-                    if (json == null) { _writerActive = false; return; }
+                    lock (WriteGate)
+                    {
+                        json = _pendingJson;
+                        hasZones = _pendingHasZones;
+                        _pendingJson = null;
+                        if (json == null) { _writerActive = false; return; }
+                    }
+                    WriteJsonCore(json, hasZones);
                 }
-                WriteJson(json, hasZones);
             }
         }
 
-        private static void WriteJson(string json, bool hasZones)
+        private static void WriteJsonCore(string json, bool hasZones)
         {
             var watch = Stopwatch.StartNew();
             try
@@ -206,7 +263,7 @@ namespace DeskNest
             while (watch.ElapsedMilliseconds < timeoutMs)
             {
                 lock (WriteGate)
-                    if (!_writerActive && _pendingJson == null) return;
+                    if (!_writerActive && _pendingJson == null && Volatile.Read(ref _syncWrites) == 0) return;
                 Thread.Sleep(10);
             }
         }
@@ -313,16 +370,8 @@ namespace DeskNest
 
                 foreach (var f in candidates.OrderByDescending(File.GetLastWriteTimeUtc))
                 {
-                    try
-                    {
-                        var d = JsonSerializer.Deserialize<AppData>(File.ReadAllText(f));
-                        if (d == null) continue;
-                        d = Normalize(d);
-                        // Une sauvegarde vide n'est jamais une restauration utile.
-                        if (d.Nests.Count == 0) continue;
-                        return (f, d);
-                    }
-                    catch { }
+                    var d = TryReadLayout(f);
+                    if (d != null) return (f, d);
                 }
             }
             catch { }
