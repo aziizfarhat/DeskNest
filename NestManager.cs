@@ -31,6 +31,9 @@ namespace DeskNest
         private Guid _pendingZoneId;
         private DateTime _pendingZoneAt;
         private bool _warnedProtected, _warnedFailure, _warnedHotkey, _hotkeyActive;
+        private bool _warnedSearchHotkey, _searchHotkeyActive;
+        private string _activeToggleHotkey = "";
+        private string _activeSearchHotkey = "";
         private readonly DispatcherTimer _desktopTimer;
         private readonly DispatcherTimer _desktopWake;
         private DesktopWatcher? _desktopWatcher;
@@ -489,8 +492,6 @@ namespace DeskNest
             {
                 _searchHotkey = new GlobalHotkey();
                 _searchHotkey.Pressed += ShowSearchPalette;
-                if (!_searchHotkey.RegisterSearch())
-                    Diag.Log("raccourci Ctrl+Shift+Espace indisponible");
             }
             catch (Exception ex) { Diag.Log("raccourci recherche : " + ex.Message); }
 
@@ -1015,12 +1016,13 @@ namespace DeskNest
         public void ApplySettings()
         {
             SyncHotkey();
+            SyncSearchHotkey();
             SyncMouseHook();
             foreach (var w in _windows) w.ApplyExternalChange();
             ApplyVisibility();
         }
 
-        // Le raccourci n'est réenregistré que lorsqu'il change réellement d'état.
+        // Le raccourci n'est réenregistré que lorsqu'il change réellement.
         private void SyncHotkey()
         {
             if (_hotkey == null) return;
@@ -1028,15 +1030,19 @@ namespace DeskNest
             {
                 if (Settings.HotkeyEnabled)
                 {
-                    if (_hotkeyActive) return;
-                    _hotkeyActive = _hotkey.Register();
+                    string spec = HotkeyText.Normalize(Settings.ToggleHotkey, HotkeyText.DefaultToggle);
+                    if (_hotkeyActive && spec == _activeToggleHotkey) return;
+
+                    _hotkeyActive = _hotkey.Register(spec);
+                    _activeToggleHotkey = _hotkeyActive ? spec : "";
                     if (!_hotkeyActive)
                     {
-                        Diag.Log("raccourci Ctrl+Alt+F indisponible");
+                        string display = HotkeyText.Display(spec, HotkeyText.DefaultToggle);
+                        Diag.Log($"raccourci {display} indisponible");
                         if (!_warnedHotkey)
                         {
                             _warnedHotkey = true;
-                            Warn(Loc.T("msg.hotkeyFailed"));
+                            Warn(Loc.F("msg.hotkeyFailed", display));
                         }
                     }
                 }
@@ -1044,9 +1050,35 @@ namespace DeskNest
                 {
                     _hotkey.Unregister();
                     _hotkeyActive = false;
+                    _activeToggleHotkey = "";
                 }
             }
             catch (Exception ex) { Diag.Log("raccourci : " + ex.Message); }
+        }
+
+        // La palette de recherche a son propre raccourci, configurable séparément.
+        private void SyncSearchHotkey()
+        {
+            if (_searchHotkey == null) return;
+            try
+            {
+                string spec = HotkeyText.Normalize(Settings.SearchHotkey, HotkeyText.DefaultSearch);
+                if (_searchHotkeyActive && spec == _activeSearchHotkey) return;
+
+                _searchHotkeyActive = _searchHotkey.Register(spec);
+                _activeSearchHotkey = _searchHotkeyActive ? spec : "";
+                if (!_searchHotkeyActive)
+                {
+                    string display = HotkeyText.Display(spec, HotkeyText.DefaultSearch);
+                    Diag.Log($"raccourci {display} indisponible");
+                    if (!_warnedSearchHotkey)
+                    {
+                        _warnedSearchHotkey = true;
+                        Warn(Loc.F("msg.hotkeyFailed", display));
+                    }
+                }
+            }
+            catch (Exception ex) { Diag.Log("raccourci recherche : " + ex.Message); }
         }
 
         // Le hook souris global ne doit être installé que si le double-clic sur le bureau est utile.

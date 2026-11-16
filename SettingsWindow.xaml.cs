@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Navigation;
 
@@ -112,6 +113,8 @@ namespace DeskNest
             ChkEnabled.IsChecked = s.Enabled;
             ChkAutostart.IsChecked = TrayIcon.IsAutostart();
             ChkHotkey.IsChecked = s.HotkeyEnabled;
+            TxtToggleHotkey.Text = HotkeyText.Display(s.ToggleHotkey, HotkeyText.DefaultToggle);
+            TxtSearchHotkey.Text = HotkeyText.Display(s.SearchHotkey, HotkeyText.DefaultSearch);
             ChkDesktopDbl.IsChecked = s.DesktopDoubleClickEnabled;
             ChkHideIcons.IsChecked = s.HideDesktopIcons;
             ChkSearchBar.IsChecked = s.ShowSearchBar;
@@ -157,6 +160,68 @@ namespace DeskNest
         private void ChkEnabled_Click(object sender, RoutedEventArgs e) { if (!_loading) _m.SetEnabled(ChkEnabled.IsChecked == true); }
         private void ChkAutostart_Click(object sender, RoutedEventArgs e) { if (!_loading) TrayIcon.SetAutostart(ChkAutostart.IsChecked == true); }
         private void ChkHotkey_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.HotkeyEnabled = ChkHotkey.IsChecked == true; _m.SettingsChanged(); }
+
+        // Capture d'une combinaison : la zone de texte ne sert qu'à afficher et
+        // enregistrer les touches pressées. Échap annule, Retour arrière rétablit
+        // la valeur par défaut.
+        private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (_loading || sender is not TextBox box) return;
+            e.Handled = true;
+
+            bool toggle = ReferenceEquals(box, TxtToggleHotkey);
+            string fallback = toggle ? HotkeyText.DefaultToggle : HotkeyText.DefaultSearch;
+            var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+            if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
+                or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin)
+                return;
+
+            if (key == Key.Escape)
+            {
+                box.Text = HotkeyText.Display(
+                    toggle ? _m.Settings.ToggleHotkey : _m.Settings.SearchHotkey, fallback);
+                return;
+            }
+
+            if (key == Key.Back)
+            {
+                ApplyHotkey(toggle, fallback);
+                box.Text = fallback;
+                return;
+            }
+
+            var modifiers = Keyboard.Modifiers;
+            bool hasModifier = (modifiers & (ModifierKeys.Control | ModifierKeys.Alt |
+                                             ModifierKeys.Shift | ModifierKeys.Windows)) != 0;
+            bool functionKey = key >= Key.F1 && key <= Key.F24;
+            if (!hasModifier && !functionKey) return;
+
+            int vk = KeyInterop.VirtualKeyFromKey(key);
+            if (vk <= 0) return;
+
+            string spec = HotkeyText.Format(modifiers, key);
+            ApplyHotkey(toggle, spec);
+            box.Text = HotkeyText.Display(
+                toggle ? _m.Settings.ToggleHotkey : _m.Settings.SearchHotkey, fallback);
+        }
+
+        private void ApplyHotkey(bool toggle, string spec)
+        {
+            string other = toggle ? _m.Settings.SearchHotkey : _m.Settings.ToggleHotkey;
+            string canonical = HotkeyText.Normalize(spec, spec);
+            string otherCanonical = HotkeyText.Normalize(other, other);
+            if (string.Equals(canonical, otherCanonical, StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show(this, Loc.T("msg.hotkeyDuplicate"), "DeskNest",
+                    MessageBoxButton.OK, MessageBoxImage.Warning, MessageBoxResult.OK, Loc.MsgOptions);
+                return;
+            }
+
+            if (toggle) _m.Settings.ToggleHotkey = canonical;
+            else _m.Settings.SearchHotkey = canonical;
+            _m.SettingsChanged();
+        }
         private void ChkDesktopDbl_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.DesktopDoubleClickEnabled = ChkDesktopDbl.IsChecked == true; _m.SettingsChanged(); }
         private void ChkHideIcons_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.HideDesktopIcons = ChkHideIcons.IsChecked == true; _m.SettingsChanged(); }
         private void ChkSearchBar_Click(object sender, RoutedEventArgs e) { if (_loading) return; _m.Settings.ShowSearchBar = ChkSearchBar.IsChecked == true; _m.SettingsChanged(); }

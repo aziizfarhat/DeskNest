@@ -64,6 +64,17 @@
             <Setter Property="Margin" Value="0,0,14,7"/>
             <Setter Property="VerticalAlignment" Value="Top"/>
         </Style>
+        <Style x:Key="HotkeyBox" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="4,3"/>
+            <Setter Property="Margin" Value="0,0,14,7"/>
+            <Setter Property="MinWidth" Value="160"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+        </Style>
         <Style x:Key="ShortcutDesc" TargetType="TextBlock">
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="0,0,0,7"/>
@@ -570,13 +581,18 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition/><RowDefinition/><RowDefinition/>
                                     </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Ctrl + Alt + F" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBox x:Name="TxtToggleHotkey" Grid.Row="0" Grid.Column="0"
+                                             Style="{StaticResource HotkeyBox}"
+                                             PreviewKeyDown="HotkeyBox_PreviewKeyDown"/>
                                     <TextBlock Grid.Row="0" Grid.Column="1" l:L.Key="sc.toggle" Style="{StaticResource ShortcutDesc}"/>
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Ctrl + Shift + Space" Style="{StaticResource ShortcutKey}"/>
+                                    <TextBox x:Name="TxtSearchHotkey" Grid.Row="1" Grid.Column="0"
+                                             Style="{StaticResource HotkeyBox}"
+                                             PreviewKeyDown="HotkeyBox_PreviewKeyDown"/>
                                     <TextBlock Grid.Row="1" Grid.Column="1" l:L.Key="sc.search" Style="{StaticResource ShortcutDesc}"/>
                                     <TextBlock Grid.Row="2" Grid.Column="0" l:L.Key="sc.kDouble" Style="{StaticResource ShortcutKey}"/>
                                     <TextBlock Grid.Row="2" Grid.Column="1" l:L.Key="sc.desktop" Style="{StaticResource ShortcutDesc}"/>
                                 </Grid>
+                                <TextBlock l:L.Key="sc.editHint" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
                             </StackPanel>
                         </Border>
 

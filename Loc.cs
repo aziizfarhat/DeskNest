@@ -241,7 +241,8 @@ namespace DeskNest
 
             // ---------- Messages ----------
             A("msg.unexpected", "An unexpected error occurred. Details were written to the diagnostic log.\n\n{0}", "Une erreur inattendue s'est produite. Les détails ont été écrits dans le journal de diagnostic.\n\n{0}", "Si è verificato un errore imprevisto. I dettagli sono stati scritti nel registro di diagnostica.\n\n{0}", "Ein unerwarteter Fehler ist aufgetreten. Details wurden im Diagnoseprotokoll gespeichert.\n\n{0}", "Se produjo un error inesperado. Los detalles se escribieron en el registro de diagnóstico.\n\n{0}", "Ocorreu um erro inesperado. Os detalhes foram gravados no log de diagnóstico.\n\n{0}", "حدث خطأ غير متوقع. تمت كتابة التفاصيل في سجل التشخيص.\n\n{0}", "发生意外错误。详细信息已写入诊断日志。\n\n{0}", "予期しないエラーが発生しました。詳細は診断ログに書き込まれました。\n\n{0}", "예기치 않은 오류가 발생했습니다. 자세한 내용은 진단 로그에 기록되었습니다.\n\n{0}");
-            A("msg.hotkeyFailed", "The shortcut Ctrl+Alt+F is already used by another application. Toggling zones from the keyboard will not work.", "Le raccourci Ctrl+Alt+F est déjà utilisé par une autre application. Le masquage des zones au clavier ne fonctionnera pas.", "La scorciatoia Ctrl+Alt+F è già utilizzata da un'altra applicazione. L'attivazione/disattivazione delle zone da tastiera non funzionerà.", "Die Tastenkombination Strg+Alt+F wird bereits von einer anderen Anwendung verwendet. Das Ein-/Ausblenden der Bereiche per Tastatur funktioniert nicht.", "La combinación Ctrl+Alt+F ya la utiliza otra aplicación. La ocultación de zonas con el teclado no funcionará.", "O atalho Ctrl+Alt+F já está a ser utilizado por outra aplicação. Alternar as zonas pelo teclado não funcionará.", "الاختصار Ctrl+Alt+F مستخدم بالفعل من قبل تطبيق آخر. لن يعمل إخفاء/إظهار المناطق من لوحة المفاتيح.", "快捷键 Ctrl+Alt+F 已被其他应用程序占用。将无法通过键盘切换区域。", "ショートカット Ctrl+Alt+F は別のアプリで使用されています。キーボードによるゾーンの切り替えは機能しません。", "Ctrl+Alt+F 단축키를 다른 앱에서 이미 사용 중입니다. 키보드로 영역을 숨기거나 표시할 수 없습니다.");
+            A("msg.hotkeyFailed", "The shortcut {0} is already used by another application. Choose another combination in Settings › Shortcuts.", "Le raccourci {0} est déjà utilisé par une autre application. Choisissez une autre combinaison dans Paramètres › Raccourcis.", "La scorciatoia {0} è già utilizzata da un'altra applicazione. Scegli un'altra combinazione in Impostazioni › Scorciatoie.", "Die Tastenkombination {0} wird bereits von einer anderen Anwendung verwendet. Wählen Sie eine andere Kombination unter Einstellungen › Tastenkürzel.", "La combinación {0} ya la utiliza otra aplicación. Elige otra combinación en Configuración › Atajos.", "O atalho {0} já está a ser utilizado por outra aplicação. Escolha outra combinação em Configurações › Atalhos.", "الاختصار {0} مستخدم بالفعل من قبل تطبيق آخر. اختر تركيبة أخرى في الإعدادات › الاختصارات.", "快捷键 {0} 已被其他应用程序占用。请在“设置 › 快捷键”中选择其他组合。", "ショートカット {0} は別のアプリで使用されています。「設定 › ショートカット」で別の組み合わせを選択してください。", "단축키 {0}을(를) 다른 앱에서 이미 사용 중입니다. 설정 › 단축키에서 다른 조합을 선택하세요.");
+            A("msg.hotkeyDuplicate", "This shortcut is already assigned to another DeskNest action. Choose another combination.", "Ce raccourci est déjà attribué à une autre action de DeskNest. Choisissez une autre combinaison.", "Questa scorciatoia è già assegnata a un'altra azione di DeskNest. Scegli un'altra combinazione.", "Diese Tastenkombination ist bereits einer anderen DeskNest-Aktion zugewiesen. Wählen Sie eine andere Kombination.", "Este atajo ya está asignado a otra acción de DeskNest. Elige otra combinación.", "Este atalho já está atribuído a outra ação do DeskNest. Escolha outra combinação.", "هذا الاختصار مخصص بالفعل لإجراء آخر في DeskNest. اختر تركيبة أخرى.", "此快捷键已分配给 DeskNest 的其他操作。请选择其他组合。", "このショートカットは別の DeskNest 操作に割り当てられています。別の組み合わせを選択してください。", "이 단축키는 이미 다른 DeskNest 작업에 할당되어 있습니다. 다른 조합을 선택하세요.");
             A("msg.layoutRestored", "The configuration file was unreadable. The most recent backup was restored: {0}", "Le fichier de configuration était illisible. La sauvegarde la plus récente a été restaurée : {0}", "Il file di configurazione non era leggibile. È stato ripristinato il backup più recente: {0}", "Die Konfigurationsdatei war unlesbar. Die neueste Sicherung wurde wiederhergestellt: {0}", "El archivo de configuración no se pudo leer. Se restauró la copia de seguridad más reciente: {0}", "O ficheiro de configuração estava ilegível. O backup mais recente foi restaurado: {0}", "تعذّرت قراءة ملف الإعدادات. تمت استعادة أحدث نسخة احتياطية: {0}", "配置文件无法读取。已恢复最近的备份：{0}", "構成ファイルを読み取れませんでした。最新のバックアップを復元しました: {0}", "구성 파일을 읽을 수 없어 가장 최근 백업을 복원했습니다: {0}");
             A("msg.layoutLost", "The configuration file was unreadable and no valid backup was found. A new empty layout was started; the damaged file was kept in the configuration folder.", "Le fichier de configuration était illisible et aucune sauvegarde valide n'a été trouvée. Une nouvelle disposition vide a été démarrée ; le fichier endommagé a été conservé dans le dossier de configuration.", "Il file di configurazione non era leggibile e non è stato trovato alcun backup valido. È stata avviata una nuova disposizione vuota; il file danneggiato è stato conservato nella cartella di configurazione.", "Die Konfigurationsdatei war unlesbar und es wurde keine gültige Sicherung gefunden. Es wurde ein neues leeres Layout gestartet; die beschädigte Datei wurde im Konfigurationsordner aufbewahrt.", "El archivo de configuración no se pudo leer y no se encontró ninguna copia de seguridad válida. Se inició una nueva disposición vacía; el archivo dañado se conservó en la carpeta de configuración.", "O ficheiro de configuração estava ilegível e não foi encontrado nenhum backup válido. Foi iniciada uma nova disposição vazia; o ficheiro danificado foi mantido na pasta de configuração.", "تعذّرت قراءة ملف الإعدادات ولم يتم العثور على نسخة احتياطية صالحة. تم بدء تخطيط فارغ جديد؛ وتم الاحتفاظ بالملف التالف في مجلد الإعدادات.", "配置文件无法读取，且未找到有效备份。已启动新的空布局；损坏的文件已保留在配置文件夹中。", "構成ファイルを読み取れず、有効なバックアップも見つかりませんでした。新しい空のレイアウトで起動しました。破損したファイルは構成フォルダーに保持されています。", "구성 파일을 읽을 수 없고 유효한 백업도 없어 새 빈 레이아웃으로 시작했습니다. 손상된 파일은 구성 폴더에 보관했습니다.");
             A("msg.cannotOpen", "Unable to open:\n{0}\n\n{1}", "Impossible d'ouvrir :\n{0}\n\n{1}", "Impossibile aprire:\n{0}\n\n{1}", "Öffnen nicht möglich:\n{0}\n\n{1}", "No se puede abrir:\n{0}\n\n{1}", "Não foi possível abrir:\n{0}\n\n{1}", "تعذّر الفتح:\n{0}\n\n{1}", "无法打开：\n{0}\n\n{1}", "開けません:\n{0}\n\n{1}", "열 수 없습니다:\n{0}\n\n{1}");
@@ -379,7 +380,7 @@ namespace DeskNest
 
             A("g.enabled", "Enable DeskNest (show zones on the desktop)", "Activer DeskNest (afficher les zones sur le bureau)", "Attiva DeskNest (mostra le zone sul desktop)", "DeskNest aktivieren (Bereiche auf dem Desktop anzeigen)", "Activar DeskNest (mostrar las zonas en el escritorio)", "Ativar o DeskNest (mostrar as zonas na área de trabalho)", "تفعيل DeskNest (إظهار المناطق على سطح المكتب)", "启用 DeskNest（在桌面上显示区域）", "DeskNest を有効にする（デスクトップにゾーンを表示）", "DeskNest 사용(바탕 화면에 영역 표시)");
             A("g.autostart", "Start DeskNest with Windows", "Lancer DeskNest au démarrage de Windows", "Avvia DeskNest con Windows", "DeskNest mit Windows starten", "Iniciar DeskNest con Windows", "Iniciar o DeskNest com o Windows", "تشغيل DeskNest عند بدء Windows", "随 Windows 启动 DeskNest", "Windows の起動時に DeskNest を起動する", "Windows 시작 시 DeskNest 실행");
-            A("g.hotkey", "Keyboard shortcut Ctrl + Alt + F: hide / show zones", "Raccourci clavier Ctrl + Alt + F : masquer / afficher les zones", "Scorciatoia Ctrl + Alt + F: nascondi / mostra le zone", "Tastenkombination Strg + Alt + F: Bereiche aus-/einblenden", "Atajo de teclado Ctrl + Alt + F: ocultar / mostrar zonas", "Atalho de teclado Ctrl + Alt + F: ocultar / mostrar zonas", "اختصار لوحة المفاتيح Ctrl + Alt + F: إخفاء / إظهار المناطق", "快捷键 Ctrl + Alt + F：隐藏 / 显示区域", "ショートカット Ctrl + Alt + F: ゾーンの表示 / 非表示", "단축키 Ctrl + Alt + F: 영역 숨기기 / 표시");
+            A("g.hotkey", "Keyboard shortcut: hide / show zones", "Raccourci clavier : masquer / afficher les zones", "Scorciatoia da tastiera: nascondi / mostra le zone", "Tastenkombination: Bereiche aus-/einblenden", "Atajo de teclado: ocultar / mostrar zonas", "Atalho de teclado: ocultar / mostrar zonas", "اختصار لوحة المفاتيح: إخفاء / إظهار المناطق", "键盘快捷键：隐藏 / 显示区域", "キーボード ショートカット: ゾーンの表示 / 非表示", "키보드 단축키: 영역 숨기기 / 표시");
             A("g.dblclick", "Double-click an empty area of the desktop: hide / show zones", "Double-clic sur une zone vide du bureau : masquer / afficher les zones", "Doppio clic su un'area vuota del desktop: nascondi / mostra le zone", "Doppelklick auf eine leere Desktopfläche: Bereiche aus-/einblenden", "Doble clic en un área vacía del escritorio: ocultar / mostrar zonas", "Clique duplo numa área vazia da área de trabalho: ocultar / mostrar zonas", "نقر مزدوج على منطقة فارغة من سطح المكتب: إخفاء / إظهار المناطق", "双击桌面空白处：隐藏 / 显示区域", "デスクトップの空白をダブルクリック: ゾーンの表示 / 非表示", "바탕 화면 빈 곳 더블 클릭: 영역 숨기기 / 표시");
             A("g.hideIcons", "Remove from the desktop the icons dragged into a zone", "Retirer du bureau les icônes glissées dans une zone", "Rimuovi dal desktop le icone trascinate in una zona", "Symbole, die in einen Bereich gezogen werden, vom Desktop entfernen", "Quitar del escritorio los iconos arrastrados a una zona", "Remover da área de trabalho os ícones arrastados para uma zona", "إزالة الأيقونات المسحوبة إلى منطقة من سطح المكتب", "将拖入区域的图标从桌面移除", "ゾーンにドラッグしたアイコンをデスクトップから取り除く", "영역으로 끌어온 아이콘을 바탕 화면에서 제거");
             A("g.searchBar", "Show a search bar in each zone", "Afficher une barre de recherche dans chaque zone", "Mostra una barra di ricerca in ogni zona", "Suchleiste in jedem Bereich anzeigen", "Mostrar una barra de búsqueda en cada zona", "Mostrar uma barra de pesquisa em cada zona", "إظهار شريط بحث في كل منطقة", "在每个区域中显示搜索栏", "各ゾーンに検索バーを表示", "각 영역에 검색 표시줄 표시");
@@ -516,6 +517,7 @@ namespace DeskNest
             A("sc.kShiftDel", "Shift + Del", "Maj + Suppr", "Maiusc + Canc", "Umschalt + Entf", "Mayús + Supr", "Shift + Del", "Shift + Del", "Shift + Delete", "Shift + Del", "Shift + Del");
             A("sc.kDouble", "Double-click", "Double-clic", "Doppio clic", "Doppelklick", "Doble clic", "Duplo clique", "نقر مزدوج", "双击", "ダブルクリック", "두 번 클릭");
             A("sc.kMouseBack", "Mouse back button", "Bouton précédent", "Pulsante indietro", "Zurück-Taste", "Botón Atrás", "Botão Voltar", "زر الرجوع بالفأرة", "鼠标后退键", "マウスの戻るボタン", "마우스 뒤로 버튼");
+            A("sc.editHint", "Click a shortcut box and press the new combination. Esc cancels, Backspace restores the default.", "Cliquez sur une case puis appuyez sur la nouvelle combinaison. Échap annule, Retour arrière rétablit la valeur par défaut.", "Fai clic su una casella e premi la nuova combinazione. Esc annulla, Backspace ripristina il valore predefinito.", "Klicken Sie auf ein Feld und drücken Sie die neue Kombination. Esc bricht ab, Rücktaste stellt den Standard wieder her.", "Haz clic en una casilla y pulsa la nueva combinación. Esc cancela, Retroceso restaura el valor predeterminado.", "Clique numa caixa e prima a nova combinação. Esc cancela, Backspace repõe o valor predefinido.", "انقر على أحد المربعات ثم اضغط التركيبة الجديدة. Esc يلغي، وBackspace يعيد القيمة الافتراضية.", "单击一个快捷键框，然后按下新的组合键。Esc 取消，Backspace 恢复默认值。", "ショートカット欄をクリックして新しい組み合わせを押します。Esc でキャンセル、Backspace で既定値に戻ります。", "단축키 상자를 클릭한 뒤 새 조합을 누르세요. Esc는 취소, Backspace는 기본값으로 복원합니다.");
         }
 
         // ---------- Russe et ukrainien ----------
@@ -613,7 +615,8 @@ namespace DeskNest
             ["i.removeN"] = "Убрать из зоны ({0} эл.)",
             ["i.properties"] = "Свойства",
             ["msg.unexpected"] = "Произошла непредвиденная ошибка. Подробности записаны в журнал диагностики.\n\n{0}",
-            ["msg.hotkeyFailed"] = "Сочетание Ctrl+Alt+F уже используется другой программой. Переключение зон с клавиатуры работать не будет.",
+            ["msg.hotkeyFailed"] = "Сочетание {0} уже используется другой программой. Выберите другое сочетание в разделе «Параметры › Сочетания клавиш».",
+            ["msg.hotkeyDuplicate"] = "Это сочетание уже назначено другому действию DeskNest. Выберите другое сочетание.",
             ["msg.layoutRestored"] = "Файл конфигурации не удалось прочитать. Восстановлена последняя резервная копия: {0}",
             ["msg.layoutLost"] = "Файл конфигурации не удалось прочитать, и действительная резервная копия не найдена. Запущена новая пустая раскладка; повреждённый файл сохранён в папке конфигурации.",
             ["msg.cannotOpen"] = "Не удалось открыть:\n{0}\n\n{1}",
@@ -657,7 +660,7 @@ namespace DeskNest
             ["s.zone"] = "Зона",
             ["g.enabled"] = "Включить DeskNest (показывать зоны на рабочем столе)",
             ["g.autostart"] = "Запускать DeskNest вместе с Windows",
-            ["g.hotkey"] = "Сочетание клавиш Ctrl + Alt + F: скрыть / показать зоны",
+            ["g.hotkey"] = "Сочетание клавиш: скрыть / показать зоны",
             ["g.dblclick"] = "Двойной щелчок по пустой области рабочего стола: скрыть / показать зоны",
             ["g.hideIcons"] = "Убирать с рабочего стола значки, перетащенные в зону",
             ["g.searchBar"] = "Показывать строку поиска в каждой зоне",
@@ -777,7 +780,8 @@ namespace DeskNest
             ["sc.kDel"] = "Delete",
             ["sc.kShiftDel"] = "Shift + Delete",
             ["sc.kDouble"] = "Двойной щелчок",
-            ["sc.kMouseBack"] = "Кнопка «назад» мыши"
+            ["sc.kMouseBack"] = "Кнопка «назад» мыши",
+            ["sc.editHint"] = "Щёлкните поле и нажмите новое сочетание. Esc отменяет, Backspace восстанавливает значение по умолчанию."
         };
 
         private static readonly Dictionary<string, string> Uk = new()
@@ -872,7 +876,8 @@ namespace DeskNest
             ["i.removeN"] = "Прибрати із зони ({0} ел.)",
             ["i.properties"] = "Властивості",
             ["msg.unexpected"] = "Сталася непередбачена помилка. Подробиці записано в журнал діагностики.\n\n{0}",
-            ["msg.hotkeyFailed"] = "Сполучення Ctrl+Alt+F уже використовує інша програма. Перемикання зон із клавіатури не працюватиме.",
+            ["msg.hotkeyFailed"] = "Сполучення {0} уже використовує інша програма. Виберіть інше сполучення в розділі «Параметри › Сполучення клавіш».",
+            ["msg.hotkeyDuplicate"] = "Це сполучення вже призначено іншій дії DeskNest. Виберіть інше сполучення.",
             ["msg.layoutRestored"] = "Файл конфігурації не вдалося прочитати. Відновлено останню резервну копію: {0}",
             ["msg.layoutLost"] = "Файл конфігурації не вдалося прочитати, і чинної резервної копії не знайдено. Запущено нове порожнє компонування; пошкоджений файл збережено в папці конфігурації.",
             ["msg.cannotOpen"] = "Не вдалося відкрити:\n{0}\n\n{1}",
@@ -916,7 +921,7 @@ namespace DeskNest
             ["s.zone"] = "Зона",
             ["g.enabled"] = "Увімкнути DeskNest (показувати зони на робочому столі)",
             ["g.autostart"] = "Запускати DeskNest разом із Windows",
-            ["g.hotkey"] = "Сполучення клавіш Ctrl + Alt + F: приховати / показати зони",
+            ["g.hotkey"] = "Сполучення клавіш: приховати / показати зони",
             ["g.dblclick"] = "Подвійний клац по порожній області робочого стола: приховати / показати зони",
             ["g.hideIcons"] = "Прибирати з робочого стола значки, перетягнуті до зони",
             ["g.searchBar"] = "Показувати рядок пошуку в кожній зоні",
@@ -1036,7 +1041,8 @@ namespace DeskNest
             ["sc.kDel"] = "Delete",
             ["sc.kShiftDel"] = "Shift + Delete",
             ["sc.kDouble"] = "Подвійне клацання",
-            ["sc.kMouseBack"] = "Кнопка «назад» миші"
+            ["sc.kMouseBack"] = "Кнопка «назад» миші",
+            ["sc.editHint"] = "Клацніть поле й натисніть нове сполучення. Esc скасовує, Backspace відновлює значення за замовчуванням."
         };
     }
 }

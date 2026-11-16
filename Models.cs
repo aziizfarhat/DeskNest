@@ -94,7 +94,9 @@ namespace DeskNest
     public class AppSettings
     {
         public bool Enabled { get; set; } = true;                 // DeskNest actif (zones affichées)
-        public bool HotkeyEnabled { get; set; } = true;           // Ctrl + Alt + F
+        public bool HotkeyEnabled { get; set; } = true;           // raccourci de masquage actif
+        public string ToggleHotkey { get; set; } = "Ctrl+Alt+F";  // masquer / afficher les zones
+        public string SearchHotkey { get; set; } = "Ctrl+Shift+Space"; // palette de recherche globale
         public bool DesktopDoubleClickEnabled { get; set; } = true;
         public bool HideDesktopIcons { get; set; } = true;
         public bool ShowSearchBar { get; set; } = true;           // barre de recherche sous la barre de titre des zones
