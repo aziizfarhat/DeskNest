@@ -14,3 +14,7 @@ The file is used as-is by `installer.iss`:
 ```ini
 Name: "chinesesimplified"; MessagesFile: "installer-lang\ChineseSimplified.isl"
 ```
+
+## Custom messages
+
+`installer.iss` defines the same seven custom messages for each of the twelve languages: `StartupTask`, `StartupGroup`, `LaunchApp`, `UninstallIntro`, `UninstallDeleteData`, `UninstallButton` and `UninstallCancel`. Keep the key set identical for every language when adding or changing a message.
