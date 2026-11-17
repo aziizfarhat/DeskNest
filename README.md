@@ -1,5 +1,7 @@
 # DeskNest
 
+[![Build](https://github.com/aziizfarhat/DeskNest/actions/workflows/ci.yml/badge.svg)](https://github.com/aziizfarhat/DeskNest/actions/workflows/ci.yml)
+
 <img src="logo/logo_name.png" alt="DeskNest" width="240">
 
 **Organize your Windows desktop with customizable zones and folder portals.**
@@ -8,7 +10,7 @@ DeskNest is a lightweight Windows desktop organizer that helps you group applica
 
 Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
 
-> **Project status:** Under active development. DeskNest is currently at version 0.8.2.1.
+> **Project status:** Under active development. DeskNest is currently at version 0.8.3.3.
 
 ## Features
 
@@ -56,11 +58,14 @@ DeskNest integrates with the Windows desktop environment.
 - Dedicated context menu for desktop zones.
 - Desktop background context menu for creating new zones and Folder Portals.
 - Windows startup option.
+- Configurable global hotkeys for toggling zones and opening the search palette (Settings › Shortcuts).
 - Single-instance application support.
 - Stays visible when using the Windows “Show desktop” command.
 - Native Windows desktop integration.
-- Automatic update checks against GitHub releases, with an optional silent installation.
-- Authenticode code-signing support for release builds, so Windows SmartScreen can verify the installer.
+- Automatic update checks against GitHub releases, with SHA-256 verification and an optional silent installation.
+- Restore all items to the desktop from the tray menu.
+- Recovery of items left in the managed store after a crash.
+- Optional Authenticode code-signing for release builds.
 
 The desktop background context menu is available while DeskNest is running and is removed when the application exits normally.
 The desktop background context menu uses DeskNest's localization system.
@@ -103,8 +108,10 @@ The installer provides:
 - Optional automatic startup with Windows.
 - A standard Windows uninstall entry.
 - A shortcut in the Start Menu.
+- The MIT license text.
+- An uninstall prompt that keeps zones, settings and backups by default, with an option to delete them.
 
-The installer interface is available in the same twelve languages as DeskNest.
+The installer interface is available in the same twelve languages as DeskNest. Simplified Chinese uses the translation vendored in `installer-lang/` because Inno Setup does not ship it.
 
 ### Building the Installer
 
@@ -140,6 +147,14 @@ dotnet build
 dotnet run
 ```
 
+### Run the Tests
+
+```powershell
+dotnet run --project DeskNest.Tests\DeskNest.Tests.csproj -c Release
+```
+
+The test project uses an in-memory file system, so it never reads or writes `%APPDATA%\DeskNest`.
+
 ### Create a Standalone Release
 
 DeskNest includes a build script that automates the publishing and installer creation process.
@@ -167,8 +182,9 @@ The script automatically:
 | `publish/DeskNest.exe` | Portable standalone executable |
 | `publish/DeskNest-<version>-Portable.zip` | Portable archive containing `DeskNest.exe` and `LICENSE` |
 | `installer/DeskNest-Setup-<version>.exe` | Windows installer (when Inno Setup 6 is available) |
+| `installer/DeskNest-Setup-<version>.exe.sha256` | SHA-256 checksum used by automatic updates |
 
-For example, with version `0.8.2.1` the script produces `publish/DeskNest-0.8.2.1-Portable.zip` and `installer/DeskNest-Setup-0.8.2.1.exe`.
+For example, with version `0.8.3.3` the script produces `publish/DeskNest-0.8.3.3-Portable.zip`, `installer/DeskNest-Setup-0.8.3.3.exe` and its `.sha256` checksum.
 
 The target computer does not need the .NET Desktop Runtime to run the standalone release.
 
@@ -181,7 +197,7 @@ Release builds can be signed with an Authenticode certificate. Set the following
 | `DESKNEST_PFX` | Path to the `.pfx` code-signing certificate |
 | `DESKNEST_PFX_PASSWORD` | Password of the certificate (optional) |
 
-When `DESKNEST_PFX` is not set, the build succeeds but remains unsigned. DeskNest only installs automatic updates whose installer has a valid Authenticode signature.
+When `DESKNEST_PFX` is not set, the build succeeds but remains unsigned. Automatic updates are verified with the SHA-256 checksum published with the release; if a certificate is configured, the installer is also signed and its Authenticode signature can be checked.
 
 ## Technology
 
@@ -195,7 +211,7 @@ DeskNest is built using:
 - Windows APIs
 - Named Pipes for inter-process communication
 
-The project currently has no external NuGet package dependencies explicitly declared in its project file.
+Neither the application nor the test project declares external NuGet package dependencies.
 
 ## Project Structure
 
@@ -204,22 +220,28 @@ Some of the main source files:
 | File | Purpose |
 |---|---|
 | `App.xaml.cs` | Application startup and lifecycle |
-| `NestManager.cs` | Zone management |
-| `NestWindow.xaml` | Zone interface |
-| `SettingsWindow.xaml` | Application settings |
-| `SearchPalette.xaml` | Global search palette |
-| `Undo.cs` | Undo and redo history |
-| `SnapEngine.cs` | Snapping and alignment calculations |
-| `GuideOverlay.cs` | Alignment guide overlay |
-| `UpdateChecker.cs` | GitHub release checks and installer verification |
-| `DesktopHelper.cs` | Windows desktop integration |
-| `DesktopStore.cs` | Desktop item management |
-| `DesktopWatcher.cs` | Desktop monitoring |
-| `DesktopContextMenu.cs` | Desktop background context menu |
-| `CommandServer.cs` | Inter-process command handling |
-| `TrayIcon.cs` | System tray integration |
-| `Loc.cs` | Localization |
+| `Views/NestWindow.xaml` | Zone interface |
+| `Views/SettingsWindow.xaml` | Application settings |
+| `Views/SearchPalette.xaml` | Global search palette |
+| `Views/GuideOverlay.cs` | Alignment guide overlay |
+| `Views/TrayIcon.cs` | System tray integration |
+| `Views/DesktopContextMenu.cs` | Desktop background context menu |
+| `Services/NestManager*.cs` | Zone management, split by concern |
+| `Services/Storage.cs` | Layout persistence and backups |
+| `Services/IFileSystem.cs` | File-system abstraction used by the tests |
+| `Services/UpdateChecker.cs` | GitHub release checks and installer verification |
+| `Services/DesktopHelper.cs` | Windows desktop integration |
+| `Services/DesktopStore.cs` | Desktop item management |
+| `Services/DesktopWatcher.cs` | Desktop monitoring |
+| `Services/CommandServer.cs` | Inter-process command handling |
+| `Services/SnapEngine.cs` | Snapping and alignment calculations |
+| `Services/Loc.cs` | Localization |
+| `Models/Models.cs` | Data models |
+| `Models/Undo.cs` | Undo and redo history |
+| `Native/GlobalHotkey.cs` | Global hotkey registration |
+| `DeskNest.Tests/` | Automated tests |
 | `installer.iss` | Windows installer configuration |
+| `CHANGELOG.md` | Release history |
 
 ## Contributing
 
@@ -228,8 +250,9 @@ Contributions, suggestions, and bug reports are welcome.
 Before submitting changes:
 
 1. Build the project using `dotnet build`.
-2. Test the modified functionality on Windows.
-3. Provide clear reproduction steps for bug reports.
+2. Run the tests using `dotnet run --project DeskNest.Tests\DeskNest.Tests.csproj -c Release`.
+3. Test the modified functionality on Windows.
+4. Provide clear reproduction steps for bug reports.
 
 For substantial changes, please open an issue first to discuss the proposed implementation.
 
@@ -239,10 +262,8 @@ Please use the [GitHub Issues](https://github.com/aziizfarhat/DeskNest/issues) p
 
 ## License
 
-DeskNest is free to download, use, and redistribute for non-commercial purposes.
+DeskNest is released under the [MIT License](https://opensource.org/licenses/MIT).
 
-- You must credit the author, **aziizfarhat**, when you redistribute it.
-- You may not sell DeskNest or include it in a commercial product.
+You are free to use, copy, modify, merge, publish, distribute, sublicense and sell copies of the software, provided that the copyright notice and permission notice are included. The software is provided without warranty.
 
-Licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License](https://creativecommons.org/licenses/by-nc/4.0/).
 See [LICENSE](LICENSE) for the full legal text.
