@@ -476,7 +476,7 @@ namespace DeskNest
             A("k.filter", "Layouts (*.json)|*.json", "Dispositions (*.json)|*.json", "Disposizioni (*.json)|*.json", "Layouts (*.json)|*.json", "Diseños (*.json)|*.json", "Layouts (*.json)|*.json", "التخطيطات (*.json)|*.json", "布局 (*.json)|*.json", "レイアウト (*.json)|*.json", "레이아웃 (*.json)|*.json");
             A("ab.version", "Version {0}", "Version {0}", "Versione {0}", "Version {0}", "Versión {0}", "Versão {0}", "الإصدار {0}", "版本 {0}", "バージョン {0}", "버전 {0}");
             A("ab.text", "Organize your desktop with zones for shortcuts, files and folders.", "Organisez votre bureau avec des zones pour regrouper raccourcis, fichiers et dossiers.", "Organizza il desktop con zone per raccogliere collegamenti, file e cartelle.", "Organisieren Sie Ihren Desktop mit Bereichen für Verknüpfungen, Dateien und Ordner.", "Organiza tu escritorio con zonas para agrupar accesos directos, archivos y carpetas.", "Organize sua área de trabalho com zonas para agrupar atalhos, arquivos e pastas.", "نظّم سطح المكتب باستخدام مناطق لتجميع الاختصارات والملفات والمجلدات.", "使用桌面区域整理快捷方式、文件和文件夹。", "デスクトップ上のゾーンでショートカット、ファイル、フォルダーを整理するアプリです。", "바탕 화면의 영역으로 바로 가기, 파일, 폴더를 정리하는 앱입니다.");
-            A("ab.license", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (non-commercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (non commercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (non commerciale).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (nicht kommerziell).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (no comercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (não comercial).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (غير تجاري).", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0（非商业性）。", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0（非営利）。", "© 2026 aziizfarhat — Creative Commons BY-NC 4.0(비상업적).");
+            A("ab.license", "© 2026 aziizfarhat — GPL-3.0", "© 2026 aziizfarhat — GPL-3.0", "© 2026 aziizfarhat — GPL-3.0", "© 2026 aziizfarhat — GPL-3.0", "© 2026 aziizfarhat — GPL-3.0", "© 2026 aziizfarhat — GPL-3.0", "© 2026 aziizfarhat — GPL-3.0", "© 2026 aziizfarhat — GPL-3.0", "© 2026 aziizfarhat — GPL-3.0", "© 2026 aziizfarhat — GPL-3.0");
             // ---------- Fond de la zone ----------
             A("bg.title", "Zone background", "Fond de la zone", "Sfondo della zona", "Bereichshintergrund", "Fondo de la zona", "Fundo da zona", "خلفية المنطقة", "区域背景", "ゾーンの背景", "영역 배경");
             A("bg.mode", "Background type", "Type de fond", "Tipo di sfondo", "Hintergrundtyp", "Tipo de fondo", "Tipo de fundo", "نوع الخلفية", "背景类型", "背景の種類", "배경 유형");
@@ -742,7 +742,7 @@ namespace DeskNest
             ["upd.installFail"] = "Не удалось установить обновление.\n\n{0}",
             ["ab.version"] = "Версия {0}",
             ["ab.text"] = "Упорядочивайте рабочий стол с помощью зон для ярлыков, файлов и папок.",
-            ["ab.license"] = "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (некоммерческая лицензия).",
+            ["ab.license"] = "© 2026 aziizfarhat — GPL-3.0",
             ["bg.title"] = "Фон зоны",
             ["bg.mode"] = "Тип фона",
             ["bg.solid"] = "Сплошной цвет",
@@ -1003,7 +1003,7 @@ namespace DeskNest
             ["upd.installFail"] = "Не вдалося встановити оновлення.\n\n{0}",
             ["ab.version"] = "Версія {0}",
             ["ab.text"] = "Упорядковуйте робочий стіл за допомогою зон для ярликів, файлів і папок.",
-            ["ab.license"] = "© 2026 aziizfarhat — Creative Commons BY-NC 4.0 (некомерційна ліцензія).",
+            ["ab.license"] = "© 2026 aziizfarhat — GPL-3.0",
             ["bg.title"] = "Фон зони",
             ["bg.mode"] = "Тип фону",
             ["bg.solid"] = "Суцільний колір",

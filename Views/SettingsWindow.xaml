@@ -674,8 +674,13 @@
                                 </TextBlock>
                                 <Button l:L.Key="ab.checkUpdates" Margin="0,14,0,0"
                                         HorizontalAlignment="Left" Click="CheckUpdates_Click"/>
-                                <TextBlock l:L.Key="ab.license" TextWrapping="Wrap" Margin="0,10,0,0"
-                                           Foreground="#666666"/>
+                                <TextBlock TextWrapping="Wrap" Margin="0,10,0,0"
+                                           Foreground="#666666">
+                                    <Hyperlink NavigateUri="https://www.gnu.org/licenses/gpl-3.0.html"
+                                               RequestNavigate="GitHub_RequestNavigate">
+                                        <Run x:Name="LicenseRun"/>
+                                    </Hyperlink>
+                                </TextBlock>
                             </StackPanel>
                         </Border>
                     </StackPanel>

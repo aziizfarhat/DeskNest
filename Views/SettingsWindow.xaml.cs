@@ -98,6 +98,7 @@ namespace DeskNest
             var version = UpdateChecker.FormatVersion(
                 typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0));
             AboutVersion.Text = Loc.F("ab.version", version);
+            LicenseRun.Text = Loc.T("ab.license");
             HeaderVersion.Text = Loc.F("ab.version", version);
             if (Current is NestData d) ZOpacityLabel.Text = Loc.F("z.opacity", (int)(d.Opacity * 100));
             if (Current is NestData g) ZGradAngleLabel.Text = Loc.F("bg.angle", (int)g.GradientAngle);

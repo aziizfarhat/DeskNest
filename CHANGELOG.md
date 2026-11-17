@@ -5,6 +5,13 @@ All notable changes to DeskNest are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3.4] - 2026-11-17
+
+### Changed
+
+- DeskNest is now released under the GNU General Public License v3.0 (GPL-3.0). Previous releases were distributed under CC BY-NC 4.0.
+- The installer, README and About tab now reference the GPL-3.0 license.
+
 ## [0.8.3.3] - 2026-11-17
 
 ### Added
@@ -15,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- DeskNest is now released under the MIT license instead of CC BY-NC 4.0.
 - README refreshed with the new version, license, source layout, test instructions and update verification details.
 - Installer translations verified for all twelve supported languages.
 
@@ -64,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `layout.json` is now written atomically through `File.Replace`, with `layout.json.bak` kept as the previous valid state and used when the main file is corrupt or empty.
 - Moving an item into or out of the managed store now saves the layout synchronously, so a crash cannot lose the original location.
 
+[0.8.3.4]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.3.4
 [0.8.3.3]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.3.3
 [0.8.3.2]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.3.2
 [0.8.3.1]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.3.1

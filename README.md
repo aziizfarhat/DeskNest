@@ -10,7 +10,7 @@ DeskNest is a lightweight Windows desktop organizer that helps you group applica
 
 Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
 
-> **Project status:** Under active development. DeskNest is currently at version 0.8.3.3.
+> **Project status:** Under active development. DeskNest is currently at version 0.8.3.4.
 
 ## Features
 
@@ -108,7 +108,7 @@ The installer provides:
 - Optional automatic startup with Windows.
 - A standard Windows uninstall entry.
 - A shortcut in the Start Menu.
-- The MIT license text.
+- The GPL-3.0 license text.
 - An uninstall prompt that keeps zones, settings and backups by default, with an option to delete them.
 
 The installer interface is available in the same twelve languages as DeskNest. Simplified Chinese uses the translation vendored in `installer-lang/` because Inno Setup does not ship it.
@@ -262,8 +262,8 @@ Please use the [GitHub Issues](https://github.com/aziizfarhat/DeskNest/issues) p
 
 ## License
 
-DeskNest is released under the [MIT License](https://opensource.org/licenses/MIT).
+DeskNest is released under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html) (GPL-3.0).
 
-You are free to use, copy, modify, merge, publish, distribute, sublicense and sell copies of the software, provided that the copyright notice and permission notice are included. The software is provided without warranty.
+You may use, study, share and modify the software under the terms of the GPL-3.0. If you distribute modified versions, you must release them under the same license and make the corresponding source code available. The software is provided without warranty.
 
 See [LICENSE](LICENSE) for the full legal text.
