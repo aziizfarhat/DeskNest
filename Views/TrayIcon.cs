@@ -113,7 +113,6 @@ namespace DeskNest
             var autostart = new System.Windows.Forms.ToolStripMenuItem(Loc.T("tray.autostart"));
             autostart.Click += (_, _) => SetAutostart(!IsAutostart());
             menu.Items.Add(autostart);
-            menu.Items.Add(Loc.T("tray.updates"), null, async (_, _) => await _manager.CheckForUpdatesAsync(false));
             menu.Items.Add(Loc.T("tray.restoreAll"), null, (_, _) =>
             {
                 var r = System.Windows.MessageBox.Show(Loc.T("tray.restoreConfirm"), "DeskNest",

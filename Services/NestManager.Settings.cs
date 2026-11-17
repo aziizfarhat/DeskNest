@@ -80,6 +80,8 @@ namespace DeskNest
             _updateTimer.Start();
         }
 
+        // Vérifie la dernière release GitHub. Au démarrage, les erreurs et la
+        // version à jour restent silencieuses ; seul un clic manuel les affiche.
         public async Task CheckForUpdatesAsync(bool silent)
         {
             if (_updateBusy) return;
@@ -90,63 +92,21 @@ namespace DeskNest
                 if (info == null)
                 {
                     if (!silent)
-                        MessageBox.Show(Loc.T("upd.none"), "DeskNest", MessageBoxButton.OK,
+                        MessageBox.Show(Loc.T("upd.upToDate"), "DeskNest", MessageBoxButton.OK,
                             MessageBoxImage.Information, MessageBoxResult.OK, Loc.MsgOptions);
                     return;
                 }
 
-                var current = UpdateChecker.CurrentVersion();
-                var answer = MessageBox.Show(
-                    Loc.F("upd.available", UpdateChecker.FormatVersion(info.Version),
-                        UpdateChecker.FormatVersion(current)),
-                    "DeskNest", MessageBoxButton.YesNo, MessageBoxImage.Question,
-                    MessageBoxResult.No, Loc.MsgOptions);
-                if (answer != MessageBoxResult.Yes) return;
-
-                string file;
-                try { file = await UpdateChecker.DownloadAsync(info); }
-                catch (Exception ex)
-                {
-                    Diag.Log("téléchargement de la mise à jour : " + ex.Message);
-                    MessageBox.Show(Loc.F("upd.failed", ex.Message), "DeskNest", MessageBoxButton.OK,
-                        MessageBoxImage.Error, MessageBoxResult.OK, Loc.MsgOptions);
-                    return;
-                }
-
-                // L'installateur est vérifié par son empreinte SHA-256 publiée avec la
-                // release. La signature Authenticode n'est contrôlée que si un
-                // certificat est disponible (UpdateChecker.RequireSignature).
-                var verification = await UpdateChecker.VerifyAsync(info, file);
-                if (verification != UpdateChecker.VerificationResult.Ok)
-                {
-                    string key = verification switch
-                    {
-                        UpdateChecker.VerificationResult.SignatureInvalid => "upd.invalid",
-                        UpdateChecker.VerificationResult.MissingChecksum => "upd.noChecksum",
-                        _ => "upd.badChecksum"
-                    };
-                    MessageBox.Show(Loc.T(key), "DeskNest", MessageBoxButton.OK,
-                        MessageBoxImage.Warning, MessageBoxResult.OK, Loc.MsgOptions);
-                    return;
-                }
-
-                try
-                {
-                    UpdateChecker.Install(file);
-                    Application.Current?.Shutdown();
-                }
-                catch (Exception ex)
-                {
-                    Diag.Log("installation de la mise à jour : " + ex.Message);
-                    MessageBox.Show(Loc.F("upd.installFail", ex.Message), "DeskNest", MessageBoxButton.OK,
-                        MessageBoxImage.Error, MessageBoxResult.OK, Loc.MsgOptions);
-                }
+                UpdatePrompt.Show(_settings,
+                    UpdateChecker.FormatVersion(UpdateChecker.CurrentVersion()),
+                    UpdateChecker.FormatVersion(info.Version),
+                    info.PageUrl);
             }
             catch (Exception ex)
             {
                 Diag.Log("vérification de la mise à jour : " + ex.Message);
                 if (!silent)
-                    MessageBox.Show(Loc.F("upd.failed", ex.Message), "DeskNest", MessageBoxButton.OK,
+                    MessageBox.Show(Loc.F("upd.checkFailed", ex.Message), "DeskNest", MessageBoxButton.OK,
                         MessageBoxImage.Error, MessageBoxResult.OK, Loc.MsgOptions);
             }
             finally { _updateBusy = false; }

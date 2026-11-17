@@ -62,7 +62,7 @@ DeskNest integrates with the Windows desktop environment.
 - Single-instance application support.
 - Stays visible when using the Windows “Show desktop” command.
 - Native Windows desktop integration.
-- Automatic update checks against GitHub releases, with SHA-256 verification and an optional silent installation.
+- Optional startup check that compares the installed version with the latest GitHub release and opens its page when a newer version is available.
 - Restore all items to the desktop from the tray menu.
 - Recovery of items left in the managed store after a crash.
 - Optional Authenticode code-signing for release builds.
@@ -182,9 +182,8 @@ The script automatically:
 | `publish/DeskNest.exe` | Portable standalone executable |
 | `publish/DeskNest-<version>-Portable.zip` | Portable archive containing `DeskNest.exe` and `LICENSE` |
 | `installer/DeskNest-Setup-<version>.exe` | Windows installer (when Inno Setup 6 is available) |
-| `installer/DeskNest-Setup-<version>.exe.sha256` | SHA-256 checksum used by automatic updates |
 
-For example, with version `0.8.3.3` the script produces `publish/DeskNest-0.8.3.3-Portable.zip`, `installer/DeskNest-Setup-0.8.3.3.exe` and its `.sha256` checksum.
+For example, with version `0.8.3.4` the script produces `publish/DeskNest-0.8.3.4-Portable.zip` and `installer/DeskNest-Setup-0.8.3.4.exe`.
 
 The target computer does not need the .NET Desktop Runtime to run the standalone release.
 
@@ -197,7 +196,13 @@ Release builds can be signed with an Authenticode certificate. Set the following
 | `DESKNEST_PFX` | Path to the `.pfx` code-signing certificate |
 | `DESKNEST_PFX_PASSWORD` | Password of the certificate (optional) |
 
-When `DESKNEST_PFX` is not set, the build succeeds but remains unsigned. Automatic updates are verified with the SHA-256 checksum published with the release; if a certificate is configured, the installer is also signed and its Authenticode signature can be checked.
+When `DESKNEST_PFX` is not set, the build succeeds but remains unsigned. Code signing applies to the release binaries only; DeskNest never downloads or runs an installer itself.
+
+### Update Check
+
+DeskNest only compares its installed version with the latest GitHub release. It never downloads or runs an installer. If a newer version exists, the dialog offers a button that opens the release page in the default browser. No data is sent besides the GitHub API request.
+
+The startup check can be turned off in Settings › General. A manual check is available in Settings › About; it reports when the installed version is already the latest.
 
 ## Technology
 
@@ -229,7 +234,7 @@ Some of the main source files:
 | `Services/NestManager*.cs` | Zone management, split by concern |
 | `Services/Storage.cs` | Layout persistence and backups |
 | `Services/IFileSystem.cs` | File-system abstraction used by the tests |
-| `Services/UpdateChecker.cs` | GitHub release checks and installer verification |
+| `Services/UpdateChecker.cs` | GitHub release version comparison |
 | `Services/DesktopHelper.cs` | Windows desktop integration |
 | `Services/DesktopStore.cs` | Desktop item management |
 | `Services/DesktopWatcher.cs` | Desktop monitoring |

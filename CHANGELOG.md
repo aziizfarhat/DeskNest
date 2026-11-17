@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DeskNest is now released under the GNU General Public License v3.0 (GPL-3.0). Previous releases were distributed under CC BY-NC 4.0.
 - The installer, README and About tab now reference the GPL-3.0 license.
 
+### Removed
+
+- Automatic update download, silent installer launch, and SHA-256/Authenticode verification. DeskNest now only compares its version with the latest GitHub release and opens the release page on request.
+
 ## [0.8.3.3] - 2026-11-17
 
 ### Added
