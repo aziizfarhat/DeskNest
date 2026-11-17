@@ -5,6 +5,13 @@ All notable changes to DeskNest are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4.0] - 2026-11-17
+
+### Changed
+
+- Lower memory footprint: display-sized and shared icon/background decoding, bounded undo history, translation tables loaded on demand, and snap guide windows released after use.
+- Runtime configuration now uses workstation, non-concurrent garbage collection with `System.GC.ConserveMemory=5` and Tiered PGO disabled. No visible behavior or layout change.
+
 ## [0.8.3.4] - 2026-11-17
 
 ### Changed
@@ -74,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `layout.json` is now written atomically through `File.Replace`, with `layout.json.bak` kept as the previous valid state and used when the main file is corrupt or empty.
 - Moving an item into or out of the managed store now saves the layout synchronously, so a crash cannot lose the original location.
 
+[0.8.4.0]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.4.0
 [0.8.3.4]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.3.4
 [0.8.3.3]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.3.3
 [0.8.3.2]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.3.2
