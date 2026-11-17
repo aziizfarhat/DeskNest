@@ -10,6 +10,7 @@ namespace DeskNest
 {
     public static class Storage
     {
+        private static IFileSystem _fs = new PhysicalFileSystem();
         private static readonly string NewDir = System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DeskNest");
         private static readonly string LegacyDir = System.IO.Path.Combine(
@@ -24,16 +25,16 @@ namespace DeskNest
                 if (_resolvedDir != null) return _resolvedDir;
                 try
                 {
-                    if (!Directory.Exists(NewDir) && Directory.Exists(LegacyDir))
-                        Directory.Move(LegacyDir, NewDir);
-                    else if (Directory.Exists(NewDir) && Directory.Exists(LegacyDir))
+                    if (!_fs.DirectoryExists(NewDir) && _fs.DirectoryExists(LegacyDir))
+                        _fs.Move(LegacyDir, NewDir);
+                    else if (_fs.DirectoryExists(NewDir) && _fs.DirectoryExists(LegacyDir))
                         CopyMissingFiles(LegacyDir, NewDir);
                     _resolvedDir = NewDir;
                 }
                 catch
                 {
                     // En cas d'échec, continuer à utiliser l'ancien emplacement plutôt que perdre les données.
-                    _resolvedDir = Directory.Exists(LegacyDir) ? LegacyDir : NewDir;
+                    _resolvedDir = _fs.DirectoryExists(LegacyDir) ? LegacyDir : NewDir;
                 }
                 return _resolvedDir;
             }
@@ -41,16 +42,46 @@ namespace DeskNest
 
         private static void CopyMissingFiles(string source, string destination)
         {
-            Directory.CreateDirectory(destination);
-            foreach (var directory in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
-                Directory.CreateDirectory(System.IO.Path.Combine(destination, System.IO.Path.GetRelativePath(source, directory)));
-            foreach (var file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+            _fs.CreateDirectory(destination);
+            foreach (var directory in _fs.GetDirectories(source, "*", SearchOption.AllDirectories))
+                _fs.CreateDirectory(System.IO.Path.Combine(destination, System.IO.Path.GetRelativePath(source, directory)));
+            foreach (var file in _fs.GetFiles(source, "*", SearchOption.AllDirectories))
             {
                 var target = System.IO.Path.Combine(destination, System.IO.Path.GetRelativePath(source, file));
-                if (!File.Exists(target))
+                if (!_fs.FileExists(target))
                 {
-                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(target)!);
-                    File.Copy(file, target);
+                    _fs.CreateDirectory(System.IO.Path.GetDirectoryName(target)!);
+                    _fs.Copy(file, target, false);
+                }
+            }
+        }
+
+        // Remplace le système de fichiers pour les tests. L'application utilise
+        // toujours PhysicalFileSystem ; aucun appel de production ne passe par ici.
+        public static void UseFileSystem(IFileSystem fileSystem, string directory)
+        {
+            if (fileSystem == null) throw new ArgumentNullException(nameof(fileSystem));
+            if (string.IsNullOrWhiteSpace(directory)) throw new ArgumentException("Un dossier est requis.", nameof(directory));
+            Flush();
+            lock (IoGate)
+            {
+                lock (WriteGate)
+                {
+                    _fs = fileSystem;
+                    _resolvedDir = directory;
+                }
+            }
+        }
+
+        public static void UsePhysicalFileSystem()
+        {
+            Flush();
+            lock (IoGate)
+            {
+                lock (WriteGate)
+                {
+                    _fs = new PhysicalFileSystem();
+                    _resolvedDir = null;
                 }
             }
         }
@@ -71,11 +102,11 @@ namespace DeskNest
             RestoredFrom = null;
 
             AppData? d = null;
-            if (File.Exists(FilePath))
+            if (_fs.FileExists(FilePath))
             {
                 try
                 {
-                    d = JsonSerializer.Deserialize<AppData>(File.ReadAllText(FilePath));
+                    d = JsonSerializer.Deserialize<AppData>(_fs.ReadAllText(FilePath));
                     if (d == null) Diag.Log("chargement : layout.json vide ou invalide");
                 }
                 catch (Exception ex)
@@ -85,7 +116,7 @@ namespace DeskNest
                     try
                     {
                         var copy = System.IO.Path.Combine(Dir, $"layout-corrompu-{DateTime.Now:yyyyMMdd-HHmmss}.json");
-                        File.Copy(FilePath, copy, true);
+                        _fs.Copy(FilePath, copy, true);
                     }
                     catch { }
                 }
@@ -103,7 +134,7 @@ namespace DeskNest
 
             // Le fichier principal est illisible ou vide : on essaie d'abord la copie
             // de l'état précédent écrite atomiquement à côté de layout.json.
-            if (File.Exists(BakPath))
+            if (_fs.FileExists(BakPath))
             {
                 var bak = TryReadLayout(BakPath);
                 if (bak != null)
@@ -136,7 +167,7 @@ namespace DeskNest
         {
             try
             {
-                var d = JsonSerializer.Deserialize<AppData>(File.ReadAllText(path));
+                var d = JsonSerializer.Deserialize<AppData>(_fs.ReadAllText(path));
                 if (d == null) return null;
                 d = Normalize(d);
                 // Une sauvegarde vide n'est jamais une restauration utile.
@@ -251,32 +282,32 @@ namespace DeskNest
             var watch = Stopwatch.StartNew();
             try
             {
-                Directory.CreateDirectory(Dir);
+                _fs.CreateDirectory(Dir);
                 var tmp = FilePath + ".tmp";
-                File.WriteAllText(tmp, json);
+                _fs.WriteAllText(tmp, json);
 
                 // Écriture atomique : le fichier principal n'est jamais partiellement
                 // remplacé. L'ancien état reste disponible dans layout.json.bak.
-                if (File.Exists(FilePath))
+                if (_fs.FileExists(FilePath))
                 {
-                    try { File.Replace(tmp, FilePath, BakPath, true); }
+                    try { _fs.Replace(tmp, FilePath, BakPath, true); }
                     catch
                     {
                         // Dernier recours (système de fichiers exotique) : ne jamais
                         // perdre la nouvelle sauvegarde.
-                        File.Copy(tmp, FilePath, true);
-                        try { File.Delete(tmp); } catch { }
+                        _fs.Copy(tmp, FilePath, true);
+                        try { _fs.Delete(tmp); } catch { }
                     }
                 }
                 else
                 {
-                    File.Move(tmp, FilePath);
+                    _fs.Move(tmp, FilePath);
                 }
 
                 // Copie « dernier état valide » : utilisée au démarrage si layout.json est vide.
                 if (hasZones)
                 {
-                    try { File.Copy(FilePath, LastGoodPath, true); } catch { }
+                    try { _fs.Copy(FilePath, LastGoodPath, true); } catch { }
                 }
 
                 BackupDaily(hasZones);
@@ -347,7 +378,8 @@ namespace DeskNest
             }
 
             // Actualise les chemins enregistrés si l'ancien dossier d'éléments a été renommé.
-            if (DesktopStore.MigrateLegacyStore(out bool storeMoved) && storeMoved)
+            // Avec un système de fichiers factice (tests), on ne touche jamais au vrai profil.
+            if (_fs is PhysicalFileSystem && DesktopStore.MigrateLegacyStore(out bool storeMoved) && storeMoved)
                 MigrateStoredPaths(d);
 
             return d;
@@ -398,13 +430,13 @@ namespace DeskNest
             {
                 var candidates = new List<string>();
                 var bdir = System.IO.Path.Combine(Dir, "backups");
-                if (Directory.Exists(bdir)) candidates.AddRange(Directory.GetFiles(bdir, "layout-*.json"));
+                if (_fs.DirectoryExists(bdir)) candidates.AddRange(_fs.GetFiles(bdir, "layout-*.json", SearchOption.TopDirectoryOnly));
                 // Le fichier principal est corrompu ou vide : l'état précédent est
                 // dans layout.json.bak (écriture atomique via File.Replace).
-                if (File.Exists(BakPath)) candidates.Add(BakPath);
-                if (File.Exists(LastGoodPath)) candidates.Add(LastGoodPath);
+                if (_fs.FileExists(BakPath)) candidates.Add(BakPath);
+                if (_fs.FileExists(LastGoodPath)) candidates.Add(LastGoodPath);
 
-                foreach (var f in candidates.OrderByDescending(File.GetLastWriteTimeUtc))
+                foreach (var f in candidates.OrderByDescending(_fs.GetLastWriteTimeUtc))
                 {
                     var d = TryReadLayout(f);
                     if (d != null) return (f, d);
@@ -422,11 +454,11 @@ namespace DeskNest
             try
             {
                 Flush(); // l'instantané doit contenir la dernière sauvegarde, pas l'état précédent
-                if (!File.Exists(FilePath)) return null;
-                Directory.CreateDirectory(SnapshotDir);
+                if (!_fs.FileExists(FilePath)) return null;
+                _fs.CreateDirectory(SnapshotDir);
                 // Millisecondes : deux instantanés créés dans la même seconde ne s'écrasent plus.
                 var p = System.IO.Path.Combine(SnapshotDir, $"layout-{DateTime.Now:yyyyMMdd-HHmmss-fff}.json");
-                File.Copy(FilePath, p, true);
+                _fs.Copy(FilePath, p, true);
                 PruneSnapshots();
                 return p;
             }
@@ -441,7 +473,7 @@ namespace DeskNest
         {
             try
             {
-                var d = JsonSerializer.Deserialize<AppData>(File.ReadAllText(path));
+                var d = JsonSerializer.Deserialize<AppData>(_fs.ReadAllText(path));
                 return d == null ? null : Normalize(d);
             }
             catch (Exception ex)
@@ -455,17 +487,17 @@ namespace DeskNest
         private static void BackupDaily(bool hasZones)
         {
             var bdir = System.IO.Path.Combine(Dir, "backups");
-            Directory.CreateDirectory(bdir);
+            _fs.CreateDirectory(bdir);
             var b = System.IO.Path.Combine(bdir, $"layout-{DateTime.Now:yyyyMMdd}.json");
             // Ne jamais remplacer une sauvegarde non vide par un état vide.
-            bool exists = File.Exists(b);
+            bool exists = _fs.FileExists(b);
             if (!exists || (hasZones && IsEmptyLayoutFile(b)))
             {
-                if (File.Exists(FilePath)) File.Copy(FilePath, b, true);
+                if (_fs.FileExists(FilePath)) _fs.Copy(FilePath, b, true);
             }
-            foreach (var old in Directory.GetFiles(bdir, "layout-*.json").OrderByDescending(f => f).Skip(14))
+            foreach (var old in _fs.GetFiles(bdir, "layout-*.json", SearchOption.TopDirectoryOnly).OrderByDescending(f => f).Skip(14))
             {
-                try { File.Delete(old); } catch { }
+                try { _fs.Delete(old); } catch { }
             }
         }
 
@@ -473,7 +505,7 @@ namespace DeskNest
         {
             try
             {
-                var d = JsonSerializer.Deserialize<AppData>(File.ReadAllText(path));
+                var d = JsonSerializer.Deserialize<AppData>(_fs.ReadAllText(path));
                 return d == null || d.Nests == null || d.Nests.Count == 0;
             }
             catch { return true; } // illisible : peut être remplacé
@@ -482,9 +514,9 @@ namespace DeskNest
         // On garde les 30 instantanés les plus récents.
         private static void PruneSnapshots()
         {
-            foreach (var old in Directory.GetFiles(SnapshotDir, "layout-*.json").OrderByDescending(f => f).Skip(30))
+            foreach (var old in _fs.GetFiles(SnapshotDir, "layout-*.json", SearchOption.TopDirectoryOnly).OrderByDescending(f => f).Skip(30))
             {
-                try { File.Delete(old); } catch { }
+                try { _fs.Delete(old); } catch { }
             }
         }
     }

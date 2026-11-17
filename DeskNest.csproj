@@ -26,4 +26,11 @@
     <!-- Logo avec le nom, affiché dans Réglages › À propos. -->
     <Resource Include="logo\logo_name.png" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Projet de tests : ses sources ne font pas partie de l'application. -->
+    <Compile Remove="DeskNest.Tests\**\*.cs" />
+    <Page Remove="DeskNest.Tests\**" />
+    <None Remove="DeskNest.Tests\**" />
+    <EmbeddedResource Remove="DeskNest.Tests\**" />
+  </ItemGroup>
 </Project>
