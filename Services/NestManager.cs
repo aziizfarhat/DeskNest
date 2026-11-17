@@ -78,6 +78,9 @@ namespace DeskNest
 
         public void Start()
         {
+#if DEBUG
+            LogMemory("démarrage");
+#endif
             _data = Storage.Load();
             Loc.SetLanguage(_data.Settings.Language);
             if (Storage.Issue == Storage.LoadIssue.RestoredBackup)
@@ -99,6 +102,9 @@ namespace DeskNest
             foreach (var f in _data.Nests.ToList())
                 OpenWindow(f);
             InitBaselines();
+#if DEBUG
+            LogMemory("zones affichées");
+#endif
 
             try
             {
@@ -181,7 +187,26 @@ namespace DeskNest
             _lastTrimAt = DateTime.UtcNow;
             GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
             ProcessMemory.TrimWorkingSet();
+#if DEBUG
+            LogMemory("après trim");
+#endif
         }
+
+#if DEBUG
+        // Sonde de diagnostic uniquement compilée en Debug : aucune interface, aucun
+        // coût en Release. « privé » est la mémoire privée engagée (private bytes),
+        // complément du working set demandé dans la mesure.
+        private static void LogMemory(string stage)
+        {
+            try
+            {
+                using var p = Process.GetCurrentProcess();
+                const long mo = 1024 * 1024;
+                Diag.Log($"MEM [{stage}] workingSet={p.WorkingSet64 / mo} Mo, privé={p.PrivateMemorySize64 / mo} Mo, gc={GC.GetTotalMemory(false) / mo} Mo");
+            }
+            catch { }
+        }
+#endif
 
         public void Dispose()
         {
