@@ -1,0 +1,37 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build application
+        run: dotnet build DeskNest.csproj -c Release --nologo
+
+      - name: Build tests
+        run: dotnet build DeskNest.Tests/DeskNest.Tests.csproj -c Release --nologo
+
+      - name: Run tests
+        run: dotnet run --project DeskNest.Tests/DeskNest.Tests.csproj -c Release --no-build
