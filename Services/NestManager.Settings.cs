@@ -122,6 +122,14 @@ namespace DeskNest
 
         public void HideGuides() => _guides?.Hide();
 
+        // Les deux fenêtres de guidage ne restent pas vivantes quand aucun
+        // déplacement/redimensionnement n'est en cours.
+        public void ReleaseGuides()
+        {
+            _guides?.Dispose();
+            _guides = null;
+        }
+
         // Répartit les zones visibles en grille sur l'écran principal.
         public void DistributeNests()
         {

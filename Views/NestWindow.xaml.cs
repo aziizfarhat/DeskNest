@@ -1684,7 +1684,7 @@ namespace DeskNest
         {
             if (!_moving) return;
             _moving = false;
-            _manager.HideGuides();
+            _manager.ReleaseGuides();
             Root.ReleaseMouseCapture();
             _manager.RecordBounds(Data, _startLeft, _startTop, _startWidth, _startHeight, Loc.T("undo.move"));
             ApplyColors(); // le papier peint flouté dépend de la position de la zone
@@ -1734,13 +1734,17 @@ namespace DeskNest
         }
 
         private void Handle_Up(object sender, MouseButtonEventArgs e) => EndResize(sender);
-        private void Handle_LostCapture(object sender, MouseEventArgs e) => _resizing = false;
+        private void Handle_LostCapture(object sender, MouseEventArgs e)
+        {
+            _resizing = false;
+            _manager.ReleaseGuides();
+        }
 
         private void EndResize(object sender)
         {
             if (!_resizing) return;
             _resizing = false;
-            _manager.HideGuides();
+            _manager.ReleaseGuides();
             (sender as UIElement)?.ReleaseMouseCapture();
             _manager.RecordBounds(Data, _startLeft, _startTop, _startWidth, _startHeight, Loc.T("undo.resize"));
             ApplyColors(); // le découpage du papier peint suit la nouvelle taille

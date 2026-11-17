@@ -76,7 +76,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Image Source="{Binding Icon}" Width="20" Height="20" VerticalAlignment="Center"/>
+                                <Image Source="{Binding Icon}" Width="20" Height="20" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="LowQuality"/>
                                 <StackPanel Grid.Column="1" Margin="4,0,12,0">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"
                                                TextTrimming="CharacterEllipsis"/>

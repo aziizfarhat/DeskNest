@@ -106,7 +106,7 @@
                     MouseMove="Item_MouseMove" PreviewMouseRightButtonDown="Item_RightDown">
                 <StackPanel>
                     <Image x:Name="Icon" Source="{Binding Icon}" Width="{Binding IconSize}" Height="{Binding IconSize}"
-                           HorizontalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                           RenderOptions.BitmapScalingMode="LowQuality" HorizontalAlignment="Center" RenderTransformOrigin="0.5,0.5">
                         <Image.RenderTransform>
                             <ScaleTransform ScaleX="1" ScaleY="1"/>
                         </Image.RenderTransform>
@@ -154,7 +154,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Image x:Name="Icon" Source="{Binding Icon}" Width="{Binding IconSize}" Height="{Binding IconSize}"
-                           VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                           RenderOptions.BitmapScalingMode="LowQuality" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
                         <Image.RenderTransform>
                             <ScaleTransform ScaleX="1" ScaleY="1"/>
                         </Image.RenderTransform>
