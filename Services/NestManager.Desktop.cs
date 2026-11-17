@@ -299,10 +299,15 @@ namespace DeskNest
         private void DesktopTick()
         {
             if (!Settings.Enabled || Hidden) return;
-            var host = DesktopHelper.FindDesktopHost();
-            bool desktopForeground = DesktopHelper.IsDesktopForeground(host);
-            foreach (var w in _windows)
-                if (ShouldShow(w)) w.EnsureDesktopVisibility(host, desktopForeground);
+            _desktopSyncing = true;
+            try
+            {
+                var host = DesktopHelper.FindDesktopHost();
+                bool desktopForeground = DesktopHelper.IsDesktopForeground(host);
+                foreach (var w in _windows)
+                    if (ShouldShow(w)) w.EnsureDesktopVisibility(host, desktopForeground);
+            }
+            finally { _desktopSyncing = false; }
         }
 
         // ---------- Glisser un élément hors d'une zone (vers le bureau, l'Explorateur...) ----------

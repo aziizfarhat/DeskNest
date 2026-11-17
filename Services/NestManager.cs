@@ -40,6 +40,15 @@ namespace DeskNest
         private readonly DispatcherTimer _desktopWake;
         private DesktopWatcher? _desktopWatcher;
         private int _desktopWakeQueued;
+        private bool _desktopSyncing;
+
+        // Trimming à l'inactivité : vérification toutes les 5 s, Action au bout de 60 s
+        // sans saisie ou quand toutes les zones sont masquées, avec un délai minimal
+        // entre deux passages pour éviter de répéter le GC en boucle.
+        private readonly DispatcherTimer _trimTimer;
+        private DateTime _lastTrimAt = DateTime.MinValue;
+        private const int IdleSeconds = 60;
+        private const int TrimCooldownSeconds = 60;
 
         // Démarrage : les éléments du Bureau public sont traités après l'affichage des
         // zones. Une seule question est posée pour tous les éléments concernés.
@@ -63,6 +72,8 @@ namespace DeskNest
             // Regroupe les rafales d'événements (Win+D masque/restaure des dizaines de fenêtres à la suite).
             _desktopWake = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             _desktopWake.Tick += (_, _) => { _desktopWake.Stop(); DesktopTick(); };
+            _trimTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            _trimTimer.Tick += (_, _) => MaybeTrimMemory();
         }
 
         public void Start()
@@ -111,6 +122,7 @@ namespace DeskNest
             }
             catch (Exception ex) { Diag.Log("suivi bureau : " + ex.Message); }
             _desktopTimer.Start();
+            _trimTimer.Start();
 
             // L'invite du Bureau public attend que les zones soient visibles : au
             // démarrage, aucune boîte de dialogue ne doit retarder leur affichage.
@@ -152,11 +164,31 @@ namespace DeskNest
             Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                 MessageBox.Show(message, "DeskNest", MessageBoxButton.OK, MessageBoxImage.Information, MessageBoxResult.OK, Loc.MsgOptions)));
 
+        // Libère les pages inutilisées une fois que l'utilisateur n'interagit plus.
+        private void MaybeTrimMemory()
+        {
+            // Un trim pendant un glisser, un redimensionnement, une édition ou une
+            // synchronisation du bureau ferait disparaître des pages encore en usage.
+            if (_desktopSyncing || _desktopWake.IsEnabled || Volatile.Read(ref _desktopWakeQueued) != 0) return;
+            if (_windows.Any(w => w.IsBusy)) return;
+            if (DateTime.UtcNow - _lastTrimAt < TimeSpan.FromSeconds(TrimCooldownSeconds)) return;
+
+            bool allHidden = Hidden || !Settings.Enabled ||
+                             (_windows.Count > 0 && _windows.All(w => !w.IsVisible));
+            bool idle = ProcessMemory.IdleTime() >= TimeSpan.FromSeconds(IdleSeconds);
+            if (!allHidden && !idle) return;
+
+            _lastTrimAt = DateTime.UtcNow;
+            GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
+            ProcessMemory.TrimWorkingSet();
+        }
+
         public void Dispose()
         {
             _saveTimer.Stop();
             _desktopWake.Stop();
             _desktopTimer.Stop();
+            _trimTimer.Stop();
             _updateTimer?.Stop();
             _desktopWatcher?.Dispose();
             _desktopWatcher = null;

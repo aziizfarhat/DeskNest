@@ -2416,7 +2416,9 @@ namespace DeskNest
         private bool HoverEnabled =>
             _manager.Settings.HoverExpand && Data.HoverExpand && Data.RolledUp && Data.TitleVisible;
 
-        private bool IsBusy =>
+        // Le trimming doit éviter toute interaction en cours (déplacement, redimensionnement,
+        // glisser d'élément, édition, menu ou dialogue).
+        internal bool IsBusy =>
             _moving || _resizing || _marquee || _menuOpen || _dragging || _dragOver || _editingTitle || _editingItem != null ||
             (Hwnd != IntPtr.Zero && !IsWindowEnabled(Hwnd)); // fenêtre de dialogue ouverte
 
