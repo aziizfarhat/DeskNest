@@ -13,6 +13,8 @@ namespace DeskNest
     // automatiquement le papier peint courant (y compris les diaporamas).
     public static class Wallpaper
     {
+        private const int ImageCacheLimit = 8;
+
         private sealed class Info
         {
             public string Path = "";
@@ -58,7 +60,7 @@ namespace DeskNest
             crop = Rect.Empty;
             if (dpiScale <= 0) dpiScale = 1;
 
-            var info = Load();
+            var info = Load(dpiScale);
             var img = info?.Image;
             if (info == null || img == null) return false;
 
@@ -112,8 +114,10 @@ namespace DeskNest
             return true;
         }
 
-        // Charge (et met en cache) une image choisie par l'utilisateur pour le fond d'une zone.
-        public static BitmapSource? LoadImage(string? path)
+        // Charge (et met en cache) une image choisie par l'utilisateur, à la taille
+        // physique de la zone. Appelé uniquement quand l'apparence change ou qu'un
+        // redimensionnement se termine, jamais pendant le déplacement de la souris.
+        public static BitmapSource? LoadImage(string? path, int widthPx, int heightPx)
         {
             if (string.IsNullOrWhiteSpace(path)) return null;
 
@@ -126,18 +130,60 @@ namespace DeskNest
             }
             catch { return null; }
 
+            int w = Math.Clamp(widthPx, 1, 4096), h = Math.Clamp(heightPx, 1, 4096);
+            string key = path + "|" + w + "x" + h;
+
             lock (Gate)
             {
-                if (Images.TryGetValue(path, out var entry) && entry.Stamp == stamp) return entry.Image;
-                var img = Decode(path, 1600);
+                if (Images.TryGetValue(key, out var entry) && entry.Stamp == stamp) return entry.Image;
+
+                // Le bitmap de l'ancienne taille n'est plus utile : on le retire du cache.
+                RemoveImages(path);
+                var img = Decode(path, w, h);
                 if (img == null) return null;
-                if (Images.Count > 16) Images.Clear();
-                Images[path] = (stamp, img);
+                if (Images.Count >= ImageCacheLimit)
+                {
+                    foreach (var old in Images.Keys) { Images.Remove(old); break; }
+                }
+                Images[key] = (stamp, img);
                 return img;
             }
         }
 
-        private static Info? Load()
+        // Libère les bitmaps mis en cache pour un chemin (changement ou suppression de fond).
+        public static void Release(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            lock (Gate) RemoveImages(path);
+        }
+
+        private static void RemoveImages(string path)
+        {
+            var keys = new List<string>();
+            foreach (var key in Images.Keys)
+                if (key.StartsWith(path + "|", StringComparison.OrdinalIgnoreCase)) keys.Add(key);
+            foreach (var key in keys) Images.Remove(key);
+        }
+
+        // Dimensions source lues sans décoder l'image complète (métadonnées uniquement).
+        private static bool TrySourceSize(string path, out int width, out int height)
+        {
+            width = height = 0;
+            try
+            {
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var decoder = BitmapDecoder.Create(fs,
+                    BitmapCreateOptions.DelayCreation | BitmapCreateOptions.IgnoreColorProfile,
+                    BitmapCacheOption.None);
+                var frame = decoder.Frames[0];
+                width = frame.PixelWidth;
+                height = frame.PixelHeight;
+                return width > 0 && height > 0;
+            }
+            catch { return false; }
+        }
+
+        private static Info? Load(double dpiScale)
         {
             var candidates = new List<string>();
             int style = 10;
@@ -175,7 +221,9 @@ namespace DeskNest
                     if (_info != null && _info.Path == path && _info.Stamp == stamp && _info.Style == style)
                         return _info;
 
-                    var img = Decode(path, 2560);
+                    int targetW = (int)Math.Ceiling(SystemParameters.VirtualScreenWidth * dpiScale);
+                    int targetH = (int)Math.Ceiling(SystemParameters.VirtualScreenHeight * dpiScale);
+                    var img = Decode(path, targetW, targetH);
                     if (img == null) continue;
 
                     _info = new Info { Path = path, Stamp = stamp, Style = style, Image = img };
@@ -187,26 +235,46 @@ namespace DeskNest
             }
         }
 
-        private static BitmapSource? Decode(string path, int maxWidth)
+        // Décodage à la taille affichée : DecodePixelWidth/Height évite d'allouer
+        // l'image en pleine résolution avant de la réduire. OnLoad garantit que le
+        // flux est fermé et l'image figée avant le retour.
+        private static BitmapSource? Decode(string path, int targetW, int targetH)
         {
             try
             {
-                // BitmapDecoder (et non BitmapImage + StreamSource) : l'image est réellement
-                // chargée à la sortie du using, donc Freeze() fonctionne même sans dispatcher.
-                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                var decoder = BitmapDecoder.Create(fs,
-                    BitmapCreateOptions.IgnoreColorProfile | BitmapCreateOptions.PreservePixelFormat,
-                    BitmapCacheOption.OnLoad);
-                BitmapSource frame = decoder.Frames[0];
-
-                if (maxWidth > 0 && frame.PixelWidth > maxWidth)
+                if (!TrySourceSize(path, out int sourceW, out int sourceH))
                 {
-                    double scale = (double)maxWidth / frame.PixelWidth;
-                    frame = new TransformedBitmap(frame, new ScaleTransform(scale, scale));
+                    // Format dont les métadonnées ne sont pas lisibles : on se contente
+                    // d'une limite de largeur plutôt que de renoncer à afficher le fond.
+                    using var raw = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    var fallback = new BitmapImage();
+                    fallback.BeginInit();
+                    fallback.CacheOption = BitmapCacheOption.OnLoad;
+                    fallback.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                    fallback.DecodePixelWidth = Math.Clamp(targetW, 1, 4096);
+                    fallback.StreamSource = raw;
+                    fallback.EndInit();
+                    fallback.Freeze();
+                    return fallback;
                 }
 
-                frame.Freeze();
-                return frame;
+                // Couverture sans agrandissement : la copie reste au moins aussi grande
+                // que la cible dans les deux axes, sans déformer l'image source.
+                double scale = Math.Min(1.0, Math.Max((double)targetW / sourceW, (double)targetH / sourceH));
+                int w = Math.Max(1, (int)Math.Round(sourceW * scale));
+                int h = Math.Max(1, (int)Math.Round(sourceH * scale));
+
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var image = new BitmapImage();
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                if (sourceW >= sourceH) image.DecodePixelWidth = w;
+                else image.DecodePixelHeight = h;
+                image.StreamSource = fs;
+                image.EndInit();
+                image.Freeze();
+                return image;
             }
             catch { return null; }
         }

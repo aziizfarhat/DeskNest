@@ -253,6 +253,11 @@ namespace DeskNest
             _portalTimer.Stop();
             _hoverTimer.Stop();
             _renameTimer?.Stop();
+            // Le fond de cette zone n'est plus affiché : on libère le bitmap mis en cache.
+            Wallpaper.Release(_imageBrushPath);
+            _imageBrush = null;
+            _backdropBrush = null;
+            _imageBrushPath = "";
             base.OnClosed(e);
         }
 
@@ -458,6 +463,16 @@ namespace DeskNest
             Color c = ParseColor(Data.Color, Color.FromRgb(30, 30, 46));
             byte a = (byte)Math.Round(Math.Clamp(Data.Opacity, 0.1, 1.0) * 255);
 
+            // Un changement de mode ou de chemin rend le bitmap précédent inutile.
+            int mode = Math.Clamp(Data.BackgroundMode, 0, 3);
+            if (_imageBrushPath.Length > 0 &&
+                (mode != 2 || !string.Equals(_imageBrushPath, Data.BackgroundImage, StringComparison.OrdinalIgnoreCase)))
+            {
+                Wallpaper.Release(_imageBrushPath);
+                _imageBrush = null;
+                _imageBrushPath = "";
+            }
+
             // Réinitialise les couches de fond avant d'appliquer le mode courant.
             Root.Background = Brushes.Transparent;
             Backdrop.Visibility = Visibility.Collapsed;
@@ -555,21 +570,32 @@ namespace DeskNest
             return brush;
         }
 
+        // Taille physique de la zone : le fond est décodé à cette taille, jamais plus grand.
+        private (int Width, int Height) BackgroundPixels()
+        {
+            double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            return (
+                Math.Max(1, (int)Math.Ceiling(Math.Max(Data.Width, ActualWidth) * scale)),
+                Math.Max(1, (int)Math.Ceiling(Math.Max(Data.Height, ActualHeight) * scale)));
+        }
+
         private bool TryImageBrush(out Brush brush)
         {
             brush = Brushes.Transparent;
             var path = Data.BackgroundImage;
             if (string.IsNullOrWhiteSpace(path)) return false;
 
-            if (_imageBrush == null || !string.Equals(_imageBrushPath, path, StringComparison.OrdinalIgnoreCase))
+            var (width, height) = BackgroundPixels();
+            var img = Wallpaper.LoadImage(path, width, height);
+            if (img == null)
             {
-                var img = Wallpaper.LoadImage(path);
-                if (img == null)
-                {
-                    _imageBrush = null;
-                    _imageBrushPath = "";
-                    return false;
-                }
+                _imageBrush = null;
+                _imageBrushPath = "";
+                return false;
+            }
+
+            if (_imageBrush == null || !ReferenceEquals(_imageBrush.ImageSource, img))
+            {
                 _imageBrush = new ImageBrush(img)
                 {
                     Stretch = Stretch.UniformToFill,
