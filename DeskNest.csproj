@@ -26,6 +26,8 @@
   <ItemGroup>
     <!-- Logo avec le nom, affiché dans Réglages › À propos. -->
     <Resource Include="logo\logo_name.png" />
+    <!-- Tables de traduction : intégrées à l'assembly, une seule langue est matérialisée à la fois. -->
+    <EmbeddedResource Include="Localization\*.json" />
   </ItemGroup>
   <ItemGroup>
     <!-- Projet de tests : ses sources ne font pas partie de l'application. -->

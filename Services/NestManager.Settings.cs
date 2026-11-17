@@ -300,7 +300,7 @@ namespace DeskNest
         private void RecordZoneBaseline(NestData d)
         {
             if (_applyingHistory) return;
-            var after = CloneNest(d);
+            var after = ZoneValues.From(d);
             if (_baseline.TryGetValue(d.Id, out var before) && !SameLayout(before, after))
                 PushZoneDiff(d.Id, Loc.T("undo.zoneEdit"), before, after);
             _baseline[d.Id] = after;

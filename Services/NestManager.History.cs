@@ -31,38 +31,57 @@ namespace DeskNest
             RequestSave();
         }
 
-        private static NestData CloneNest(NestData d) => new()
+        // Instantané compact d'une zone : seuls les champs que l'historique peut
+        // restaurer. Les références d'éléments et l'ordre du portail sont exclus :
+        // ils ont leurs propres commandes d'annulation et sont volumineux.
+        private sealed class ZoneValues
         {
-            Id = d.Id,
-            Title = d.Title,
-            Left = d.Left,
-            Top = d.Top,
-            Width = d.Width,
-            Height = d.Height,
-            Locked = d.Locked,
-            TitleVisible = d.TitleVisible,
-            RolledUp = d.RolledUp,
-            Color = d.Color,
-            Opacity = d.Opacity,
-            BackgroundMode = d.BackgroundMode,
-            GradientStart = d.GradientStart,
-            GradientEnd = d.GradientEnd,
-            GradientAngle = d.GradientAngle,
-            BackgroundImage = d.BackgroundImage,
-            IconSize = d.IconSize,
-            ListView = d.ListView,
-            TitleFont = d.TitleFont,
-            TitleFontSize = d.TitleFontSize,
-            ItemFont = d.ItemFont,
-            ItemFontSize = d.ItemFontSize,
-            Enabled = d.Enabled,
-            HoverExpand = d.HoverExpand,
-            Items = new List<string>(d.Items),
-            PortalPath = d.PortalPath,
-            PortalOrder = d.PortalOrder.ToDictionary(kv => kv.Key, kv => new List<string>(kv.Value))
-        };
+            public string Title = "";
+            public double Left, Top, Width, Height;
+            public bool Locked, TitleVisible, RolledUp;
+            public string Color = "";
+            public double Opacity;
+            public int BackgroundMode;
+            public string GradientStart = "", GradientEnd = "";
+            public double GradientAngle;
+            public string BackgroundImage = "";
+            public int IconSize;
+            public bool ListView;
+            public string TitleFont = "", ItemFont = "";
+            public int TitleFontSize, ItemFontSize;
+            public bool Enabled, HoverExpand;
+            public string? PortalPath = "";
 
-        private static bool SameLayout(NestData a, NestData b)
+            public static ZoneValues From(NestData d) => new()
+            {
+                Title = d.Title,
+                Left = d.Left,
+                Top = d.Top,
+                Width = d.Width,
+                Height = d.Height,
+                Locked = d.Locked,
+                TitleVisible = d.TitleVisible,
+                RolledUp = d.RolledUp,
+                Color = d.Color,
+                Opacity = d.Opacity,
+                BackgroundMode = d.BackgroundMode,
+                GradientStart = d.GradientStart,
+                GradientEnd = d.GradientEnd,
+                GradientAngle = d.GradientAngle,
+                BackgroundImage = d.BackgroundImage,
+                IconSize = d.IconSize,
+                ListView = d.ListView,
+                TitleFont = d.TitleFont,
+                TitleFontSize = d.TitleFontSize,
+                ItemFont = d.ItemFont,
+                ItemFontSize = d.ItemFontSize,
+                Enabled = d.Enabled,
+                HoverExpand = d.HoverExpand,
+                PortalPath = d.PortalPath
+            };
+        }
+
+        private static bool SameLayout(ZoneValues a, ZoneValues b)
         {
             if (a.Title != b.Title || a.Locked != b.Locked || a.TitleVisible != b.TitleVisible ||
                 a.RolledUp != b.RolledUp || a.Color != b.Color || a.Opacity != b.Opacity ||
@@ -85,7 +104,7 @@ namespace DeskNest
         private void InitBaselines()
         {
             _baseline.Clear();
-            foreach (var d in _data.Nests) _baseline[d.Id] = CloneNest(d);
+            foreach (var d in _data.Nests) _baseline[d.Id] = ZoneValues.From(d);
         }
 
         private void PushUndo(IUndoable action)
@@ -95,20 +114,20 @@ namespace DeskNest
         }
 
         // Regroupe les modifications rapprochées d'une même zone (curseur d'opacité, saisie du titre…).
-        private void PushZoneDiff(Guid id, string label, NestData before, NestData after)
+        private void PushZoneDiff(Guid id, string label, ZoneValues before, ZoneValues after)
         {
             if (_applyingHistory) return;
             var now = DateTime.UtcNow;
             if (!History.IsBatching && _pendingZoneCmd != null && _pendingZoneId == id &&
                 (now - _pendingZoneAt).TotalMilliseconds < 900)
             {
-                _pendingZoneCmd.ReplaceRedo(() => ApplyZoneStateById(id, after));
+                _pendingZoneCmd.ReplaceRedo(() => ApplyZoneValues(id, after));
                 _pendingZoneAt = now;
                 return;
             }
             var command = new DelegateUndo(label,
-                () => ApplyZoneStateById(id, before),
-                () => ApplyZoneStateById(id, after));
+                () => ApplyZoneValues(id, before),
+                () => ApplyZoneValues(id, after));
             if (!History.IsBatching)
             {
                 _pendingZoneCmd = command;
@@ -118,7 +137,7 @@ namespace DeskNest
             History.Push(command);
         }
 
-        private void ApplyZoneStateById(Guid id, NestData state)
+        private void ApplyZoneValues(Guid id, ZoneValues state)
         {
             var live = _data.Nests.FirstOrDefault(x => x.Id == id);
             if (live == null) return;
@@ -161,7 +180,7 @@ namespace DeskNest
                     if (boundsChanged) w.SetBounds(live.Left, live.Top, live.Width, live.Height);
                     w.ReloadItems();
                 }
-                _baseline[id] = CloneNest(live);
+                _baseline[id] = ZoneValues.From(live);
             }
             finally { _applyingHistory = false; }
         }
@@ -178,7 +197,7 @@ namespace DeskNest
                 live.Width = width;
                 live.Height = height;
                 _windows.FirstOrDefault(x => x.Data == live)?.SetBounds(left, top, width, height);
-                _baseline[id] = CloneNest(live);
+                _baseline[id] = ZoneValues.From(live);
             }
             finally { _applyingHistory = false; }
         }
@@ -187,9 +206,9 @@ namespace DeskNest
         public void EditNest(NestData d, string label, Action change)
         {
             if (_applyingHistory) { change(); return; }
-            var before = _baseline.TryGetValue(d.Id, out var b) ? b : CloneNest(d);
+            var before = _baseline.TryGetValue(d.Id, out var b) ? b : ZoneValues.From(d);
             change();
-            var after = CloneNest(d);
+            var after = ZoneValues.From(d);
             if (!SameLayout(before, after)) PushZoneDiff(d.Id, label, before, after);
             _baseline[d.Id] = after;
             RequestSave();
@@ -205,7 +224,7 @@ namespace DeskNest
             PushUndo(new DelegateUndo(label,
                 () => ApplyBoundsById(id, left, top, width, height),
                 () => ApplyBoundsById(id, nl, nt, nw, nh)));
-            _baseline[id] = CloneNest(d);
+            _baseline[id] = ZoneValues.From(d);
         }
 
         // ---------- Instantanés ----------

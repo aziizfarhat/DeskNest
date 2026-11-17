@@ -25,7 +25,9 @@ namespace DeskNest
         private bool _updateBusy;
 
         // Annuler / rétablir (disposition uniquement : les fichiers ne sont jamais restaurés).
-        private readonly Dictionary<Guid, NestData> _baseline = new();
+        // Instantanés compacts : uniquement les champs modifies par l'historique,
+        // jamais les listes d'éléments (elles ont leurs propres commandes d'annulation).
+        private readonly Dictionary<Guid, ZoneValues> _baseline = new();
         private bool _applyingHistory;
         private DelegateUndo? _pendingZoneCmd;
         private Guid _pendingZoneId;

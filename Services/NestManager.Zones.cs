@@ -177,7 +177,7 @@ namespace DeskNest
             Settings.Enabled = true; // créer une zone la rend forcément visible
             OpenWindow(d);
             ApplyVisibility();
-            _baseline[d.Id] = CloneNest(d);
+            _baseline[d.Id] = ZoneValues.From(d);
             PushUndo(new DelegateUndo(Loc.T("undo.newZone"),
                 () => RemoveNestSilent(d),
                 () => ReopenNestAt(d, index)));
@@ -208,7 +208,7 @@ namespace DeskNest
             _data.Nests.Insert(at, d);
             _data.ZonesCleared = false;
             OpenWindow(d);
-            _baseline[d.Id] = CloneNest(d);
+            _baseline[d.Id] = ZoneValues.From(d);
             _applyingHistory = true;
             try { AdoptDesktopItemsInEnabledZones(d); } // les fichiers avaient été remis sur le bureau
             finally { _applyingHistory = false; }

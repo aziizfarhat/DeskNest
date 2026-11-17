@@ -57,7 +57,8 @@ namespace DeskNest
     // Pile d'annulation / rétablissement.
     public sealed class UndoStack
     {
-        private const int MaxEntries = 100;
+        // 50 étapes suffisent pour l'usage courant et bornent la mémoire de l'historique.
+        private const int MaxEntries = 50;
         private readonly List<IUndoable> _undo = new();
         private readonly List<IUndoable> _redo = new();
         private List<IUndoable>? _batch;

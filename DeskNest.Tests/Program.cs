@@ -20,6 +20,8 @@ namespace DeskNest.Tests
             Run("instantané créé puis relu", SnapshotRoundTrip);
             Run("copie du fichier corrompu conservée", CorruptFileIsCopied);
             Run("dossier de stockage surchargé", StorageDirectoryIsOverridden);
+            Run("traductions intégrées chargées à la demande", LocalizationLoadsActiveLanguageOnly);
+            Run("profondeur d'annulation bornée à 50", UndoDepthIsBounded);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -183,6 +185,33 @@ namespace DeskNest.Tests
             AssertEqual(root, Storage.Dir, "dossier de stockage");
             Assert(Storage.Dir.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase),
                 "le dossier de test doit rester dans le dossier temporaire");
+        }
+
+        private static void LocalizationLoadsActiveLanguageOnly()
+        {
+            Loc.SetLanguage("en");
+            AssertEqual("New zone", Loc.T("tray.newZone"), "textes anglais");
+            Loc.SetLanguage("fr");
+            AssertEqual("Nouvelle zone", Loc.T("tray.newZone"), "textes français");
+            Loc.SetLanguage("de");
+            AssertEqual("Neuer Bereich", Loc.T("tray.newZone"), "textes allemands");
+            Assert(Loc.IsDefaultZoneTitle("Bereich 3"), "titre de zone par défaut en allemand");
+            Assert(Loc.IsDefaultZoneTitle("Nouvelle zone"), "titre de zone par défaut historique");
+            AssertEqual("cle.inconnue", Loc.T("cle.inconnue"), "clé absente des tables");
+            Loc.SetLanguage("en");
+        }
+
+        private static void UndoDepthIsBounded()
+        {
+            var stack = new UndoStack();
+            for (int i = 0; i < 60; i++)
+                stack.Push(new DelegateUndo("étape " + i, () => { }, () => { }));
+
+            int undone = 0;
+            while (stack.Undo()) undone++;
+
+            AssertEqual(50, undone, "nombre maximum d'étapes annulables");
+            Assert(!stack.CanUndo, "aucune étape ne doit rester après 50 annulations");
         }
     }
 }
