@@ -238,7 +238,8 @@ namespace DeskNest
             if (string.IsNullOrWhiteSpace(path)) return;
             if (!File.Exists(path) && !Directory.Exists(path)) return;
             if (!seen.Add(path.TrimEnd('\\'))) return;
-            _all.Add(new SearchEntry(path, source, zoneId));
+            _all.Add(new SearchEntry(path, source, zoneId,
+                IconHelper.PixelSize(20, VisualTreeHelper.GetDpi(this).DpiScaleX)));
         }
 
         private void Filter()
@@ -375,13 +376,16 @@ namespace DeskNest
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public SearchEntry(string path, string source, Guid? zoneId)
+        private readonly int _iconPixels;
+
+        public SearchEntry(string path, string source, Guid? zoneId, int iconPixels)
         {
             Name = ItemVM.GetName(path);
             Path = path;
             Source = source;
             ZoneId = zoneId;
-            Icon = IconHelper.GetCached(path);
+            _iconPixels = iconPixels;
+            Icon = IconHelper.GetCached(path, iconPixels);
             if (Icon == null) LoadIconAsync(path);
         }
 
@@ -389,7 +393,7 @@ namespace DeskNest
         {
             try
             {
-                var icon = await IconHelper.GetIconAsync(path);
+                var icon = await IconHelper.GetIconAsync(path, _iconPixels);
                 if (icon != null && _icon == null) Icon = icon;
             }
             catch { }

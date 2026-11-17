@@ -133,6 +133,7 @@ namespace DeskNest
         public string FullPath { get; }
         public string Name { get; }
         public int IconSize { get; }
+        public int IconPixels { get; }
 
         // L'icône est chargée en arrière-plan : la zone s'affiche immédiatement, même sur un gros dossier.
         private ImageSource? _icon;
@@ -189,10 +190,11 @@ namespace DeskNest
             }
         }
 
-        public ItemVM(string path, int iconSize, bool isPortal = false, bool isUp = false, bool showThumbnails = true)
+        public ItemVM(string path, int iconSize, int iconPixels = 0, bool isPortal = false, bool isUp = false, bool showThumbnails = true)
         {
             FullPath = path;
             IconSize = iconSize;
+            IconPixels = iconPixels > 0 ? iconPixels : iconSize;
             IsUp = isUp;
             IsFolder = isUp || Directory.Exists(path);
             CanRemove = !isPortal && !isUp;
@@ -202,12 +204,12 @@ namespace DeskNest
             // Les images, vidéos et PDF affichent une miniature ; tout le reste garde l'icône.
             if (showThumbnails && IconHelper.CanThumbnail(FullPath))
             {
-                Icon = IconHelper.GetCachedThumbnail(FullPath);
+                Icon = IconHelper.GetCachedThumbnail(FullPath, IconPixels);
                 if (Icon == null) LoadThumbnailAsync();
             }
             else
             {
-                Icon = IconHelper.GetCached(FullPath);
+                Icon = IconHelper.GetCached(FullPath, IconPixels);
                 if (Icon == null) LoadIconAsync();
             }
         }
@@ -225,7 +227,7 @@ namespace DeskNest
         {
             try
             {
-                var icon = await IconHelper.GetIconAsync(FullPath);
+                var icon = await IconHelper.GetIconAsync(FullPath, IconPixels);
                 if (icon != null && _icon == null) Icon = icon;
             }
             catch { }
@@ -235,9 +237,9 @@ namespace DeskNest
         {
             try
             {
-                var icon = await IconHelper.GetThumbnailAsync(FullPath);
+                var icon = await IconHelper.GetThumbnailAsync(FullPath, IconPixels);
                 // Pas de fournisseur de miniature (PDF sans extension, codec absent…) : icône du shell.
-                if (icon == null) icon = await IconHelper.GetIconAsync(FullPath);
+                if (icon == null) icon = await IconHelper.GetIconAsync(FullPath, IconPixels);
                 if (icon != null && _icon == null) Icon = icon;
             }
             catch { }

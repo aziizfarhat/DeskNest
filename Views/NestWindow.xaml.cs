@@ -50,6 +50,8 @@ namespace DeskNest
 
         private readonly NestManager _manager;
         public NestData Data { get; }
+        // Taille physique demandée au shell : jamais plus grande que l'icône affichée.
+        private int IconPixels => IconHelper.PixelSize(Data.IconSize, VisualTreeHelper.GetDpi(this).DpiScaleX);
 
         private IntPtr Hwnd => new WindowInteropHelper(this).Handle;
         private List<ItemVM> _vms = new();
@@ -797,7 +799,7 @@ namespace DeskNest
             foreach (var p in Data.Items)
             {
                 if (HasFilter && !NameMatches(ItemVM.GetName(p))) continue;
-                list.Add(new ItemVM(p, Data.IconSize, false, false, _manager.Settings.ShowThumbnails));
+                list.Add(new ItemVM(p, Data.IconSize, IconPixels, false, false, _manager.Settings.ShowThumbnails));
             }
             return list;
         }
@@ -887,12 +889,12 @@ namespace DeskNest
             if (includeParent)
             {
                 var parent = Directory.GetParent(cur.TrimEnd('\\'));
-                if (parent != null) list.Add(new ItemVM(parent.FullName, Data.IconSize, true, true, _manager.Settings.ShowThumbnails));
+                if (parent != null) list.Add(new ItemVM(parent.FullName, Data.IconSize, IconPixels, true, true, _manager.Settings.ShowThumbnails));
             }
 
             int count = Math.Min(PortalPageSize, ordered.Count - start);
             for (int i = 0; i < count; i++)
-                list.Add(new ItemVM(ordered[start + i], Data.IconSize, true, false, _manager.Settings.ShowThumbnails));
+                list.Add(new ItemVM(ordered[start + i], Data.IconSize, IconPixels, true, false, _manager.Settings.ShowThumbnails));
 
             // Une saisie a pu commencer pendant la lecture du dossier.
             if (_editingTitle || _editingItem != null)

@@ -11,25 +11,24 @@ using System.Windows.Media.Imaging;
 namespace DeskNest
 {
     // Extraction et cache des icônes du shell.
-    // - cache LRU borné (les icônes sont figées, donc utilisables depuis n'importe quel thread) ;
-    // - icônes 48 px via SHGetImageList (au lieu du 32 px agrandi de SHGetFileInfo) ;
-    // - miniatures (images, vidéos, PDF) via IShellItemImageFactory, avec repli sur l'icône ;
-    // - extraction hors du thread UI, avec un nombre limité d'extractions simultanées.
+    // - un seul cache LRU borné, clé par chemin + taille physique + date de modification ;
+    // - extraction à la taille affichée (pas plus grande), images figées (thread-safe) ;
+    // - extraction hors du thread UI, avec un seul thread STA dédié ;
+    // - tous les handles natifs sont libérés dès la copie en bitmap managé.
     public static class IconHelper
     {
         private const int CacheLimit = 512;
-        private const int ThumbCacheLimit = 256;
-        private const int ThumbSize = 128;
+        private const int MinSize = 16;
+        private const int MaxSize = 256;
+        private const int ShilLarge = 0x0;
+        private const int ShilSmall = 0x1;
         private const int ShilExtraLarge = 0x2;
+        private const int ShilJumbo = 0x4;
 
         private static readonly object Gate = new();
-        private static readonly Dictionary<string, LinkedListNode<Entry>> Cache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, LinkedListNode<Entry>> Cache = new(StringComparer.Ordinal);
         private static readonly LinkedList<Entry> Lru = new();
-        private static readonly Dictionary<string, Task<ImageSource?>> Pending = new(StringComparer.OrdinalIgnoreCase);
-
-        private static readonly Dictionary<string, LinkedListNode<Entry>> ThumbCache = new(StringComparer.OrdinalIgnoreCase);
-        private static readonly LinkedList<Entry> ThumbLru = new();
-        private static readonly Dictionary<string, Task<ImageSource?>> ThumbPending = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, Task<ImageSource?>> Pending = new(StringComparer.Ordinal);
 
         // Extensions qui savent produire une miniature dans l'Explorateur.
         private static readonly HashSet<string> ThumbExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -45,20 +44,26 @@ namespace DeskNest
 
         private sealed class Entry
         {
-            public Entry(string key, ImageSource icon) { Key = key; Icon = icon; }
+            public Entry(string key, string path, int size, long stamp, ImageSource icon)
+            {
+                Key = key; Path = path; Size = size; Stamp = stamp; Icon = icon;
+            }
             public string Key { get; }
+            public string Path { get; }
+            public int Size { get; }
+            public long Stamp { get; }
             public ImageSource Icon { get; set; }
         }
 
         private sealed class Request
         {
-            public Request(string path, bool thumbnail, TaskCompletionSource<ImageSource?> done)
+            public Request(string path, int size, long stamp, bool thumbnail, TaskCompletionSource<ImageSource?> done)
             {
-                Path = path;
-                Thumbnail = thumbnail;
-                Done = done;
+                Path = path; Size = size; Stamp = stamp; Thumbnail = thumbnail; Done = done;
             }
             public string Path { get; }
+            public int Size { get; }
+            public long Stamp { get; }
             public bool Thumbnail { get; }
             public TaskCompletionSource<ImageSource?> Done { get; }
         }
@@ -78,7 +83,10 @@ namespace DeskNest
         {
             foreach (var request in Queue.GetConsumingEnumerable())
             {
-                var result = request.Thumbnail ? ExtractThumbnail(request.Path) : Extract(request.Path);
+                var result = request.Thumbnail
+                    ? ExtractThumbnail(request.Path, request.Size)
+                    : Extract(request.Path, request.Size);
+                if (result != null) AddToCache(request.Path, request.Size, request.Stamp, result);
                 request.Done.TrySetResult(result);
             }
         }
@@ -173,12 +181,53 @@ namespace DeskNest
         private const uint FileAttributeDirectory = 0x10;
         private const uint FileAttributeNormal = 0x80;
 
-        // Retourne immédiatement une icône déjà en cache, sans lancer d'extraction.
-        public static ImageSource? GetCached(string path)
+        // Taille physique (pixels) à demander pour une taille DIP et un facteur DPI.
+        public static int PixelSize(double dipSize, double dpiScale)
         {
+            if (dpiScale <= 0) dpiScale = 1;
+            return ClampSize((int)Math.Ceiling(dipSize * dpiScale));
+        }
+
+        private static int ClampSize(int size) => Math.Clamp(size, MinSize, MaxSize);
+
+        private static long StampOf(string path)
+        {
+            try { return File.Exists(path) || Directory.Exists(path) ? File.GetLastWriteTimeUtc(path).Ticks : 0; }
+            catch { return 0; }
+        }
+
+        // La clé inclut la date : un fichier modifié produit une nouvelle entrée et l'ancienne est évincée.
+        private static string KeyOf(string path, int size, long stamp) =>
+            path.ToUpperInvariant() + "|" + size.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" +
+            stamp.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        // Appelé sous Gate : retire toutes les tailles d'un chemin dont la date a changé
+        // (fichier modifié ou supprimé).
+        private static void Prune(string path, long stamp)
+        {
+            var node = Lru.First;
+            while (node != null)
+            {
+                var next = node.Next;
+                if (string.Equals(node.Value.Path, path, StringComparison.OrdinalIgnoreCase) && node.Value.Stamp != stamp)
+                {
+                    Lru.Remove(node);
+                    Cache.Remove(node.Value.Key);
+                }
+                node = next;
+            }
+        }
+
+        // Retourne immédiatement une icône déjà en cache, sans lancer d'extraction.
+        public static ImageSource? GetCached(string path, int size)
+        {
+            if (string.IsNullOrEmpty(path)) return null;
+            size = ClampSize(size);
+            long stamp = StampOf(path);
             lock (Gate)
             {
-                if (!Cache.TryGetValue(path, out var node)) return null;
+                Prune(path, stamp);
+                if (!Cache.TryGetValue(KeyOf(path, size, stamp), out var node)) return null;
                 Lru.Remove(node);
                 Lru.AddFirst(node);
                 return node.Value.Icon;
@@ -186,35 +235,67 @@ namespace DeskNest
         }
 
         // Extraction asynchrone et dédupliquée (plusieurs demandes du même chemin partagent la tâche).
-        public static Task<ImageSource?> GetIconAsync(string path)
+        public static Task<ImageSource?> GetIconAsync(string path, int size)
+            => GetAsync(path, size, thumbnail: false);
+
+        public static Task<ImageSource?> GetThumbnailAsync(string path, int size)
+            => GetAsync(path, size, thumbnail: true);
+
+        private static Task<ImageSource?> GetAsync(string path, int size, bool thumbnail)
         {
+            if (string.IsNullOrEmpty(path)) return Task.FromResult<ImageSource?>(null);
+            size = ClampSize(size);
+            long stamp = StampOf(path);
+            string key = KeyOf(path, size, stamp);
+
             lock (Gate)
             {
-                if (Cache.TryGetValue(path, out var node))
+                Prune(path, stamp);
+                if (Cache.TryGetValue(key, out var node))
                 {
                     Lru.Remove(node);
                     Lru.AddFirst(node);
                     return Task.FromResult<ImageSource?>(node.Value.Icon);
                 }
-                if (Pending.TryGetValue(path, out var pending)) return pending;
+                if (Pending.TryGetValue(key, out var pending)) return pending;
 
                 var done = new TaskCompletionSource<ImageSource?>(TaskCreationOptions.RunContinuationsAsynchronously);
-                Pending[path] = done.Task;
+                Pending[key] = done.Task;
                 done.Task.ContinueWith(_ =>
                 {
-                    lock (Gate) Pending.Remove(path);
+                    lock (Gate) Pending.Remove(key);
                 }, TaskContinuationOptions.ExecuteSynchronously);
-                Queue.Add(new Request(path, false, done));
+                Queue.Add(new Request(path, size, stamp, thumbnail, done));
                 return done.Task;
             }
         }
 
-        // Extraction synchrone (conservée pour les appels ponctuels hors interface).
-        public static ImageSource? GetIcon(string path)
+        private static void AddToCache(string path, int size, long stamp, ImageSource image)
         {
-            var cached = GetCached(path);
-            return cached ?? Extract(path);
+            string key = KeyOf(path, size, stamp);
+            lock (Gate)
+            {
+                if (Cache.TryGetValue(key, out var existing))
+                {
+                    existing.Value.Icon = image;
+                    Lru.Remove(existing);
+                    Lru.AddFirst(existing);
+                    return;
+                }
+
+                var node = Lru.AddFirst(new Entry(key, path, size, stamp, image));
+                Cache[key] = node;
+                while (Cache.Count > CacheLimit && Lru.Last != null)
+                {
+                    var last = Lru.Last;
+                    Lru.RemoveLast();
+                    Cache.Remove(last.Value.Key);
+                }
+            }
         }
+
+        // Même cache pour les icônes et les miniatures (la source est choisie par l'appelant).
+        public static ImageSource? GetCachedThumbnail(string path, int size) => GetCached(path, size);
 
         // Vrai si le fichier peut fournir une miniature (image, vidéo, PDF).
         public static bool CanThumbnail(string path)
@@ -228,70 +309,7 @@ namespace DeskNest
             catch { return false; }
         }
 
-        private static string ThumbKey(string path) => path + "|t" + ThumbSize;
-
-        // Retourne immédiatement une miniature déjà en cache.
-        public static ImageSource? GetCachedThumbnail(string path)
-        {
-            var key = ThumbKey(path);
-            lock (Gate)
-            {
-                if (!ThumbCache.TryGetValue(key, out var node)) return null;
-                ThumbLru.Remove(node);
-                ThumbLru.AddFirst(node);
-                return node.Value.Icon;
-            }
-        }
-
-        // Miniature asynchrone et dédupliquée (repli sur l'icône géré par l'appelant).
-        public static Task<ImageSource?> GetThumbnailAsync(string path)
-        {
-            var key = ThumbKey(path);
-            lock (Gate)
-            {
-                if (ThumbCache.TryGetValue(key, out var node))
-                {
-                    ThumbLru.Remove(node);
-                    ThumbLru.AddFirst(node);
-                    return Task.FromResult<ImageSource?>(node.Value.Icon);
-                }
-                if (ThumbPending.TryGetValue(key, out var pending)) return pending;
-
-                var done = new TaskCompletionSource<ImageSource?>(TaskCreationOptions.RunContinuationsAsynchronously);
-                ThumbPending[key] = done.Task;
-                done.Task.ContinueWith(_ =>
-                {
-                    lock (Gate) ThumbPending.Remove(key);
-                }, TaskContinuationOptions.ExecuteSynchronously);
-                Queue.Add(new Request(path, true, done));
-                return done.Task;
-            }
-        }
-
-        private static void AddToThumbCache(string key, ImageSource image)
-        {
-            lock (Gate)
-            {
-                if (ThumbCache.TryGetValue(key, out var existing))
-                {
-                    existing.Value.Icon = image;
-                    ThumbLru.Remove(existing);
-                    ThumbLru.AddFirst(existing);
-                    return;
-                }
-
-                var node = ThumbLru.AddFirst(new Entry(key, image));
-                ThumbCache[key] = node;
-                while (ThumbCache.Count > ThumbCacheLimit && ThumbLru.Last != null)
-                {
-                    var last = ThumbLru.Last;
-                    ThumbLru.RemoveLast();
-                    ThumbCache.Remove(last.Value.Key);
-                }
-            }
-        }
-
-        private static ImageSource? ExtractThumbnail(string path)
+        private static ImageSource? ExtractThumbnail(string path, int size)
         {
             IntPtr hbm = IntPtr.Zero;
             object? item = null;
@@ -303,19 +321,18 @@ namespace DeskNest
                 SHCreateItemFromParsingName(path, IntPtr.Zero, iid, out item);
                 if (item is not IShellItemImageFactory factory) return null;
 
-                var size = new SIZE { cx = ThumbSize, cy = ThumbSize };
-                int hr = factory.GetImage(size, SIIGBF.ThumbnailOnly | SIIGBF.BiggerSizeOk, out hbm);
+                var wanted = new SIZE { cx = size, cy = size };
+                int hr = factory.GetImage(wanted, SIIGBF.ThumbnailOnly | SIIGBF.BiggerSizeOk, out hbm);
                 if (hr != 0 || hbm == IntPtr.Zero) return null;
 
                 var src = Imaging.CreateBitmapSourceFromHBitmap(hbm, IntPtr.Zero, Int32Rect.Empty,
                     BitmapSizeOptions.FromEmptyOptions());
-                src.Freeze();
-                AddToThumbCache(ThumbKey(path), src);
-                return src;
+                return Fit(src, size);
             }
             catch { return null; }
             finally
             {
+                // Le bitmap natif n'est plus nécessaire une fois copié dans le BitmapSource.
                 if (hbm != IntPtr.Zero) DeleteObject(hbm);
                 if (item != null)
                 {
@@ -324,39 +341,27 @@ namespace DeskNest
             }
         }
 
-        private static void AddToCache(string path, ImageSource icon)
+        // Réduit (ou agrandit) uniquement si la copie managée ne correspond pas à la taille affichée.
+        private static BitmapSource Fit(BitmapSource source, int size)
         {
-            lock (Gate)
+            if (source.PixelWidth < 1 || source.PixelHeight < 1 ||
+                (source.PixelWidth == size && source.PixelHeight == size))
             {
-                if (Cache.TryGetValue(path, out var existing))
-                {
-                    existing.Value.Icon = icon;
-                    Lru.Remove(existing);
-                    Lru.AddFirst(existing);
-                    return;
-                }
-
-                var node = Lru.AddFirst(new Entry(path, icon));
-                Cache[path] = node;
-                while (Cache.Count > CacheLimit && Lru.Last != null)
-                {
-                    var last = Lru.Last;
-                    Lru.RemoveLast();
-                    Cache.Remove(last.Value.Key);
-                }
+                source.Freeze();
+                return source;
             }
+            double scale = Math.Min((double)size / source.PixelWidth, (double)size / source.PixelHeight);
+            var resized = new TransformedBitmap(source, new ScaleTransform(scale, scale));
+            resized.Freeze();
+            return resized;
         }
 
-        private static ImageSource? Extract(string path)
+        private static ImageSource? Extract(string path, int size)
         {
             // Les raccourcis Internet (.url) ne sont pas résolus par SHGetFileInfo : il renvoie
             // le globe générique. Explorer, lui, lit IconFile/IconIndex dans le fichier .url.
-            var shortcutIcon = ExtractInternetShortcutIcon(path);
-            if (shortcutIcon != null)
-            {
-                AddToCache(path, shortcutIcon);
-                return shortcutIcon;
-            }
+            var shortcutIcon = ExtractInternetShortcutIcon(path, size);
+            if (shortcutIcon != null) return shortcutIcon;
 
             IntPtr hIcon = IntPtr.Zero;
             try
@@ -371,8 +376,11 @@ namespace DeskNest
                 if (!exists) flags |= SHGFI_USEFILEATTRIBUTES;
                 SHGetFileInfo(path, attrs, ref info, (uint)Marshal.SizeOf<SHFILEINFO>(), flags);
 
+                // La liste système la plus proche de la taille affichée évite de décoder
+                // systématiquement l'icône 48 px (ou 256 px) pour une icône de 20 px.
+                int listIndex = size <= 16 ? ShilSmall : size <= 32 ? ShilLarge : size <= 48 ? ShilExtraLarge : ShilJumbo;
                 var iid = typeof(IImageList).GUID;
-                if (SHGetImageList(ShilExtraLarge, ref iid, out var list) == 0 && list != null)
+                if (SHGetImageList(listIndex, ref iid, out var list) == 0 && list != null)
                 {
                     try
                     {
@@ -383,7 +391,7 @@ namespace DeskNest
 
                 if (hIcon == IntPtr.Zero)
                 {
-                    // Repli : icône 32 px du système (éventuellement agrandie par WPF).
+                    // Repli : icône 32 px du système.
                     var fallback = new SHFILEINFO();
                     uint fallbackFlags = SHGFI_ICON;
                     if (!exists) fallbackFlags |= SHGFI_USEFILEATTRIBUTES;
@@ -394,9 +402,7 @@ namespace DeskNest
                 if (hIcon == IntPtr.Zero) return null;
 
                 var src = Imaging.CreateBitmapSourceFromHIcon(hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                src.Freeze();
-                AddToCache(path, src);
-                return src;
+                return Fit(src, size);
             }
             catch { return null; }
             finally
@@ -407,7 +413,7 @@ namespace DeskNest
 
         // Extrait l'icône déclarée par un raccourci Internet (.url). Sans cela, Windows
         // renvoie l'icône générique « globe » au lieu de l'icône choisie par l'auteur.
-        private static ImageSource? ExtractInternetShortcutIcon(string path)
+        private static ImageSource? ExtractInternetShortcutIcon(string path, int size)
         {
             try
             {
@@ -429,18 +435,15 @@ namespace DeskNest
                 iconFile = Environment.ExpandEnvironmentVariables(iconFile);
                 if (!File.Exists(iconFile)) return null;
 
-                // 48 px comme les autres icônes du shell (ExtractIconEx ne fournit que 32 px,
-                // ce qui rendait les icônes de raccourci .url visiblement plus floues).
                 var handles = new IntPtr[1];
                 var ids = new uint[1];
-                if (PrivateExtractIcons(iconFile, iconIndex, 48, 48, handles, ids, 1, 0) > 0 &&
+                if (PrivateExtractIcons(iconFile, iconIndex, size, size, handles, ids, 1, 0) > 0 &&
                     handles[0] != IntPtr.Zero)
                 {
                     try
                     {
                         var hi = Imaging.CreateBitmapSourceFromHIcon(handles[0], Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                        hi.Freeze();
-                        return hi;
+                        return Fit(hi, size);
                     }
                     finally { DestroyIcon(handles[0]); }
                 }
@@ -452,8 +455,7 @@ namespace DeskNest
                     var handle = large != IntPtr.Zero ? large : small;
                     if (handle == IntPtr.Zero) return null;
                     var src = Imaging.CreateBitmapSourceFromHIcon(handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                    src.Freeze();
-                    return src;
+                    return Fit(src, size);
                 }
                 finally
                 {
