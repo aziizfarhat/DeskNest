@@ -289,6 +289,9 @@
                               ItemTemplate="{StaticResource GridItemTemplate}"/>
             </ScrollViewer>
 
+            <!-- Notes / To-do : contenu créé à la demande, libéré quand la zone est repliée. -->
+            <ContentControl x:Name="AltContent" Grid.Row="2" Margin="8,6,6,8" Visibility="Collapsed"/>
+
             <!-- Pagination des Folder Portals : seuls les éléments de la page courante sont instanciés. -->
             <Border x:Name="PagerBar" Grid.Row="3" Height="24" Visibility="Collapsed" Background="#22000000"
                     CornerRadius="0,0,9,9">

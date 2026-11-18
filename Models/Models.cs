@@ -7,6 +7,25 @@ using System.Windows.Media;
 
 namespace DeskNest
 {
+    // Types de zones. La valeur par défaut "Files" garantit qu'un ancien layout
+    // (sans champ Type) continue à charger exactement comme avant.
+    public static class NestTypes
+    {
+        public const string Files = "Files";
+        public const string Notes = "Notes";
+        public const string Todo = "Todo";
+
+        public static bool IsKnown(string? type) => type is Files or Notes or Todo;
+    }
+
+    // Tâche d'une zone To-do. Stockée dans layout.json (contrairement aux notes).
+    public class TodoTask
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public string Text { get; set; } = "";
+        public bool Done { get; set; }
+    }
+
     public class NestData
     {
         public Guid Id { get; set; } = Guid.NewGuid();
@@ -34,11 +53,16 @@ namespace DeskNest
         public int ItemFontSize { get; set; } = 11;
         public bool Enabled { get; set; } = true;      // zone visible ou non (désactivable depuis les paramètres)
         public bool HoverExpand { get; set; } = true;   // participe au « développer au survol » (si l'option globale est active)
+        // "Files" (par défaut, y compris les portails), "Notes" ou "Todo".
+        public string Type { get; set; } = NestTypes.Files;
 
         [JsonIgnore] public string Label => Enabled ? Title : Title + " " + Loc.T("z.hidden");
 
         // Zone classique : chemins des éléments, dans l'ordre choisi (références, jamais déplacés).
         public List<string> Items { get; set; } = new();
+
+        // Tâches d'une zone To-do (ordre manuscrit conservé dans layout.json).
+        public List<TodoTask> Tasks { get; set; } = new();
 
         // Folder Portal : dossier affiché dans la zone + ordre personnalisé par dossier (noms de fichiers).
         public string? PortalPath { get; set; }

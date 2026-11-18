@@ -24,6 +24,7 @@ namespace DeskNest.Tests
             Run("traductions intégrées chargées à la demande", LocalizationLoadsActiveLanguageOnly);
             Run("profondeur d'annulation bornée à 50", UndoDepthIsBounded);
             Run("migration Version 2 vers 3 : profil, géométrie et copie .v2.bak", MigrateV2LayoutCreatesProfileAndBackup);
+            Run("N1 : ancien layout en Files et copie .v3.bak une seule fois", OldLayoutLoadsAsFilesAndCreatesV3Backup);
             Run("zone supprimée retirée de tous les profils", DeletedNestIsRemovedFromEveryProfile);
             Run("profil actif préservé si les écrans ont changé", ActiveProfileIsNotOverwrittenOnMonitorChange);
             Run("bascule d'écran : ancien profil capturé puis profil exact appliqué", DisplaySwitchCapturesOldAndAppliesExactProfile);
@@ -224,6 +225,57 @@ namespace DeskNest.Tests
 
             AssertEqual(50, undone, "nombre maximum d'étapes annulables");
             Assert(!stack.CanUndo, "aucune étape ne doit rester après 50 annulations");
+        }
+
+        private static string SampleV3Json() => @"{
+  ""Version"": 3,
+  ""ZonesCleared"": false,
+  ""Nests"": [
+    {
+      ""Id"": ""aaaaaaaa-1111-1111-1111-111111111111"",
+      ""Title"": ""Bureau"",
+      ""Left"": 40.0,
+      ""Top"": 60.0,
+      ""Width"": 320.0,
+      ""Height"": 240.0,
+      ""Items"": [ ""C:\\Users\\example\\Desktop\\notes.txt"" ]
+    },
+    {
+      ""Id"": ""bbbbbbbb-2222-2222-2222-222222222222"",
+      ""Title"": ""Portail"",
+      ""PortalPath"": ""C:\\Users\\example\\Documents"",
+      ""Left"": 500.0,
+      ""Top"": 60.0,
+      ""Width"": 320.0,
+      ""Height"": 240.0
+    }
+  ],
+  ""Settings"": { ""Language"": ""fr"" }
+}";
+
+        private static void OldLayoutLoadsAsFilesAndCreatesV3Backup()
+        {
+            var (fs, root) = Sandbox();
+            var json = SampleV3Json();
+            var layoutPath = Path.Combine(root, "layout.json");
+            var v3Path = Path.Combine(root, "layout.json.v3.bak");
+            fs.WriteAllText(layoutPath, json);
+
+            var loaded = Storage.Load();
+
+            AssertEqual(3, loaded.Version, "version laissée inchangée au chargement");
+            AssertEqual(2, loaded.Nests.Count, "nombre de zones conservées");
+            Assert(loaded.Nests.All(n => n.Type == NestTypes.Files), "anciennes zones toutes de type Files");
+            AssertEqual("fr", loaded.Settings.Language, "réglages conservés");
+            Assert(!fs.FileExists(v3Path), "pas de copie avant la première écriture");
+            AssertEqual(json, fs.ReadAllText(layoutPath), "layout non réécrit au chargement");
+
+            Storage.SaveNow(loaded);
+            Assert(fs.FileExists(v3Path), "copie layout.json.v3.bak créée");
+            AssertEqual(json, fs.ReadAllText(v3Path), "contenu original conservé");
+
+            Storage.SaveNow(loaded);
+            AssertEqual(json, fs.ReadAllText(v3Path), "copie non écrasée par la suite");
         }
 
         private static void MigrateV2LayoutCreatesProfileAndBackup()

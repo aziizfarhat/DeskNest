@@ -78,7 +78,9 @@ namespace DeskNest
         private MenuItem _miTitle = null!, _miRoll = null!, _miLock = null!, _miHover = null!, _miPaste = null!;
         private MenuItem _miUndo = null!, _miRedo = null!, _miApplyTemplate = null!;
         private MenuItem _miViewGrid = null!, _miViewList = null!;
+        private MenuItem _miView = null!, _miIconSize = null!, _miSelectAll = null!, _miPasteFiles = null!;
         private MenuItem _miPortal = null!, _miPortalChange = null!, _miPortalOpen = null!, _miPortalDetach = null!;
+        private Separator _portalSep = null!;
 
         // Menu des éléments (menu contextuel façon Windows)
         private ContextMenu _itemMenu = null!;
@@ -115,6 +117,7 @@ namespace DeskNest
         // Affichage Grille / Liste de cette zone.
         private bool _lastListView;
         private bool _lastShowThumbnails;
+        private string _lastType = NestTypes.Files;
 
         // Fond : image choisie ou papier peint flouté (les pinceaux sont réutilisés pour éviter
         // de recréer des ressources à chaque redimensionnement).
@@ -136,7 +139,13 @@ namespace DeskNest
 
         private bool IsRolled => Data.RolledUp && Data.TitleVisible && !_hoverExpanded;
         private bool IsPortal => !string.IsNullOrEmpty(Data.PortalPath);
+        private bool IsFiles => Data.Type == NestTypes.Files;
         private string CurrentFolder => _portalCurrent ?? Data.PortalPath ?? "";
+
+        // Le contenu des zones Notes / To-do n'est instancié que lorsqu'elles sont
+        // développées, et libéré dès qu'elles sont repliées (pas de contrôle caché gardé en vie).
+        private FrameworkElement? _altContent;
+        private bool _contentReleased;
         private string PortalName
         {
             get
@@ -169,6 +178,7 @@ namespace DeskNest
             _itemMenu = BuildItemMenu();
             Loc.Changed += OnLanguageChanged;
             ApplyState();
+            if (!IsFiles) EnsureAltContent();
             ApplyFonts();
             ApplyViewMode();
             UpdateSearchUi();
@@ -253,6 +263,7 @@ namespace DeskNest
             _portalTimer.Stop();
             _hoverTimer.Stop();
             _renameTimer?.Stop();
+            ReleaseContent(); // sauvegarde le contenu éventuel et libère les contrôles
             // Le fond de cette zone n'est plus affiché : on libère le bitmap mis en cache.
             Wallpaper.Release(_imageBrushPath);
             _imageBrush = null;
@@ -387,6 +398,65 @@ namespace DeskNest
         // Réglage Windows « réduire les animations » : toutes les animations de DeskNest le respectent.
         internal static bool AnimationsEnabled => SystemParameters.ClientAreaAnimation;
 
+        // ---------- Contenu selon le type de zone ----------
+        // Une seule fenêtre est utilisée pour tous les types : seul le contrôle
+        // placé dans AltContent change. Les contrôles sont créés paresseusement.
+        private void ApplyTypeContent()
+        {
+            bool expanded = !IsRolled;
+            bool showFiles = IsFiles && expanded;
+            bool showAlt = !IsFiles && expanded;
+            ContentScroll.Visibility = showFiles ? Visibility.Visible : Visibility.Collapsed;
+            AltContent.Visibility = showAlt ? Visibility.Visible : Visibility.Collapsed;
+            if (showFiles || showAlt) RestoreContent();
+            else ReleaseContent();
+        }
+
+        private void EnsureAltContent()
+        {
+            if (_altContent != null && ReferenceEquals(AltContent.Content, _altContent)) return;
+            ReleaseAltContent();
+            _altContent = Data.Type switch
+            {
+                NestTypes.Notes => CreateNotesContent(),
+                NestTypes.Todo => CreateTodoContent(),
+                _ => new Border()
+            };
+            AltContent.Content = _altContent;
+            _contentReleased = false;
+            ApplyAltFonts();
+        }
+
+        // Remplacé par N2 (notes) et N3 (to-do) ; ne rien faire pour un type inconnu.
+        private FrameworkElement CreateNotesContent() => new Border();
+        private FrameworkElement CreateTodoContent() => new Border();
+        private void ApplyAltFonts() { }
+        private void ReleaseAltContent() { }
+
+        // Replier une zone ne doit pas garder son contenu (potentiellement gros) en mémoire.
+        private void ReleaseContent()
+        {
+            if (_contentReleased) return;
+            _contentReleased = true;
+            if (IsFiles)
+            {
+                ItemsHost.ItemsSource = null;
+                _vms = new List<ItemVM>();
+                return;
+            }
+            ReleaseAltContent();
+            AltContent.Content = null;
+            _altContent = null;
+        }
+
+        private void RestoreContent()
+        {
+            if (!_contentReleased) return;
+            _contentReleased = false;
+            if (IsFiles) RefreshItems();
+            else EnsureAltContent();
+        }
+
         // ---------- Apparence / état (avec animation du Roll) ----------
         private void ApplyState(bool animate = false)
         {
@@ -403,7 +473,8 @@ namespace DeskNest
             double from = ActualHeight;
             if (animate && s.AnimateRoll && AnimationsEnabled && IsLoaded && IsVisible && from > 0 && Math.Abs(from - target) > 1)
             {
-                ContentScroll.Visibility = Visibility.Visible; // le contenu reste visible pendant l'animation
+                if (IsFiles) ContentScroll.Visibility = Visibility.Visible; // le contenu reste visible pendant l'animation
+                else { EnsureAltContent(); AltContent.Visibility = Visibility.Visible; }
                 MinHeight = 0;
                 // La fenêtre garde sa hauteur maximale pendant toute l'animation : seule la découpe
                 // du panneau est animée. Redimensionner la fenêtre à chaque image (fenêtre en
@@ -431,7 +502,7 @@ namespace DeskNest
 
         private void FinishState(bool rolled, double target)
         {
-            ContentScroll.Visibility = rolled ? Visibility.Collapsed : Visibility.Visible;
+            ApplyTypeContent();
             if (rolled) { MinHeight = 0; Height = target; }
             else { Height = target; MinHeight = 60; }
             BeginAnimation(HeightProperty, null);
@@ -662,11 +733,13 @@ namespace DeskNest
             }
 
             ItemsHost.FontSize = Data.ItemFontSize;
+            if (!IsFiles) ApplyAltFonts();
         }
 
         // Affichage Grille / Liste, propre à chaque zone.
         private void ApplyViewMode()
         {
+            if (!IsFiles) return;
             _lastListView = Data.ListView;
             ItemsHost.ItemsPanel = (ItemsPanelTemplate)FindResource(Data.ListView ? "ListItemsPanel" : "GridItemsPanel");
             ItemsHost.ItemTemplate = (DataTemplate)FindResource(Data.ListView ? "ListItemTemplate" : "GridItemTemplate");
@@ -752,6 +825,11 @@ namespace DeskNest
             var watch = Stopwatch.StartNew();
             StopHover();
             _hoverExpanded = false;
+            if (_lastType != Data.Type)
+            {
+                _lastType = Data.Type;
+                Root.ContextMenu = BuildNestMenu();
+            }
             // Masquer la barre de recherche ne doit pas laisser un filtre invisible actif.
             if (!_manager.Settings.ShowSearchBar && HasFilter)
             {
@@ -863,6 +941,7 @@ namespace DeskNest
 
         private void RefreshItems()
         {
+            if (!IsFiles || IsRolled) return; // Notes / To-do ont leur propre contenu ; replié = contenu libéré
             // Reconstruire la liste pendant une saisie ferait perdre le champ de saisie et le texte en cours.
             if (_editingTitle || _editingItem != null)
             {
@@ -2133,6 +2212,7 @@ namespace DeskNest
         private void Root_DragOver(object sender, DragEventArgs e)
         {
             e.Handled = true;
+            if (!IsFiles) { e.Effects = DragDropEffects.None; HideDragVisuals(); return; }
             if (_hoverMode == HoverMode.Collapse) StopHover();
 
             var pos = e.GetPosition(ItemsHost);
@@ -2208,6 +2288,7 @@ namespace DeskNest
             e.Handled = true;
             _dragOver = false;
             HideDragVisuals();
+            if (!IsFiles) return; // Notes / To-do n'acceptent pas de dépôt de fichiers
 
             var pos = e.GetPosition(ItemsHost);
             int idx = HasFilter ? -1 : GetInsertIndex(pos, out _);
@@ -2281,8 +2362,10 @@ namespace DeskNest
             }));
             _miApplyTemplate = new MenuItem { Header = Loc.T("m.applyTemplate") };
             m.Items.Add(_miApplyTemplate);
-            m.Items.Add(Mi(Loc.T("m.selectAll"), SelectAll));
+            _miSelectAll = Mi(Loc.T("m.selectAll"), SelectAll);
+            m.Items.Add(_miSelectAll);
             _miPaste = Mi(Loc.T("paste"), () => PasteHere(null));
+            _miPasteFiles = _miPaste;
             m.Items.Add(_miPaste);
             m.Items.Add(new Separator());
 
@@ -2294,7 +2377,8 @@ namespace DeskNest
             m.Items.Add(_miPortalChange);
             m.Items.Add(_miPortalOpen);
             m.Items.Add(_miPortalDetach);
-            m.Items.Add(new Separator());
+            _portalSep = new Separator();
+            m.Items.Add(_portalSep);
 
             var colors = new MenuItem { Header = Loc.T("m.color") };
             foreach (var (name, hex) in Palette.Presets)
@@ -2308,18 +2392,18 @@ namespace DeskNest
                     () => { Data.Opacity = pct / 100.0; ApplyColors(); })));
             m.Items.Add(opacity);
 
-            var sizes = new MenuItem { Header = Loc.T("m.iconSize") };
+            _miIconSize = new MenuItem { Header = Loc.T("m.iconSize") };
             foreach (var (key, px) in new[] { ("m.small", 32), ("m.medium", 40), ("m.large", 48) })
-                sizes.Items.Add(Mi(Loc.T(key), () => _manager.EditNest(Data, Loc.T("undo.iconSize"),
+                _miIconSize.Items.Add(Mi(Loc.T(key), () => _manager.EditNest(Data, Loc.T("undo.iconSize"),
                     () => { Data.IconSize = px; RefreshItems(); })));
-            m.Items.Add(sizes);
+            m.Items.Add(_miIconSize);
 
-            var view = new MenuItem { Header = Loc.T("m.view") };
+            _miView = new MenuItem { Header = Loc.T("m.view") };
             _miViewGrid = Mi(Loc.T("view.grid"), () => _manager.EditNest(Data, Loc.T("undo.view"), () => SetListView(false)));
             _miViewList = Mi(Loc.T("view.list"), () => _manager.EditNest(Data, Loc.T("undo.view"), () => SetListView(true)));
-            view.Items.Add(_miViewGrid);
-            view.Items.Add(_miViewList);
-            m.Items.Add(view);
+            _miView.Items.Add(_miViewGrid);
+            _miView.Items.Add(_miViewList);
+            m.Items.Add(_miView);
 
             m.Items.Add(Mi(Loc.T("m.fonts"), () => _manager.ShowSettings(Data)));
 
@@ -2369,10 +2453,16 @@ namespace DeskNest
                 _miUndo.IsEnabled = _manager.History.CanUndo;
                 _miRedo.IsEnabled = _manager.History.CanRedo;
                 _miPaste.IsEnabled = FileClipboard.HasFiles();
-                _miPortal.Visibility = IsPortal ? Visibility.Collapsed : Visibility.Visible;
-                _miPortalChange.Visibility = IsPortal ? Visibility.Visible : Visibility.Collapsed;
-                _miPortalOpen.Visibility = IsPortal ? Visibility.Visible : Visibility.Collapsed;
-                _miPortalDetach.Visibility = IsPortal ? Visibility.Visible : Visibility.Collapsed;
+                // Notes / To-do : ni portail, ni taille d'icônes, ni vue grille/liste, ni sélection de fichiers.
+                _miIconSize.Visibility = IsFiles ? Visibility.Visible : Visibility.Collapsed;
+                _miView.Visibility = IsFiles ? Visibility.Visible : Visibility.Collapsed;
+                _miSelectAll.Visibility = IsFiles ? Visibility.Visible : Visibility.Collapsed;
+                _miPasteFiles.Visibility = IsFiles ? Visibility.Visible : Visibility.Collapsed;
+                _portalSep.Visibility = IsFiles ? Visibility.Visible : Visibility.Collapsed;
+                _miPortal.Visibility = IsFiles && !IsPortal ? Visibility.Visible : Visibility.Collapsed;
+                _miPortalChange.Visibility = IsFiles && IsPortal ? Visibility.Visible : Visibility.Collapsed;
+                _miPortalOpen.Visibility = IsFiles && IsPortal ? Visibility.Visible : Visibility.Collapsed;
+                _miPortalDetach.Visibility = IsFiles && IsPortal ? Visibility.Visible : Visibility.Collapsed;
             };
             m.Closed += (_, _) =>
             {

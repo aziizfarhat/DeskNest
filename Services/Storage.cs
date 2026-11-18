@@ -69,6 +69,7 @@ namespace DeskNest
                 {
                     _fs = fileSystem;
                     _resolvedDir = directory;
+                    _v3BackupPending = false;
                 }
             }
         }
@@ -82,6 +83,7 @@ namespace DeskNest
                 {
                     _fs = new PhysicalFileSystem();
                     _resolvedDir = null;
+                    _v3BackupPending = false;
                 }
             }
         }
@@ -89,7 +91,11 @@ namespace DeskNest
         private static string FilePath => System.IO.Path.Combine(Dir, "layout.json");
         private static string BakPath => System.IO.Path.Combine(Dir, "layout.json.bak");
         private static string V2BakPath => System.IO.Path.Combine(Dir, "layout.json.v2.bak");
+        private static string V3BakPath => System.IO.Path.Combine(Dir, "layout.json.v3.bak");
         private static string LastGoodPath => System.IO.Path.Combine(Dir, "layout-last-good.json");
+        // Vrai tant qu'un layout lu au format V3 n'a pas encore été réécrit : la
+        // première écriture par cette version conserve l'original dans .v3.bak.
+        private static bool _v3BackupPending;
         private static readonly JsonSerializerOptions Opt = new() { WriteIndented = true };
 
         // Résultat du dernier chargement, pour prévenir l'utilisateur une fois la langue appliquée.
@@ -195,6 +201,7 @@ namespace DeskNest
             var watch = Stopwatch.StartNew();
             try
             {
+                EnsureV3Backup();
                 Normalize(data);
                 DisplayProfiles.EnsureActiveProfile(data);
                 hasZones = data.Nests.Count > 0;
@@ -230,6 +237,7 @@ namespace DeskNest
             var watch = Stopwatch.StartNew();
             try
             {
+                EnsureV3Backup();
                 Normalize(data);
                 DisplayProfiles.EnsureActiveProfile(data);
                 hasZones = data.Nests.Count > 0;
@@ -344,8 +352,34 @@ namespace DeskNest
                 CopyV2Backup(v2SourcePath);
             if (d.Version < 3)
                 Diag.Log("migration : layout Version 2 vers Version 3");
+            // Un layout au format V3 doit être conservé une fois avant la première
+            // écriture faite par cette version (qui ajoute Type / Tasks / réglages).
+            if (d.Version <= 3) _v3BackupPending = true;
             DisplayProfiles.EnsureActiveProfile(d);
             return d;
+        }
+
+        // Copie unique du layout d'origine avant toute réécriture au format 0.8.6.
+        // Le fichier n'est jamais écrasé : les versions précédentes restent restaurables.
+        private static void EnsureV3Backup()
+        {
+            if (!_v3BackupPending) return;
+            _v3BackupPending = false;
+            try
+            {
+                if (_fs.FileExists(V3BakPath))
+                {
+                    Diag.Log("migration : layout.json.v3.bak déjà présent");
+                    return;
+                }
+                if (!_fs.FileExists(FilePath)) return;
+                _fs.Copy(FilePath, V3BakPath, false);
+                Diag.Log("migration : copie conservée dans layout.json.v3.bak");
+            }
+            catch (Exception ex)
+            {
+                Diag.Log("migration : copie V3 impossible : " + ex.Message);
+            }
         }
 
         // Une seule copie du layout d'origine, avant toute réécriture au format V3.
@@ -404,12 +438,22 @@ namespace DeskNest
             foreach (var f in d.Nests)
             {
                 f.Items ??= new List<string>();
+                f.Tasks ??= new List<TodoTask>();
                 f.PortalOrder ??= new Dictionary<string, List<string>>();
                 f.Title ??= "";
                 f.Color ??= "#1E1E2E";
                 f.GradientStart ??= "#1E1E2E";
                 f.GradientEnd ??= "#4A3426";
                 f.BackgroundImage ??= "";
+                // Un layout sans Type (ou un Type inconnu) reste une zone de fichiers.
+                if (!NestTypes.IsKnown(f.Type)) f.Type = NestTypes.Files;
+                foreach (var task in f.Tasks)
+                {
+                    if (task == null) continue;
+                    task.Text ??= "";
+                    if (task.Id == Guid.Empty) task.Id = Guid.NewGuid();
+                }
+                f.Tasks.RemoveAll(t => t == null);
                 f.BackgroundMode = Math.Clamp(f.BackgroundMode, 0, 3);
                 f.GradientAngle %= 360;
                 if (f.GradientAngle < 0) f.GradientAngle += 360;
