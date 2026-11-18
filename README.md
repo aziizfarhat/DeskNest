@@ -49,23 +49,27 @@ Folder Portals provide convenient access to folder contents directly from your d
 
 ### Notes Nests
 
-Notes nests are plain-text notepads that live directly on your desktop. Their text is kept in `%APPDATA%\DeskNest\Notes\<nestId>.txt` as UTF-8, separate from `layout.json`, so layouts stay small and notes survive layout changes.
+Notes nests are plain-text notepads that live directly on your desktop. Their text is kept in `%APPDATA%\DeskNest\Notes\<nestId>.txt` as UTF-8, separate from `layout.json`, so layouts stay small and notes survive layout changes. New notes are titled `Note N` (localized prefix, lowest unused number) and open empty in edit mode.
 
-- Text is saved automatically about 800 ms after the last keystroke (configurable in Settings › Notes & Todo List), and on close or exit.
-- Saves are atomic: a temporary file is written and then replaces the previous one, with a backup kept for recovery.
-- Native TextBox undo and redo (`Ctrl+Z` / `Ctrl+Y`); layout undo/redo never affects note text.
-- Word wrap and a configurable font size. Rich text is intentionally not supported.
-- Deleting a note nest also deletes its text file. A missing file simply opens as an empty note.
-- A failed write keeps the text in memory and retries instead of losing it.
+- A note is **read-only by default**: no caret and a normal cursor. Click the pencil (Edit) button to edit; a Validate (check) and Cancel (X) button then appear.
+- `Enter` inserts a new line; `Ctrl+Enter` validates and returns to read-only. `Esc` cancels, asking for confirmation only if the text changed. Cancel restores the last saved text.
+- While editing, the real note file is never written. Instead the text is saved to `%APPDATA%\DeskNest\Notes\<id>.draft.txt` about 800 ms after the last keystroke (configurable in Settings › Notes & Todo List), atomically. Validate promotes the draft to the note and removes it; Cancel removes it.
+- If the app exits or crashes while editing, the draft is kept. On next startup a note with a draft opens in edit mode with the draft text, so nothing is lost.
+- Saves are atomic: a temporary file is written and then replaces the previous one, with a backup kept for recovery. A failed write keeps the text in memory and retries instead of losing it.
+- Native TextBox undo and redo (`Ctrl+Z` / `Ctrl+Y`) while editing; layout undo/redo never affects note text.
+- Word wrap and a configurable font size. Rich text is intentionally not supported. Text is capped at 100,000 characters.
+- Deleting a note nest deletes both its text file and its draft. A missing file simply opens as an empty note. Typing in a note never triggers nest hover collapse or the global hotkeys.
 
 ### To-do Lists
 
-To-do nests keep simple task lists on your desktop. Each nest shows a `done/total` count.
+To-do nests keep simple task lists on your desktop. Each nest shows a `done/total` count and is titled `Todo N` (localized prefix, lowest unused number).
 
-- Type a task in the input row at the top and press `Enter` to add it.
-- Click a task to edit it in place; press `Delete` to remove the selected task.
-- Checked tasks can be struck through, and can optionally move to the bottom; new tasks can be added at the top or the bottom.
-- Reorder tasks by dragging the small grip at the left of a row: a drop indicator shows the target position, and file drag-and-drop is not affected.
+- Type a task in the input row and press `Enter` (main keyboard or numpad) or click the `+` button to add it. The input is cleared and keeps focus; empty or whitespace-only input adds nothing.
+- Each row shows, in order: a drag grip, a checkbox, the task text, an edit (pencil) button, and a delete button. The checkbox is always visible and toggles strike-through / checked-to-bottom behavior.
+- Click the pencil to edit a task in place: the text is selected, with a Validate (check) and Cancel (X) button. `Enter` or the check saves, `Esc` or X cancels and restores the old text. An empty save is refused and keeps the row in edit mode. A row being edited cannot be dragged.
+- `Delete` removes the selected task. Checked tasks can be struck through and can optionally move to the bottom; new tasks can be added at the top or the bottom.
+- Reorder tasks by dragging the grip at the left of a row: a drop indicator shows the target position, and file drag-and-drop is not affected.
+- The font size is set globally with **Todo font size** in Settings › Notes & Todo List (default 12 pt) and applies immediately to open lists.
 - Tasks are stored in `layout.json` with their id, text, and done state.
 
 ### Quick Actions

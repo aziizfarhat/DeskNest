@@ -14,11 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - To-do nests with inline editing, deletion, drag reorder with a drop indicator, strike-through for checked tasks, optional checked-to-bottom sorting, top/bottom insertion and a `done/total` count.
 - A "Notes & Todo List" Settings tab with all new options, including the `Show quick actions in search` toggle.
 - A quick-actions palette on tray double-click and a shared compact quick-actions row in the global search palette, with five mouse/keyboard-driven actions. New nests are placed at the cursor, clamped to the work area and offset to avoid covering visible nests.
+- Localized default titles for new nests: `Todo N` and `Note N`, using the lowest unused number among nests of the same type (existing titles are never renamed).
+- A visible `+` validate button next to the task input, plus per-task edit and delete buttons and inline validate/cancel controls when editing a task.
+- A global **Todo font size** setting in the "Notes & Todo List" tab (default 12 pt), applied immediately to open lists; layouts saved without the key load with the default.
+- Crash-safe Notes drafts: while editing, text is written atomically to `<id>.draft.txt`, recovered into edit mode at startup, promoted on Validate and removed on Cancel; deleting a nest removes its note and draft.
 
 ### Changed
 
 - Tray double-click now opens the quick-actions palette instead of Settings; the tray menu and its commands are unchanged.
 - Quick-action buttons never take focus or appear in the Tab order, so typing and arrow keys keep controlling search results.
+- Notes are read-only by default (no caret, normal cursor) with an explicit Edit button. `Enter` inserts a newline and `Ctrl+Enter` validates; `Esc` cancels, confirming only when the text changed. The deferred save writes a draft while editing instead of the note itself, which is only written on Validate.
+
+### Fixed
+
+- Adding a task with `Enter` did nothing: `NestWindow.Window_PreviewKeyDown` is a tunneling handler that treated every `Enter` as `OpenSelected()` and set `e.Handled = true` before the task input's `KeyDown` could run. It now returns early when keyboard focus is inside a Notes/To-do nest, so their own handlers receive the keys. The same guard stops `Delete` and `Ctrl` shortcuts from being consumed while typing, and focused alt content counts as "busy" so hover collapse cannot destroy in-progress text.
 
 ## [0.8.5.0] - 2026-11-18
 

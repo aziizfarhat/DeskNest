@@ -42,6 +42,9 @@ namespace DeskNest.Tests
             Run("D6 : aller-retour 2560x1440 → 1920x1080 → 2560x1440", RoundTripAcrossMonitorChangeRestoresExactLayout);
             Run("N7 : parité des clés de traduction dans les douze langues", LocalizationKeysAreComplete);
             Run("N7 : profils d'affichage préservent Notes et To-do", NewTypesSurviveDisplayProfiles);
+            Run("F1 : titres par défaut localisés et numéro libre le plus bas", F1DefaultTitlesUseLocalizedLowestUnusedNumber);
+            Run("F2/F3 : ajout, édition et refus de tâche vide", F2F3TodoAddEditAndEmptyRules);
+            Run("F5 : cycle de vie des brouillons de note", F5NoteDraftLifecycle);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -306,7 +309,9 @@ namespace DeskNest.Tests
             {
                 "tab.notesTodo", "nt.todoTitle", "nt.todoStrike", "nt.todoBottom", "nt.todoAddTop",
                 "nt.notesTitle", "nt.notesFontSize", "nt.notesWrap", "nt.notesSaveDelay", "nt.quickSearch",
-                "todo.empty", "todo.count", "todo.drag", "tray.newTodo", "tray.newNote" })
+                "todo.empty", "todo.count", "todo.drag", "tray.newTodo", "tray.newNote",
+                "todo.default", "note.default", "todo.add", "todo.edit", "todo.validate", "nt.todoFontSize",
+                "note.edit", "note.validate", "note.discard", "note.discardTitle" })
                 Assert(english!.ContainsKey(key), "nouvelle clé absente : " + key);
         }
 
@@ -377,6 +382,7 @@ namespace DeskNest.Tests
             AssertEqual(13, s.NotesFontSize, "taille des notes par défaut");
             Assert(s.NotesWrap, "retour à la ligne des notes par défaut");
             AssertEqual(800, s.NotesSaveDelayMs, "délai de sauvegarde par défaut");
+            AssertEqual(12, s.TodoFontSize, "taille des tâches par défaut");
             Assert(s.TodoStrikeThrough, "barré des tâches cochées par défaut");
             Assert(!s.TodoCheckedToBottom, "tâches cochées en bas désactivé par défaut");
             Assert(!s.TodoAddAtTop, "ajout en haut désactivé par défaut");
@@ -456,6 +462,118 @@ namespace DeskNest.Tests
             Storage.UseFileSystem(fs, root);
             NotesStore.RetryPending();
             AssertEqual("Nouveau texte", NotesStore.Load(id), "texte réécrit après réussite");
+        }
+
+        private static void F1DefaultTitlesUseLocalizedLowestUnusedNumber()
+        {
+            Loc.SetLanguage("en");
+
+            // La clé dépend du type ; les zones classiques gardent « Zone N ».
+            AssertEqual("zone.default", DefaultTitles.KeyFor(NestTypes.Files), "clé Files");
+            AssertEqual("todo.default", DefaultTitles.KeyFor(NestTypes.Todo), "clé Todo");
+            AssertEqual("note.default", DefaultTitles.KeyFor(NestTypes.Notes), "clé Notes");
+            AssertEqual("zone.default", DefaultTitles.KeyFor(null), "clé type inconnu");
+            AssertEqual("Todo 1", Loc.F("todo.default", 1), "préfixe Todo anglais");
+            AssertEqual("Note 1", Loc.F("note.default", 1), "préfixe Note anglais");
+
+            // Numéro libre le plus bas, y compris avec un trou.
+            var todos = new[] { Loc.F("todo.default", 1), Loc.F("todo.default", 3), Loc.F("todo.default", 4) };
+            AssertEqual(2, DefaultTitles.NextNumber("todo.default", todos), "trou comblé pour Todo");
+            var notes = new[] { Loc.F("note.default", 2), Loc.F("note.default", 5) };
+            AssertEqual(1, DefaultTitles.NextNumber("note.default", notes), "premier numéro libre pour Note");
+
+            // Après suppression du numéro 2, on le réutilise.
+            var remaining = new List<string>
+            {
+                Loc.F("todo.default", 1), Loc.F("todo.default", 2), Loc.F("todo.default", 3)
+            };
+            remaining.RemoveAt(1);
+            AssertEqual(2, DefaultTitles.NextNumber("todo.default", remaining), "numéro réutilisé après suppression");
+
+            // Un titre d'un autre type n'entre pas en compte.
+            var mixed = new[] { Loc.F("zone.default", 1), Loc.F("zone.default", 2), Loc.F("todo.default", 1) };
+            AssertEqual(2, DefaultTitles.NextNumber("todo.default", mixed), "numérotation par type");
+
+            // Préfixe localisé : la numérotation suit la langue active.
+            Loc.SetLanguage("fr");
+            AssertEqual("Tâches 1", Loc.F("todo.default", 1), "préfixe Todo français");
+            var french = new[] { Loc.F("todo.default", 1), Loc.F("todo.default", 2) };
+            AssertEqual(3, DefaultTitles.NextNumber("todo.default", french), "numérotation en français");
+            Loc.SetLanguage("en");
+        }
+
+        private static void F2F3TodoAddEditAndEmptyRules()
+        {
+            // La touche Entrée (principale/pavé) et le bouton « + » utilisent la même voie.
+            Assert(TodoOrder.TryCreate("  Acheter du lait  ", out var created), "saisie non vide acceptée");
+            AssertEqual("Acheter du lait", created!.Text, "texte coupé autour");
+            Assert(!TodoOrder.TryCreate("   ", out var blank), "saisie blanche refusée");
+            Assert(blank == null, "aucune tâche créée pour une saisie blanche");
+            Assert(!TodoOrder.TryCreate("", out var empty), "saisie vide refusée");
+            Assert(!TodoOrder.TryCreate(null, out var none), "saisie nulle refusée");
+
+            // Ajout en haut / en bas, identique pour la touche et le bouton.
+            var tasks = new List<TodoTask>();
+            TodoOrder.Insert(tasks, new TodoTask { Text = "Bas" }, false);
+            TodoOrder.Insert(tasks, new TodoTask { Text = "Haut" }, true);
+            AssertEqual("Haut,Bas", string.Join(",", tasks.Select(t => t.Text)), "ajout haut et bas");
+
+            // Édition en place : validation et refus du vide.
+            var task = new TodoTask { Text = "Ancien texte" };
+            Assert(!TodoOrder.CommitEdit(task, "   "), "édition vide refusée");
+            AssertEqual("Ancien texte", task.Text, "texte conservé après refus");
+            Assert(TodoOrder.CommitEdit(task, "  Nouveau texte  "), "édition validée");
+            AssertEqual("Nouveau texte", task.Text, "texte mis à jour");
+        }
+
+        private static void F5NoteDraftLifecycle()
+        {
+            var (fs, _) = Sandbox();
+            var id = Guid.NewGuid();
+            var notePath = NotesStore.PathFor(id);
+            var draftPath = NotesStore.DraftPathFor(id);
+
+            AssertEqual(id.ToString("N") + ".draft.txt", Path.GetFileName(draftPath), "nom du brouillon");
+            Assert(!NotesStore.HasDraft(id), "aucun brouillon au départ");
+            AssertEqual("", NotesStore.LoadDraft(id), "brouillon absent = vide");
+
+            // Création : seule la saisie est écrite, jamais la note réelle.
+            Assert(NotesStore.SaveDraft(id, "Brouillon en cours"), "brouillon créé");
+            Assert(NotesStore.HasDraft(id), "brouillon détecté");
+            Assert(fs.FileExists(draftPath), "fichier .draft.txt présent");
+            Assert(!fs.FileExists(draftPath + ".tmp"), "aucun temporaire laissé par l'écriture atomique");
+            AssertEqual("Brouillon en cours", NotesStore.LoadDraft(id), "brouillon relu");
+            AssertEqual("", NotesStore.Load(id), "note réelle intacte pendant l'édition");
+            Assert(!fs.FileExists(notePath), "aucun fichier de note avant validation");
+
+            // Validation : le brouillon devient la note et disparaît.
+            Assert(NotesStore.PromoteDraft(id, "Texte validé"), "brouillon promu");
+            AssertEqual("Texte validé", NotesStore.Load(id), "note enregistrée");
+            Assert(!NotesStore.HasDraft(id), "brouillon supprimé après validation");
+            AssertEqual("", NotesStore.LoadDraft(id), "plus de brouillon");
+
+            // Annulation : on garde la note, on jette le brouillon.
+            Assert(NotesStore.SaveDraft(id, "À annuler"), "nouveau brouillon");
+            NotesStore.DeleteDraft(id);
+            Assert(!NotesStore.HasDraft(id), "brouillon annulé");
+            AssertEqual("Texte validé", NotesStore.Load(id), "note conservée après annulation");
+
+            // Reprise au démarrage : un brouillon existant est relu sans écraser la note.
+            Assert(NotesStore.SaveDraft(id, "Récupéré au démarrage"), "brouillon avant redémarrage");
+            Assert(NotesStore.HasDraft(id), "brouillon à récupérer");
+            AssertEqual("Récupéré au démarrage", NotesStore.LoadDraft(id), "texte récupéré");
+            AssertEqual("Texte validé", NotesStore.Load(id), "note non écrasée par la récupération");
+
+            // Longueur bornée, comme la note.
+            Assert(NotesStore.SaveDraft(id, new string('x', NotesStore.MaxChars + 1)), "brouillon long accepté");
+            AssertEqual(NotesStore.MaxChars, NotesStore.LoadDraft(id).Length, "brouillon tronqué à la limite");
+
+            // Suppression de la zone : note et brouillon disparaissent.
+            NotesStore.Delete(id);
+            Assert(!NotesStore.HasDraft(id), "brouillon supprimé avec la zone");
+            AssertEqual("", NotesStore.Load(id), "note supprimée avec la zone");
+            Assert(!fs.FileExists(notePath), "fichier de note supprimé");
+            Assert(!fs.FileExists(draftPath), "fichier de brouillon supprimé");
         }
 
         private sealed class FailingFileSystem : IFileSystem
