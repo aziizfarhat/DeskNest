@@ -271,8 +271,11 @@
  "tray.newNote": "새 메모",
  "todo.default": "할 일 {0}",
  "note.default": "메모 {0}",
- "todo.add": "작업 추가"
+ "todo.add": "작업 추가",
+ "todo.edit": "작업 편집",
+ "todo.validate": "작업 저장"
 }
+
 
 
 

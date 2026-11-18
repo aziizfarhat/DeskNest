@@ -271,8 +271,11 @@
  "tray.newNote": "Nouvelle note",
  "todo.default": "Tâches {0}",
  "note.default": "Note {0}",
- "todo.add": "Ajouter une tâche"
+ "todo.add": "Ajouter une tâche",
+ "todo.edit": "Modifier la tâche",
+ "todo.validate": "Enregistrer la tâche"
 }
+
 
 
 

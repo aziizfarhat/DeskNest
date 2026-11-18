@@ -271,8 +271,11 @@
  "tray.newNote": "Nuova nota",
  "todo.default": "Attività {0}",
  "note.default": "Nota {0}",
- "todo.add": "Aggiungi attività"
+ "todo.add": "Aggiungi attività",
+ "todo.edit": "Modifica attività",
+ "todo.validate": "Salva attività"
 }
+
 
 
 

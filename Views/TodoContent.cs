@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -181,6 +182,7 @@ namespace DeskNest
 
         private void Todo_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (_editing != null) return; // la touche appartient au champ d'édition
             if (e.Key == Key.Delete && _selected != null)
             {
                 e.Handled = true;
@@ -204,23 +206,75 @@ namespace DeskNest
         private List<TodoTask> Ordered() =>
             TodoOrder.Sort(_data.Tasks, _manager.Settings.TodoCheckedToBottom);
 
-        private void Refresh()
+        // Un clic sur un contrôle interactif ne doit pas reconstruire la ligne
+        // (sinon le bouton qui reçoit le clic disparaît avant son événement Click).
+        private static bool IsInteractiveSource(DependencyObject? d)
+        {
+            while (d != null)
+            {
+                if (d is ButtonBase || d is TextBoxBase || d is TextBlock) return true;
+                d = VisualTreeHelper.GetParent(d);
+            }
+            return false;
+        }
+
+        // Reconstruit les lignes sans perdre une édition en cours : le texte du
+        // champ est conservé et le focus lui est rendu si nécessaire.
+        private void Refresh(string? editTextOverride = null)
         {
             if (_refreshing) return;
             _refreshing = true;
-            EndEdit(false);
+            string? editText = editTextOverride ??
+                (_editing != null && _editBox != null ? _editBox.Text : null);
+            int caret = _editBox?.CaretIndex ?? 0;
+            bool editFocused = _editBox != null && _editBox.IsKeyboardFocused;
+            _editBox = null;
+
             _rows.Children.Clear();
             var tasks = Ordered();
-            foreach (var task in tasks) _rows.Children.Add(BuildRow(task));
+            foreach (var task in tasks) _rows.Children.Add(BuildRow(task, editText));
             _empty.Visibility = tasks.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             int done = tasks.Count(t => t.Done);
             _count.Text = Loc.F("todo.count", done, tasks.Count);
             HideIndicator();
+
+            if (editFocused && _editBox != null)
+            {
+                _editBox.Focus();
+                Keyboard.Focus(_editBox);
+                _editBox.CaretIndex = Math.Min(caret, _editBox.Text.Length);
+            }
             _refreshing = false;
         }
 
-        private UIElement BuildRow(TodoTask task)
+        private static Button SmallButton(string glyph, string tooltip, Action click)
         {
+            var button = new Button
+            {
+                Content = glyph,
+                FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                FontSize = 12,
+                Foreground = Brushes.White,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Width = 22,
+                Height = 22,
+                Padding = new Thickness(0),
+                Margin = new Thickness(1, 0, 1, 0),
+                Focusable = false,
+                Cursor = Cursors.Hand,
+                ToolTip = tooltip,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            KeyboardNavigation.SetIsTabStop(button, false);
+            button.Click += (_, _) => click();
+            return button;
+        }
+
+        private UIElement BuildRow(TodoTask task, string? editText)
+        {
+            bool editing = ReferenceEquals(task, _editing);
             var row = new Border
             {
                 Padding = new Thickness(2, 3, 4, 3),
@@ -231,6 +285,7 @@ namespace DeskNest
             };
             row.MouseLeftButtonDown += (_, e) =>
             {
+                if (editing || IsInteractiveSource(e.OriginalSource as DependencyObject)) return;
                 _selected = task;
                 e.Handled = true;
                 Focus();
@@ -241,7 +296,10 @@ namespace DeskNest
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+            // 1. Poignée de glisser (désactivée en mode édition).
             var grip = new Border
             {
                 Width = 10,
@@ -249,6 +307,8 @@ namespace DeskNest
                 Background = Brushes.Transparent,
                 Cursor = Cursors.SizeAll,
                 ToolTip = Loc.T("todo.drag"),
+                IsEnabled = !editing,
+                Opacity = editing ? 0.35 : 1.0,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
@@ -264,6 +324,7 @@ namespace DeskNest
             grid.Children.Add(grip);
             Grid.SetColumn(grip, 0);
 
+            // 2. Case « terminé », toujours visible et cliquable.
             var check = new CheckBox
             {
                 IsChecked = task.Done,
@@ -274,81 +335,125 @@ namespace DeskNest
             grid.Children.Add(check);
             Grid.SetColumn(check, 1);
 
-            var label = new TextBlock
+            // 3. Texte ou champ d'édition.
+            UIElement textControl;
+            if (editing)
             {
-                Text = task.Text,
-                VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                TextDecorations = task.Done && _manager.Settings.TodoStrikeThrough ? TextDecorations.Strikethrough : null,
-                Opacity = task.Done && _manager.Settings.TodoStrikeThrough ? 0.55 : 1.0,
-                Foreground = Brushes.White,
-                Cursor = Cursors.IBeam
-            };
-            label.MouseLeftButtonUp += (_, e) =>
+                var box = new TextBox
+                {
+                    Text = editText ?? task.Text,
+                    Foreground = Brushes.White,
+                    CaretBrush = Brushes.White,
+                    Background = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0)),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)),
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(2, 0, 2, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    MaxLength = 1000,
+                    AcceptsReturn = false
+                };
+                box.KeyDown += (_, e) =>
+                {
+                    if (e.Key == Key.Enter || e.Key == Key.Return) { e.Handled = true; EndEdit(true); }
+                    else if (e.Key == Key.Escape) { e.Handled = true; EndEdit(false); }
+                };
+                _editBox = box;
+                textControl = box;
+            }
+            else
             {
-                if (_editing == task) return;
-                e.Handled = true;
-                BeginEdit(task, label);
-            };
-            grid.Children.Add(label);
-            Grid.SetColumn(label, 2);
+                var label = new TextBlock
+                {
+                    Text = task.Text,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    TextDecorations = task.Done && _manager.Settings.TodoStrikeThrough ? TextDecorations.Strikethrough : null,
+                    Opacity = task.Done && _manager.Settings.TodoStrikeThrough ? 0.55 : 1.0,
+                    Foreground = Brushes.White,
+                    Cursor = Cursors.IBeam
+                };
+                label.MouseLeftButtonUp += (_, e) =>
+                {
+                    if (_editing == task) return;
+                    e.Handled = true;
+                    BeginEdit(task);
+                };
+                textControl = label;
+            }
+            grid.Children.Add(textControl);
+            Grid.SetColumn(textControl, 2);
+
+            // 4 et 5. Crayon + poubelle, ou croix + X en mode édition.
+            var action = editing
+                ? SmallButton("\uE73E", Loc.T("todo.validate"), () => EndEdit(true))
+                : SmallButton("\uE712", Loc.T("todo.edit"), () => BeginEdit(task));
+            grid.Children.Add(action);
+            Grid.SetColumn(action, 3);
+
+            var remove = editing
+                ? SmallButton("\uE711", Loc.T("dlg.cancel"), () => EndEdit(false))
+                : SmallButton("\uE74D", Loc.T("i.delete"), () => DeleteTask(task));
+            grid.Children.Add(remove);
+            Grid.SetColumn(remove, 4);
 
             row.Child = grid;
             return row;
         }
 
-        private void BeginEdit(TodoTask task, TextBlock label)
+        private void DeleteTask(TodoTask task)
         {
-            if (_editing != null) EndEdit(true);
-            var row = label.Parent as Grid;
-            if (row == null) return;
-            int at = row.Children.IndexOf(label);
-            if (at < 0) return;
-            var box = new TextBox
+            if (_editing == task) return;
+            if (_selected == task) _selected = null;
+            _data.Tasks.Remove(task);
+            _manager.RequestSave();
+            Refresh();
+            Focus();
+        }
+
+        private void BeginEdit(TodoTask task)
+        {
+            if (_editing != null && !ReferenceEquals(_editing, task)) EndEdit(true);
+            if (_editing == task)
             {
-                Text = task.Text,
-                Foreground = Brushes.White,
-                CaretBrush = Brushes.White,
-                Background = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(2, 0, 2, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                MaxLength = 1000
-            };
-            row.Children.Remove(label);
-            row.Children.Insert(at, box);
-            Grid.SetColumn(box, 2);
-            box.KeyDown += (sender, e) =>
-            {
-                if (e.Key == Key.Enter) { EndEdit(true); e.Handled = true; }
-                else if (e.Key == Key.Escape) { EndEdit(false); e.Handled = true; }
-            };
-            box.LostKeyboardFocus += (_, _) => EndEdit(true);
+                if (_editBox != null) { _editBox.Focus(); Keyboard.Focus(_editBox); }
+                return;
+            }
+            _selected = task;
             _editing = task;
-            _editBox = box;
-            box.Focus();
-            Keyboard.Focus(box);
-            box.SelectAll();
+            _editBox = null;
+            Refresh();
+            if (_editBox != null)
+            {
+                _editBox.Focus();
+                Keyboard.Focus(_editBox);
+                _editBox.SelectAll();
+            }
         }
 
         private void EndEdit(bool commit)
         {
-            if (_editing == null || _editBox == null) return;
+            if (_editing == null) return;
             var task = _editing;
-            var text = _editBox.Text.Trim();
+            string text = _editBox?.Text ?? "";
+
+            // Texte vide : refus, on reste en édition avec le champ vide.
+            if (commit && string.IsNullOrWhiteSpace(text))
+            {
+                _editBox = null;
+                Refresh(text);
+                if (_editBox != null) { _editBox.Focus(); Keyboard.Focus(_editBox); }
+                return;
+            }
+
             _editing = null;
             _editBox = null;
-            if (commit && text.Length > 0 && text != task.Text)
-            {
-                task.Text = text;
-                _manager.RequestSave();
-            }
+            if (commit && TodoOrder.CommitEdit(task, text)) _manager.RequestSave();
             Refresh();
         }
 
         private void BeginDrag(TodoTask task, UIElement source, MouseButtonEventArgs e)
         {
+            if (_editing != null) return; // une ligne en édition n'est pas déplaçable
             if (e.LeftButton != MouseButtonState.Pressed) return;
             e.Handled = true;
             _drag = task;

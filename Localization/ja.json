@@ -271,8 +271,11 @@
  "tray.newNote": "新しいメモ",
  "todo.default": "To-Do {0}",
  "note.default": "メモ {0}",
- "todo.add": "タスクを追加"
+ "todo.add": "タスクを追加",
+ "todo.edit": "タスクを編集",
+ "todo.validate": "タスクを保存"
 }
+
 
 
 

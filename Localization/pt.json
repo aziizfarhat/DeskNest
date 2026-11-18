@@ -271,8 +271,11 @@
  "tray.newNote": "Nova nota",
  "todo.default": "Tarefas {0}",
  "note.default": "Nota {0}",
- "todo.add": "Adicionar tarefa"
+ "todo.add": "Adicionar tarefa",
+ "todo.edit": "Editar tarefa",
+ "todo.validate": "Guardar tarefa"
 }
+
 
 
 

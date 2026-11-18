@@ -31,6 +31,16 @@ namespace DeskNest
             return true;
         }
 
+        // Validation d'une édition en place. Une saisie vide est refusée : la
+        // tâche garde son texte précédent et l'interface reste en mode édition.
+        public static bool CommitEdit(TodoTask task, string? raw)
+        {
+            var text = raw?.Trim() ?? "";
+            if (text.Length == 0) return false;
+            task.Text = text;
+            return true;
+        }
+
         public static void Insert(List<TodoTask> tasks, TodoTask task, bool addAtTop)
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
