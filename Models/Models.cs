@@ -58,6 +58,9 @@ namespace DeskNest
 
         [JsonIgnore] public string Label => Enabled ? Title : Title + " " + Loc.T("z.hidden");
 
+        // Une note fraîchement créée s'ouvre en édition ; cet état n'est pas persisté.
+        [JsonIgnore] public bool StartEditing { get; set; }
+
         // Zone classique : chemins des éléments, dans l'ordre choisi (références, jamais déplacés).
         public List<string> Items { get; set; } = new();
 

@@ -274,8 +274,13 @@
  "todo.add": "작업 추가",
  "todo.edit": "작업 편집",
  "todo.validate": "작업 저장",
- "nt.todoFontSize": "글꼴 크기: {0} pt"
+ "nt.todoFontSize": "글꼴 크기: {0} pt",
+ "note.edit": "메모 편집",
+ "note.validate": "메모 저장",
+ "note.discard": "저장하지 않은 변경 내용을 버리시겠습니까?",
+ "note.discardTitle": "편집 취소"
 }
+
 
 
 

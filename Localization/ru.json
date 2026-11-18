@@ -274,8 +274,13 @@
  "todo.add": "Добавить задачу",
  "todo.edit": "Изменить задачу",
  "todo.validate": "Сохранить задачу",
- "nt.todoFontSize": "Размер шрифта: {0} pt"
+ "nt.todoFontSize": "Размер шрифта: {0} pt",
+ "note.edit": "Изменить заметку",
+ "note.validate": "Сохранить заметку",
+ "note.discard": "Отменить несохранённые изменения?",
+ "note.discardTitle": "Отмена редактирования"
 }
+
 
 
 

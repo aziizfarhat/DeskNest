@@ -274,8 +274,13 @@
  "todo.add": "Aufgabe hinzufügen",
  "todo.edit": "Aufgabe bearbeiten",
  "todo.validate": "Aufgabe speichern",
- "nt.todoFontSize": "Schriftgröße: {0} pt"
+ "nt.todoFontSize": "Schriftgröße: {0} pt",
+ "note.edit": "Notiz bearbeiten",
+ "note.validate": "Notiz speichern",
+ "note.discard": "Nicht gespeicherte Änderungen verwerfen?",
+ "note.discardTitle": "Bearbeitung abbrechen"
 }
+
 
 
 

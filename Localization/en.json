@@ -274,8 +274,13 @@
  "todo.add": "Add task",
  "todo.edit": "Edit task",
  "todo.validate": "Save task",
- "nt.todoFontSize": "Font size: {0} pt"
+ "nt.todoFontSize": "Font size: {0} pt",
+ "note.edit": "Edit note",
+ "note.validate": "Save note",
+ "note.discard": "Discard unsaved changes?",
+ "note.discardTitle": "Cancel editing"
 }
+
 
 
 

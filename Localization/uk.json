@@ -274,8 +274,13 @@
  "todo.add": "Додати завдання",
  "todo.edit": "Редагувати завдання",
  "todo.validate": "Зберегти завдання",
- "nt.todoFontSize": "Розмір шрифту: {0} pt"
+ "nt.todoFontSize": "Розмір шрифту: {0} pt",
+ "note.edit": "Редагувати нотатку",
+ "note.validate": "Зберегти нотатку",
+ "note.discard": "Відкинути незбережені зміни?",
+ "note.discardTitle": "Скасувати редагування"
 }
+
 
 
 

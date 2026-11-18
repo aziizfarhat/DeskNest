@@ -274,8 +274,13 @@
  "todo.add": "添加任务",
  "todo.edit": "编辑任务",
  "todo.validate": "保存任务",
- "nt.todoFontSize": "字号：{0} pt"
+ "nt.todoFontSize": "字号：{0} pt",
+ "note.edit": "编辑笔记",
+ "note.validate": "保存笔记",
+ "note.discard": "放弃未保存的更改？",
+ "note.discardTitle": "取消编辑"
 }
+
 
 
 

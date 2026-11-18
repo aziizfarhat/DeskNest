@@ -119,6 +119,10 @@ namespace DeskNest
             }
             finally { _applyingProfileBounds = false; }
             InitBaselines();
+
+            // Une note laissée en édition (plantage, fermeture brutale) est rouverte
+            // avec son brouillon afin qu'aucune saisie ne soit perdue.
+            foreach (var w in _windows.ToList()) w.RestoreNoteDraftIfAny();
 #if DEBUG
             LogMemory("zones affichées");
 #endif

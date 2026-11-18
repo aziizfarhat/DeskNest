@@ -149,6 +149,11 @@ namespace DeskNest
         private TextBox? _notesBox;
         private DispatcherTimer? _notesTimer;
         private string _notesText = "";
+        private string _notesSavedText = "";
+        private bool _notesEditing;
+        private Button? _notesEditButton;
+        private Button? _notesValidateButton;
+        private Button? _notesCancelButton;
         private string PortalName
         {
             get
@@ -431,27 +436,159 @@ namespace DeskNest
         }
 
         // --- Notes : TextBox brut, sans rich text, avec undo natif ---
+        // Lecture par défaut ; l'édition est explicite et n'écrit que dans un
+        // brouillon jusqu'à la validation.
         private FrameworkElement CreateNotesContent()
         {
-            _notesText = NotesStore.Load(Data.Id);
+            _notesSavedText = NotesStore.Load(Data.Id);
+            bool draft = NotesStore.HasDraft(Data.Id);
+            string initial = draft ? NotesStore.LoadDraft(Data.Id) : _notesSavedText;
+            _notesText = initial;
+
             var box = new TextBox
             {
-                Text = _notesText,
+                Text = initial,
                 AcceptsReturn = true,
                 MaxLength = NotesStore.MaxChars,
                 Background = new SolidColorBrush(Color.FromArgb(20, 255, 255, 255)),
                 Foreground = Brushes.White,
-                CaretBrush = Brushes.White,
+                CaretBrush = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
                 Padding = new Thickness(2),
-                IsUndoEnabled = true,
-                UndoLimit = 100,
+                IsReadOnly = true,
+                Cursor = Cursors.Arrow,
+                IsUndoEnabled = false,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
             };
             box.TextChanged += NotesBox_TextChanged;
+            box.PreviewKeyDown += NotesBox_PreviewKeyDown;
             _notesBox = box;
-            return box;
+
+            _notesEditButton = NoteButton("\uE712", "note.edit", () => ApplyNotesMode(true));
+            _notesValidateButton = NoteButton("\uE73E", "note.validate", ValidateNotes);
+            _notesCancelButton = NoteButton("\uE711", "dlg.cancel", CancelNotesEdit);
+
+            var bar = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 4, 2, 0)
+            };
+            bar.Children.Add(_notesEditButton);
+            bar.Children.Add(_notesValidateButton);
+            bar.Children.Add(_notesCancelButton);
+
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.Children.Add(box);
+            Grid.SetRow(box, 0);
+            grid.Children.Add(bar);
+            Grid.SetRow(bar, 1);
+
+            // Une note créée à l'instant est vide et directement éditable.
+            bool startEditing = Data.StartEditing || draft;
+            Data.StartEditing = false;
+            ApplyNotesMode(startEditing);
+            return grid;
+        }
+
+        private static Button NoteButton(string glyph, string tooltipKey, Action click)
+        {
+            var button = new Button
+            {
+                Content = glyph,
+                FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                FontSize = 12,
+                Foreground = Brushes.White,
+                Background = new SolidColorBrush(Color.FromArgb(32, 255, 255, 255)),
+                BorderThickness = new Thickness(0),
+                Width = 24,
+                Height = 22,
+                Padding = new Thickness(0),
+                Margin = new Thickness(2, 0, 0, 0),
+                Focusable = false,
+                Cursor = Cursors.Hand,
+                ToolTip = Loc.T(tooltipKey)
+            };
+            KeyboardNavigation.SetIsTabStop(button, false);
+            button.Click += (_, _) => click();
+            return button;
+        }
+
+        private void ApplyNotesMode(bool editing)
+        {
+            _notesEditing = editing;
+            if (_notesBox == null) return;
+            _notesBox.IsReadOnly = !editing;
+            _notesBox.CaretBrush = editing ? Brushes.White : Brushes.Transparent;
+            _notesBox.Cursor = editing ? Cursors.IBeam : Cursors.Arrow;
+            _notesBox.IsUndoEnabled = editing;
+            if (editing) _notesBox.UndoLimit = 100;
+            if (_notesEditButton != null) _notesEditButton.Visibility = editing ? Visibility.Collapsed : Visibility.Visible;
+            if (_notesValidateButton != null) _notesValidateButton.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+            if (_notesCancelButton != null) _notesCancelButton.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+            if (editing)
+            {
+                _notesBox.Focus();
+                Keyboard.Focus(_notesBox);
+            }
+        }
+
+        internal void RestoreNoteDraftIfAny()
+        {
+            if (Data.Type != NestTypes.Notes) return;
+            if (_altContent == null || _contentReleased) EnsureAltContent();
+            if (_notesBox == null || !NotesStore.HasDraft(Data.Id)) return;
+            _notesBox.Text = NotesStore.LoadDraft(Data.Id);
+            _notesText = _notesBox.Text;
+            ApplyNotesMode(true);
+        }
+
+        private void NotesBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (!_notesEditing) return;
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                CancelNotesEdit();
+            }
+            else if ((e.Key == Key.Enter || e.Key == Key.Return) && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                // Entrée seul insère une nouvelle ligne ; Ctrl+Entrée valide.
+                e.Handled = true;
+                ValidateNotes();
+            }
+        }
+
+        private void ValidateNotes()
+        {
+            if (!_notesEditing || _notesBox == null) return;
+            var text = _notesBox.Text;
+            NotesStore.PromoteDraft(Data.Id, text);
+            _notesSavedText = text;
+            _notesText = text;
+            _notesTimer?.Stop();
+            ApplyNotesMode(false);
+        }
+
+        private void CancelNotesEdit()
+        {
+            if (!_notesEditing || _notesBox == null) return;
+            if (!string.Equals(_notesBox.Text, _notesSavedText, StringComparison.Ordinal))
+            {
+                var answer = MessageBox.Show(this,
+                    Loc.T("note.discard"), Loc.T("note.discardTitle"),
+                    MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No, Loc.MsgOptions);
+                if (answer != MessageBoxResult.Yes) return;
+            }
+            _notesEditing = false;
+            _notesTimer?.Stop();
+            NotesStore.DeleteDraft(Data.Id);
+            _notesBox.Text = _notesSavedText;
+            _notesText = _notesSavedText;
+            ApplyNotesMode(false);
         }
 
         private FrameworkElement CreateTodoContent() => new TodoContent(_manager, Data);
@@ -474,25 +611,31 @@ namespace DeskNest
 
         private void ReleaseAltContent()
         {
-            if (Data.Type == NestTypes.Notes) FlushNotes();
+            // En cours d'édition, on ne écrit QUE le brouillon : quitter l'application
+            // ne doit jamais transformer une saisie non validée en note officielle.
+            if (Data.Type == NestTypes.Notes && _notesEditing) FlushNoteDraft();
         }
 
         private void NotesBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (_notesBox == null) return;
+            if (_notesBox == null || !_notesEditing) return;
             _notesText = _notesBox.Text;
             _notesTimer ??= new DispatcherTimer();
-            _notesTimer.Tick += (_, _) => FlushNotes();
+            _notesTimer.Tick -= NotesTimer_Tick;
+            _notesTimer.Tick += NotesTimer_Tick;
             _notesTimer.Interval = TimeSpan.FromMilliseconds(Math.Clamp(_manager.Settings.NotesSaveDelayMs, 50, 60000));
             _notesTimer.Stop();
             _notesTimer.Start();
         }
 
-        private void FlushNotes()
+        private void NotesTimer_Tick(object? sender, EventArgs e) => FlushNoteDraft();
+
+        private void FlushNoteDraft()
         {
             _notesTimer?.Stop();
-            if (_notesBox != null) _notesText = _notesBox.Text;
-            NotesStore.Save(Data.Id, _notesText);
+            if (_notesBox == null || !_notesEditing) return;
+            _notesText = _notesBox.Text;
+            NotesStore.SaveDraft(Data.Id, _notesText);
         }
 
         // Replier une zone ne doit pas garder son contenu (potentiellement gros) en mémoire.

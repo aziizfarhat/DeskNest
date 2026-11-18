@@ -24,6 +24,7 @@ namespace DeskNest
             var d = NewNestData("");
             d.Type = NestTypes.IsKnown(type) ? type : NestTypes.Files;
             if (d.Type == NestTypes.Todo) d.Height = 300;
+            if (d.Type == NestTypes.Notes) d.StartEditing = true;
             PlaceAtCursor(d);
             FinishQuickCreate(d);
         }

@@ -274,8 +274,13 @@
  "todo.add": "タスクを追加",
  "todo.edit": "タスクを編集",
  "todo.validate": "タスクを保存",
- "nt.todoFontSize": "フォントサイズ: {0} pt"
+ "nt.todoFontSize": "フォントサイズ: {0} pt",
+ "note.edit": "メモを編集",
+ "note.validate": "メモを保存",
+ "note.discard": "保存されていない変更を破棄しますか？",
+ "note.discardTitle": "編集をキャンセル"
 }
+
 
 
 

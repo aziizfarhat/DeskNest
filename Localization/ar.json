@@ -274,8 +274,13 @@
  "todo.add": "إضافة مهمة",
  "todo.edit": "تعديل المهمة",
  "todo.validate": "حفظ المهمة",
- "nt.todoFontSize": "حجم الخط: {0} نقطة"
+ "nt.todoFontSize": "حجم الخط: {0} نقطة",
+ "note.edit": "تعديل الملاحظة",
+ "note.validate": "حفظ الملاحظة",
+ "note.discard": "تجاهل التغييرات غير المحفوظة؟",
+ "note.discardTitle": "إلغاء التعديل"
 }
+
 
 
 

@@ -274,8 +274,13 @@
  "todo.add": "Ajouter une tâche",
  "todo.edit": "Modifier la tâche",
  "todo.validate": "Enregistrer la tâche",
- "nt.todoFontSize": "Taille de police : {0} pt"
+ "nt.todoFontSize": "Taille de police : {0} pt",
+ "note.edit": "Modifier la note",
+ "note.validate": "Enregistrer la note",
+ "note.discard": "Abandonner les modifications non enregistrées ?",
+ "note.discardTitle": "Annuler la modification"
 }
+
 
 
 

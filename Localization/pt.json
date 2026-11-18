@@ -274,8 +274,13 @@
  "todo.add": "Adicionar tarefa",
  "todo.edit": "Editar tarefa",
  "todo.validate": "Guardar tarefa",
- "nt.todoFontSize": "Tamanho da fonte: {0} pt"
+ "nt.todoFontSize": "Tamanho da fonte: {0} pt",
+ "note.edit": "Editar nota",
+ "note.validate": "Guardar nota",
+ "note.discard": "Descartar alterações não guardadas?",
+ "note.discardTitle": "Cancelar edição"
 }
+
 
 
 
