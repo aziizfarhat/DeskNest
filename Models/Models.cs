@@ -184,6 +184,11 @@ namespace DeskNest
         public int NotesFontSize { get; set; } = 13;
         public bool NotesWrap { get; set; } = true;
         public int NotesSaveDelayMs { get; set; } = 800;
+
+        // To-do (valeurs globales, sans surcharge par zone).
+        public bool TodoStrikeThrough { get; set; } = true;
+        public bool TodoCheckedToBottom { get; set; }
+        public bool TodoAddAtTop { get; set; }
     }
 
     public static class Palette

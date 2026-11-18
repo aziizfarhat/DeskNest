@@ -454,7 +454,7 @@ namespace DeskNest
             return box;
         }
 
-        private FrameworkElement CreateTodoContent() => new Border();
+        private FrameworkElement CreateTodoContent() => new TodoContent(_manager, Data);
 
         private void ApplyAltFonts()
         {
@@ -464,6 +464,10 @@ namespace DeskNest
                 else _notesBox.FontFamily = new FontFamily(Data.ItemFont);
                 _notesBox.FontSize = Data.ItemFontSize > 0 ? Data.ItemFontSize : _manager.Settings.NotesFontSize;
                 _notesBox.TextWrapping = _manager.Settings.NotesWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            }
+            else if (Data.Type == NestTypes.Todo && _altContent is TodoContent todo)
+            {
+                todo.ApplyFonts();
             }
         }
 

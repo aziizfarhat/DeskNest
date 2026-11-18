@@ -26,6 +26,7 @@ namespace DeskNest.Tests
             Run("migration Version 2 vers 3 : profil, géométrie et copie .v2.bak", MigrateV2LayoutCreatesProfileAndBackup);
             Run("N1 : ancien layout en Files et copie .v3.bak une seule fois", OldLayoutLoadsAsFilesAndCreatesV3Backup);
             Run("N2 : notes aller-retour et échec d'écriture conservé", NotesRoundTripAndWriteFailureKeepsText);
+            Run("N3 : ordre des tâches coché en bas et ajout haut/bas", TodoOrderingRules);
             Run("zone supprimée retirée de tous les profils", DeletedNestIsRemovedFromEveryProfile);
             Run("profil actif préservé si les écrans ont changé", ActiveProfileIsNotOverwrittenOnMonitorChange);
             Run("bascule d'écran : ancien profil capturé puis profil exact appliqué", DisplaySwitchCapturesOldAndAppliesExactProfile);
@@ -277,6 +278,35 @@ namespace DeskNest.Tests
 
             Storage.SaveNow(loaded);
             AssertEqual(json, fs.ReadAllText(v3Path), "copie non écrasée par la suite");
+        }
+
+        private static void TodoOrderingRules()
+        {
+            var a = new TodoTask { Text = "A" };
+            var b = new TodoTask { Text = "B" };
+            var c = new TodoTask { Text = "C" };
+            var tasks = new List<TodoTask> { a, b, c };
+            static string Text(IEnumerable<TodoTask> list) => string.Join(",", list.Select(t => t.Text));
+
+            AssertEqual("A,B,C", Text(TodoOrder.Sort(tasks, false)), "ordre manuscrit");
+
+            b.Done = true;
+            AssertEqual("A,C,B", Text(TodoOrder.Sort(tasks, true)), "tâche cochée en bas");
+            AssertEqual("A,B,C", Text(TodoOrder.Sort(tasks, false)), "ordre manuscrit inchangé");
+
+            b.Done = false;
+            AssertEqual("A,B,C", Text(TodoOrder.Sort(tasks, true)), "position restaurée après décochage");
+
+            var d = new TodoTask { Text = "D" };
+            TodoOrder.Insert(tasks, d, false);
+            AssertEqual("A,B,C,D", Text(tasks), "ajout en bas");
+            var e = new TodoTask { Text = "E" };
+            TodoOrder.Insert(tasks, e, true);
+            AssertEqual("E,A,B,C,D", Text(tasks), "ajout en haut");
+
+            TodoOrder.Move(tasks, d, null, b);
+            AssertEqual("E,A,D,B,C", Text(tasks), "déplacement avant une tâche");
+            AssertEqual("E,A,D,B,C", Text(TodoOrder.Sort(tasks, false)), "ordre conservé après lecture");
         }
 
         private static void NotesRoundTripAndWriteFailureKeepsText()
