@@ -29,7 +29,7 @@ Create independent desktop areas to organize your items by category, purpose, or
 - Roll up zones to save desktop space.
 - Lock zones.
 - Expand zones automatically when hovering over them.
-- Search the items of a zone from an optional search bar.
+- Search the items of a zone from an optional search bar: To-do nests filter their tasks live (case/accent-insensitive, all words), while Notes nests create no search box and give the space to the note text.
 - Link zones to folders.
 - Delete zones.
 - Undo and redo layout changes with `Ctrl+Z` / `Ctrl+Y`.

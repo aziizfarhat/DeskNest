@@ -6,6 +6,8 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
 
 namespace DeskNest.Tests
 {
@@ -51,6 +53,11 @@ namespace DeskNest.Tests
             Run("police : TodoFontSize entier/décimal chargé et appliqué", FontSizeSettingsAcceptNumbersAndApply);
             Run("police : TodoFontSize absent utilise le défaut", FontSizeSettingsAbsentUsesDefault);
             Run("police : valeurs invalides ramenées au défaut ou bornées", FontSizeSettingsInvalidValuesAreSafe);
+            Run("S3 : filtre Todo (casse, accents, kana, mots, aucun résultat)", S3TodoFilterMatchingRules);
+            Run("S3 : filtre Todo sans effet sur les données et glisser désactivé", S3TodoFilterIsDisplayOnlyAndDisablesDrag);
+            Run("S3 : recherche des zones Fichiers inchangée", S3FilesSearchBehaviorUnchanged);
+            Run("S3 : aucune barre de recherche créée pour Notes", S3NotesHasNoSearchControl);
+            Run("S3 : ShowSearchBar=false masque la barre des To-do", S3ShowSearchBarFalseHidesTheBox);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -651,6 +658,188 @@ namespace DeskNest.Tests
             var block = new TextBlock();
             FontSizeHelper.Apply(block, TextElement.FontSizeProperty, new object(), 12);
             AssertEqual(12.0, block.FontSize, "repli appliqué sans exception");
+        }
+
+        // ---------- S3 : recherche et filtres ----------
+        private static DependencyObject? FindByName(DependencyObject root, string name)
+        {
+            if (root is FrameworkElement rootElement) rootElement.ApplyTemplate();
+            if (root is FrameworkElement named && named.Name == name) return named;
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
+            {
+                var found = FindByName(VisualTreeHelper.GetChild(root, i), name);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root) where T : DependencyObject
+        {
+            if (root is FrameworkElement rootElement) rootElement.ApplyTemplate();
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T typed) yield return typed;
+                foreach (var nested in FindVisualChildren<T>(child)) yield return nested;
+            }
+        }
+
+        private static int CountItems(ItemsControl host)
+        {
+            if (host.ItemsSource is not System.Collections.IEnumerable source) return host.Items.Count;
+            int n = 0;
+            foreach (var _ in source) n++;
+            return n;
+        }
+
+        private static void S3TodoFilterMatchingRules()
+        {
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            var data = new NestData { Type = NestTypes.Todo };
+            data.Tasks.Add(new TodoTask { Text = "École" });
+            data.Tasks.Add(new TodoTask { Text = "Acheter du lait" });
+            data.Tasks.Add(new TodoTask { Text = "Acheter du pain" });
+            data.Tasks.Add(new TodoTask { Text = "カタカナ" });
+            var content = new TodoContent(manager, data);
+
+            AssertEqual(4, content.DisplayedTasks.Count, "toutes les tâches au départ");
+
+            content.ApplyFilter("ecole");
+            AssertEqual(1, content.DisplayedTasks.Count, "casse et accent ignorés");
+            AssertEqual("École", content.DisplayedTasks[0].Text, "seule la tâche correspondante");
+            AssertEqual("1/4", content.CountText, "footer en mode filtre");
+
+            content.ApplyFilter("ECOLE");
+            AssertEqual(1, content.DisplayedTasks.Count, "majuscules ignorées");
+
+            content.ApplyFilter("かたかな");
+            AssertEqual(1, content.DisplayedTasks.Count, "type de kana ignoré");
+
+            content.ApplyFilter("acheter lait");
+            AssertEqual(1, content.DisplayedTasks.Count, "plusieurs mots = ET");
+            AssertEqual("Acheter du lait", content.DisplayedTasks[0].Text, "tous les mots doivent correspondre");
+
+            content.ApplyFilter("acheter sucre");
+            AssertEqual(0, content.DisplayedTasks.Count, "un mot absent exclut la tâche");
+
+            content.ApplyFilter("introuvable");
+            AssertEqual(0, content.DisplayedTasks.Count, "aucune correspondance");
+            AssertEqual(Loc.T("todo.noMatch"), content.EmptyText, "message « aucun résultat »");
+            AssertEqual("0/4", content.CountText, "compte à zéro");
+
+            content.ApplyFilter("");
+            AssertEqual(4, content.DisplayedTasks.Count, "filtre vidé : toutes les tâches");
+            AssertEqual(Loc.T("todo.empty"), content.EmptyText, "message vide habituel");
+        }
+
+        private static void S3TodoFilterIsDisplayOnlyAndDisablesDrag()
+        {
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            manager.Settings.TodoCheckedToBottom = true;
+            var data = new NestData { Type = NestTypes.Todo };
+            var first = new TodoTask { Text = "Lait" };
+            var done = new TodoTask { Text = "Lait fait", Done = true };
+            var last = new TodoTask { Text = "Pain" };
+            data.Tasks.Add(first);
+            data.Tasks.Add(done);
+            data.Tasks.Add(last);
+            var content = new TodoContent(manager, data);
+
+            var storedBefore = data.Tasks.ToList();
+            Assert(content.ReorderEnabled, "réordonnement autorisé sans filtre");
+
+            content.ApplyFilter("lait");
+            Assert(!content.ReorderEnabled, "réordonnement interdit pendant le filtre");
+            AssertEqual(2, content.DisplayedTasks.Count, "deux correspondances");
+            AssertEqual("Lait", content.DisplayedTasks[0].Text, "ordre préservé");
+            AssertEqual("Lait fait", content.DisplayedTasks[1].Text, "tâche cochée à sa place");
+            Assert(done.Done, "état Done conservé");
+            AssertEqual("2/3", content.CountText, "footer compte les correspondances");
+
+            bool dimmed = FindVisualChildren<Border>(content)
+                .Any(b => !b.IsEnabled && b.Opacity < 1.0 && b.Cursor == Cursors.Arrow);
+            Assert(dimmed, "poignée désactivée et grisée");
+
+            Assert(storedBefore.SequenceEqual(data.Tasks), "ordre et références stockés inchangés");
+            Assert(!first.Done && done.Done && !last.Done, "états Done stockés inchangés");
+
+            int cleared = 0;
+            content.FilterCleared += () => cleared++;
+            content.AddTask("Nouvelle tâche");
+            AssertEqual(1, cleared, "ajout signale la remise à zéro du filtre");
+            AssertEqual("", content.FilterText, "texte du filtre vidé");
+            Assert(!content.IsFiltering, "plus aucun filtre actif");
+            Assert(content.ReorderEnabled, "réordonnement réactivé");
+            Assert(data.Tasks.Any(t => t.Text == "Nouvelle tâche"), "tâche ajoutée au stockage");
+            Assert(content.DisplayedTasks.Any(t => t.Text == "Nouvelle tâche"), "nouvelle tâche visible");
+        }
+
+        private static void S3FilesSearchBehaviorUnchanged()
+        {
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            manager.Settings.ShowSearchBar = true;
+            var data = new NestData { Title = "Files" };
+            data.Items.Add(@"C:\Users\example\Desktop\École.txt");
+            data.Items.Add(@"C:\Users\example\Desktop\Lait.txt");
+            var window = new NestWindow(manager, data);
+
+            Assert(window.HasSearchControl, "la zone Fichiers possède une barre");
+            var box = FindByName(window, "SearchBox") as TextBox;
+            Assert(box != null, "SearchBox instanciée pour Files");
+            var host = FindByName(window, "ItemsHost") as ItemsControl;
+            Assert(host != null, "ItemsHost présent");
+            AssertEqual(2, CountItems(host!), "tous les éléments au départ");
+
+            box!.Text = "ecole";
+            AssertEqual(1, CountItems(host!), "recherche Files : sous-chaîne insensible aux accents");
+
+            box.Text = "ecole lait";
+            AssertEqual(0, CountItems(host!), "recherche Files : une seule sous-chaîne, pas de ET sur les mots");
+
+            box.Text = "";
+            AssertEqual(2, CountItems(host!), "recherche vidée : éléments restaurés");
+            window.Close();
+        }
+
+        private static void S3NotesHasNoSearchControl()
+        {
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            manager.Settings.ShowSearchBar = true;
+            var data = new NestData { Title = "Note", Type = NestTypes.Notes };
+            var window = new NestWindow(manager, data);
+
+            Assert(!window.HasSearchControl, "aucune barre instanciée pour Notes");
+            Assert(FindByName(window, "SearchBox") == null, "aucun SearchBox créé");
+            Assert(FindByName(window, "SearchHint") == null, "aucun SearchHint créé");
+            Assert(FindByName(window, "SearchClear") == null, "aucun SearchClear créé");
+            var host = FindByName(window, "SearchHost") as ContentControl;
+            Assert(host != null && host.Visibility == Visibility.Collapsed, "hôte de recherche replié");
+            window.Close();
+        }
+
+        private static void S3ShowSearchBarFalseHidesTheBox()
+        {
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            manager.Settings.ShowSearchBar = false;
+            var data = new NestData { Title = "Todo", Type = NestTypes.Todo };
+            var window = new NestWindow(manager, data);
+
+            Assert(window.HasSearchControl, "le contrôle existe bien pour Todo");
+            var host = FindByName(window, "SearchHost") as ContentControl;
+            Assert(host != null, "hôte de recherche présent");
+            AssertEqual(Visibility.Collapsed, host!.Visibility, "ShowSearchBar=false masque la barre");
+
+            manager.Settings.ShowSearchBar = true;
+            window.ApplyExternalChange();
+            AssertEqual(Visibility.Visible, host.Visibility, "barre affichée après réactivation");
+            window.Close();
         }
 
         private sealed class FailingFileSystem : IFileSystem

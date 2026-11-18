@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The zone search bar now filters To-do tasks live (case/accent/kana-insensitive, all words, matched/total footer, "No matching task" message, drag disabled while filtering, filter cleared on add and roll-up); Notes nests no longer create a search box, so the reclaimed space goes to the note text.
 - Tray double-click now opens the quick-actions palette instead of Settings; the tray menu and its commands are unchanged.
 - Quick-action buttons never take focus or appear in the Tab order, so typing and arrow keys keep controlling search results.
 - Notes are read-only by default (no caret, normal cursor) with an explicit Edit button. `Enter` inserts a newline and `Ctrl+Enter` validates; `Esc` cancels, confirming only when the text changed. The deferred save writes a draft while editing instead of the note itself, which is only written on Validate.
