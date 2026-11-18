@@ -101,6 +101,7 @@ namespace DeskNest
             LicenseRun.Text = Loc.T("ab.license");
             HeaderVersion.Text = Loc.F("ab.version", version);
             NotesFontSizeLabel.Text = Loc.F("nt.notesFontSize", (int)NotesFontSize.Value);
+            TodoFontSizeLabel.Text = Loc.F("nt.todoFontSize", (int)TodoFontSize.Value);
             NotesSaveDelayLabel.Text = Loc.F("nt.notesSaveDelay", (int)NotesSaveDelay.Value);
             if (Current is NestData d) ZOpacityLabel.Text = Loc.F("z.opacity", (int)(d.Opacity * 100));
             if (Current is NestData g) ZGradAngleLabel.Text = Loc.F("bg.angle", (int)g.GradientAngle);
@@ -134,6 +135,7 @@ namespace DeskNest
             ChkSingleClick.IsChecked = s.OpenItemsWithSingleClick;
 
             // Notes et listes de tâches (les valeurs par défaut couvrent les anciens réglages).
+            TodoFontSize.Value = Math.Clamp(s.TodoFontSize, 8, 28);
             ChkTodoStrike.IsChecked = s.TodoStrikeThrough;
             ChkTodoBottom.IsChecked = s.TodoCheckedToBottom;
             ChkTodoAddTop.IsChecked = s.TodoAddAtTop;
@@ -774,6 +776,14 @@ namespace DeskNest
 
         // ---------- Notes et listes de tâches ----------
         // SettingsChanged applique immédiatement ces réglages aux zones déjà ouvertes.
+        private void TodoFontSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_loading) return;
+            _m.Settings.TodoFontSize = (int)TodoFontSize.Value;
+            TodoFontSizeLabel.Text = Loc.F("nt.todoFontSize", _m.Settings.TodoFontSize);
+            _m.SettingsChanged();
+        }
+
         private void ChkTodoStrike_Click(object sender, RoutedEventArgs e)
         {
             if (_loading) return;

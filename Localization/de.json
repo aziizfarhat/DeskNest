@@ -273,8 +273,10 @@
  "note.default": "Notiz {0}",
  "todo.add": "Aufgabe hinzufügen",
  "todo.edit": "Aufgabe bearbeiten",
- "todo.validate": "Aufgabe speichern"
+ "todo.validate": "Aufgabe speichern",
+ "nt.todoFontSize": "Schriftgröße: {0} pt"
 }
+
 
 
 

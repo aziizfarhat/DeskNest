@@ -273,8 +273,10 @@
  "note.default": "Nota {0}",
  "todo.add": "Aggiungi attività",
  "todo.edit": "Modifica attività",
- "todo.validate": "Salva attività"
+ "todo.validate": "Salva attività",
+ "nt.todoFontSize": "Dimensione carattere: {0} pt"
 }
+
 
 
 

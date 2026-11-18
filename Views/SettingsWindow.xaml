@@ -445,7 +445,10 @@
                         <Border Style="{StaticResource Section}">
                             <StackPanel>
                                 <TextBlock l:L.Key="nt.todoTitle" Style="{StaticResource SectionTitle}"/>
-                                <CheckBox x:Name="ChkTodoStrike" l:L.Key="nt.todoStrike"
+                                <TextBlock x:Name="TodoFontSizeLabel" Style="{StaticResource Label}"/>
+                                <Slider x:Name="TodoFontSize" Minimum="8" Maximum="28" TickFrequency="1"
+                                        IsSnapToTickEnabled="True" ValueChanged="TodoFontSize_Changed"/>
+                                <CheckBox x:Name="ChkTodoStrike" l:L.Key="nt.todoStrike" Margin="0,14,0,8"
                                           Click="ChkTodoStrike_Click"/>
                                 <CheckBox x:Name="ChkTodoBottom" l:L.Key="nt.todoBottom"
                                           Click="ChkTodoBottom_Click"/>

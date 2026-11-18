@@ -273,8 +273,10 @@
  "note.default": "笔记 {0}",
  "todo.add": "添加任务",
  "todo.edit": "编辑任务",
- "todo.validate": "保存任务"
+ "todo.validate": "保存任务",
+ "nt.todoFontSize": "字号：{0} pt"
 }
+
 
 
 

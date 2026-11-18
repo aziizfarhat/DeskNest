@@ -273,8 +273,10 @@
  "note.default": "ملاحظة {0}",
  "todo.add": "إضافة مهمة",
  "todo.edit": "تعديل المهمة",
- "todo.validate": "حفظ المهمة"
+ "todo.validate": "حفظ المهمة",
+ "nt.todoFontSize": "حجم الخط: {0} نقطة"
 }
+
 
 
 

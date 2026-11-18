@@ -273,8 +273,10 @@
  "note.default": "Note {0}",
  "todo.add": "Add task",
  "todo.edit": "Edit task",
- "todo.validate": "Save task"
+ "todo.validate": "Save task",
+ "nt.todoFontSize": "Font size: {0} pt"
 }
+
 
 
 

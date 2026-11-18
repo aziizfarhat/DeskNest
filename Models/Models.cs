@@ -186,6 +186,7 @@ namespace DeskNest
         public int NotesSaveDelayMs { get; set; } = 800;
 
         // To-do (valeurs globales, sans surcharge par zone).
+        public int TodoFontSize { get; set; } = 12;
         public bool TodoStrikeThrough { get; set; } = true;
         public bool TodoCheckedToBottom { get; set; }
         public bool TodoAddAtTop { get; set; }

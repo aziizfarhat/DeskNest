@@ -273,8 +273,10 @@
  "note.default": "Nota {0}",
  "todo.add": "Adicionar tarefa",
  "todo.edit": "Editar tarefa",
- "todo.validate": "Guardar tarefa"
+ "todo.validate": "Guardar tarefa",
+ "nt.todoFontSize": "Tamanho da fonte: {0} pt"
 }
+
 
 
 

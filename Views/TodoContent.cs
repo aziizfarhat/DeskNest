@@ -143,7 +143,8 @@ namespace DeskNest
         {
             if (string.IsNullOrWhiteSpace(_data.ItemFont)) ClearValue(TextElement.FontFamilyProperty);
             else SetValue(TextElement.FontFamilyProperty, new FontFamily(_data.ItemFont));
-            SetValue(TextElement.FontSizeProperty, _data.ItemFontSize > 0 ? (double)_data.ItemFontSize : 12.0);
+            // Taille globale des listes (réglage « Notes & Todo List »), comme pour les notes.
+            SetValue(TextElement.FontSizeProperty, Math.Clamp(_manager.Settings.TodoFontSize, 8, 28));
             Refresh();
         }
 

@@ -273,8 +273,10 @@
  "note.default": "메모 {0}",
  "todo.add": "작업 추가",
  "todo.edit": "작업 편집",
- "todo.validate": "작업 저장"
+ "todo.validate": "작업 저장",
+ "nt.todoFontSize": "글꼴 크기: {0} pt"
 }
+
 
 
 

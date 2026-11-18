@@ -273,8 +273,10 @@
  "note.default": "メモ {0}",
  "todo.add": "タスクを追加",
  "todo.edit": "タスクを編集",
- "todo.validate": "タスクを保存"
+ "todo.validate": "タスクを保存",
+ "nt.todoFontSize": "フォントサイズ: {0} pt"
 }
+
 
 
 

@@ -273,8 +273,10 @@
  "note.default": "Нотатка {0}",
  "todo.add": "Додати завдання",
  "todo.edit": "Редагувати завдання",
- "todo.validate": "Зберегти завдання"
+ "todo.validate": "Зберегти завдання",
+ "nt.todoFontSize": "Розмір шрифту: {0} pt"
 }
+
 
 
 
