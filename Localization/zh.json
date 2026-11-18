@@ -268,6 +268,9 @@
  "todo.count": "{0}/{1} 已完成",
  "todo.drag": "拖动以重新排序",
  "tray.newTodo": "新建待办列表",
- "tray.newNote": "新建笔记"
+ "tray.newNote": "新建笔记",
+ "todo.default": "待办 {0}",
+ "note.default": "笔记 {0}"
 }
+
 

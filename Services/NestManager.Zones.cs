@@ -205,7 +205,12 @@ namespace DeskNest
         private void AddNest(NestData d, bool place = true)
         {
             int n = _data.Nests.Count;
-            if (string.IsNullOrEmpty(d.Title)) d.Title = Loc.F("zone.default", n + 1);
+            if (string.IsNullOrEmpty(d.Title))
+            {
+                var key = DefaultTitles.KeyFor(d.Type);
+                var titles = _data.Nests.Where(x => x.Type == d.Type).Select(x => (string?)x.Title);
+                d.Title = Loc.F(key, DefaultTitles.NextNumber(key, titles));
+            }
             if (place)
             {
                 d.Left = 80 + 30 * (n % 10);

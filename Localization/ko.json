@@ -268,6 +268,9 @@
  "todo.count": "{0}/{1} 완료",
  "todo.drag": "드래그하여 순서 변경",
  "tray.newTodo": "새 할 일 목록",
- "tray.newNote": "새 메모"
+ "tray.newNote": "새 메모",
+ "todo.default": "할 일 {0}",
+ "note.default": "메모 {0}"
 }
+
 

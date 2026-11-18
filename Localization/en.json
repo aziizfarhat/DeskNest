@@ -268,6 +268,9 @@
  "todo.count": "{0}/{1} done",
  "todo.drag": "Drag to reorder",
  "tray.newTodo": "New to-do list",
- "tray.newNote": "New note"
+ "tray.newNote": "New note",
+ "todo.default": "Todo {0}",
+ "note.default": "Note {0}"
 }
+
 

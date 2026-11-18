@@ -268,6 +268,9 @@
  "todo.count": "{0}/{1} terminées",
  "todo.drag": "Glisser pour réordonner",
  "tray.newTodo": "Nouvelle liste de tâches",
- "tray.newNote": "Nouvelle note"
+ "tray.newNote": "Nouvelle note",
+ "todo.default": "Tâches {0}",
+ "note.default": "Note {0}"
 }
+
 

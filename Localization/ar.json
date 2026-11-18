@@ -268,6 +268,9 @@
  "todo.count": "{0}/{1} مكتملة",
  "todo.drag": "اسحب لإعادة الترتيب",
  "tray.newTodo": "قائمة مهام جديدة",
- "tray.newNote": "ملاحظة جديدة"
+ "tray.newNote": "ملاحظة جديدة",
+ "todo.default": "المهام {0}",
+ "note.default": "ملاحظة {0}"
 }
+
 
