@@ -28,6 +28,7 @@ namespace DeskNest
             var newKey = DisplayProfiles.ComputeKey(monitors);
             var oldKey = data.ActiveProfileKey;
             var changed = !string.Equals(oldKey, newKey, StringComparison.OrdinalIgnoreCase);
+            DisplayProfiles.RememberMonitors(data, newKey, monitors);
             if (!changed) return new DisplaySwitchResult(false, DisplayProfiles.FindProfile(data, newKey) != null, false);
 
             // Étape critique : ces positions décrivent encore l'ancien écran.
@@ -37,6 +38,12 @@ namespace DeskNest
                 oldProfile.Nests = DisplayProfiles.CaptureGeometry(data.Nests);
                 Diag.Log($"profils : positions enregistrées dans l'ancien profil {oldKey}");
             }
+
+            var sourceProfile = DisplayAdaptation.SelectSourceProfile(data, monitors, oldProfile);
+            var sourceMonitors = sourceProfile == null
+                ? Array.Empty<MonitorDescriptor>()
+                : DisplayProfiles.GetMonitorsFor(data, sourceProfile.Key);
+            if (sourceMonitors.Count == 0) sourceMonitors = monitors;
 
             var target = DisplayProfiles.FindProfile(data, newKey);
             var adapted = false;
@@ -52,7 +59,7 @@ namespace DeskNest
                     else
                     {
                         missing++;
-                        DisplayAdaptation.AdaptMissing(nest, monitors, oldProfile);
+                        DisplayAdaptation.AdaptMissing(nest, monitors, sourceProfile, sourceMonitors);
                     }
                 }
 
@@ -66,7 +73,7 @@ namespace DeskNest
             else
             {
                 adapted = true;
-                DisplayAdaptation.Adapt(data, monitors, oldProfile);
+                DisplayAdaptation.Adapt(data, monitors, sourceProfile, sourceMonitors);
                 target = new DisplayProfile
                 {
                     Key = newKey,

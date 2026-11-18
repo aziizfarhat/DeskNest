@@ -53,6 +53,8 @@ namespace DeskNest
         // des NestData restent les valeurs vivantes du profil actif.
         public List<DisplayProfile> Profiles { get; set; } = new();
         public string ActiveProfileKey { get; set; } = "";
+        // Métadonnées des configurations vues (hors des profils, qui restent géométrie seule).
+        public Dictionary<string, List<MonitorLayout>> Displays { get; set; } = new();
         // Éléments du bureau que l'application a masqués (attribut "caché") après un glisser dans une zone.
         public List<string> HiddenByApp { get; set; } = new();
         public AppSettings Settings { get; set; } = new();
@@ -64,6 +66,21 @@ namespace DeskNest
         // Sans ce marqueur, un layout.json vide est considéré comme perdu et restauré
         // depuis la sauvegarde la plus récente (voir Storage.Load).
         public bool ZonesCleared { get; set; }
+    }
+
+    // Configuration d'un écran, en pixels physiques (le facteur DPI est stocké à part).
+    public class MonitorLayout
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public int WorkX { get; set; }
+        public int WorkY { get; set; }
+        public int WorkWidth { get; set; }
+        public int WorkHeight { get; set; }
+        public double DpiScale { get; set; } = 1;
+        public bool IsPrimary { get; set; }
     }
 
     // Profil de disposition pour une configuration d'écrans donnée.

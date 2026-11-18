@@ -27,6 +27,9 @@ namespace DeskNest.Tests
             Run("zone supprimée retirée de tous les profils", DeletedNestIsRemovedFromEveryProfile);
             Run("profil actif préservé si les écrans ont changé", ActiveProfileIsNotOverwrittenOnMonitorChange);
             Run("bascule d'écran : ancien profil capturé puis profil exact appliqué", DisplaySwitchCapturesOldAndAppliesExactProfile);
+            Run("configuration inconnue : ancrage droit et hauteur développée cadrée", UnknownConfigurationKeepsRightAnchorAndClampsExpandedSize);
+            Run("écran secondaire débranché : zones ramenées sur le principal", RemovedSecondaryMonitorMovesNestsToPrimary);
+            Run("profil source : plus grande recouvrance d'écran choisie", MostSimilarProfileIsUsedAsSource);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -457,6 +460,123 @@ namespace DeskNest.Tests
             var same = DisplayProfileSwitcher.Switch(data, new[] { small });
             Assert(!same.Changed, "un événement sans changement de clé ne bascule pas");
             AssertEqual(777d, nest.Left, "position inchangée sans bascule");
+        }
+
+        private static void UnknownConfigurationKeepsRightAnchorAndClampsExpandedSize()
+        {
+            var big = new MonitorDescriptor(0, 0, 2560, 1440, 1.0, true, 0, 0, 2560, 1380);
+            var small = new MonitorDescriptor(0, 0, 1920, 1080, 1.0, true, 0, 0, 1920, 1020);
+            var bigKey = DisplayProfiles.ComputeKey(new[] { big });
+            var smallKey = DisplayProfiles.ComputeKey(new[] { small });
+
+            var right = new NestData
+            {
+                Title = "Droite", Left = 2041, Top = 60, Width = 420, Height = 320, RolledUp = true
+            };
+            var tall = new NestData
+            {
+                Title = "Développé", Left = 100, Top = 100, Width = 500, Height = 1200, RolledUp = true
+            };
+            var data = new AppData { ActiveProfileKey = bigKey };
+            data.Nests.Add(right);
+            data.Nests.Add(tall);
+            data.Profiles.Add(new DisplayProfile
+            {
+                Key = bigKey,
+                Description = "Grand écran",
+                Nests = DisplayProfiles.CaptureGeometry(data.Nests)
+            });
+            DisplayProfiles.RememberMonitors(data, bigKey, new[] { big });
+
+            var result = DisplayProfileSwitcher.Switch(data, new[] { small });
+
+            Assert(result.Changed, "changement de configuration");
+            Assert(result.Adapted, "profil inconnu adapté");
+            AssertEqual(smallKey, data.ActiveProfileKey, "nouveau profil actif");
+            // 2560 - (2041 + 420) = 99 DIP du bord droit ; 1920 - 420 - 99 = 1401.
+            AssertEqual(1401d, right.Left, "ancrage droit conservé");
+            AssertEqual(1821d, right.Left + right.Width, "bord droit après adaptation");
+            // Hauteur développée 1200 > 1020 : elle est réduite et le haut reste atteignable.
+            AssertEqual(1020d, tall.Height, "hauteur développée cadrée");
+            AssertEqual(0d, tall.Top, "haut de la zone atteignable");
+            AssertEqual(1020d, tall.Top + tall.Height, "zone développée entière dans le travail");
+
+            var created = data.Profiles.First(p => p.Key == smallKey);
+            AssertEqual(right.Left, created.Nests[right.Id.ToString()].Left,
+                "adaptation enregistrée dans le nouveau profil");
+            AssertEqual(tall.Height, created.Nests[tall.Id.ToString()].Height,
+                "hauteur cadrée enregistrée dans le nouveau profil");
+            var old = data.Profiles.First(p => p.Key == bigKey);
+            AssertEqual(2041d, old.Nests[right.Id.ToString()].Left,
+                "ancien profil non écrasé");
+        }
+
+        private static void RemovedSecondaryMonitorMovesNestsToPrimary()
+        {
+            var primary = new MonitorDescriptor(0, 0, 1920, 1080, 1.0, true, 0, 0, 1920, 1020);
+            var secondary = new MonitorDescriptor(1920, 0, 1280, 1024, 1.0, false, 1920, 0, 1280, 974);
+            var sourceKey = DisplayProfiles.ComputeKey(new[] { primary, secondary });
+            var targetKey = DisplayProfiles.ComputeKey(new[] { primary });
+
+            var nest = new NestData
+            {
+                Title = "Sur le secondaire", Left = 2020, Top = 50, Width = 400, Height = 300
+            };
+            var data = new AppData { ActiveProfileKey = sourceKey };
+            data.Nests.Add(nest);
+            data.Profiles.Add(new DisplayProfile
+            {
+                Key = sourceKey,
+                Description = "Deux écrans",
+                Nests = DisplayProfiles.CaptureGeometry(data.Nests)
+            });
+            DisplayProfiles.RememberMonitors(data, sourceKey, new[] { primary, secondary });
+
+            var result = DisplayProfileSwitcher.Switch(data, new[] { primary });
+
+            Assert(result.Changed && result.Adapted, "adaptation après retrait du secondaire");
+            AssertEqual(targetKey, data.ActiveProfileKey, "profil du principal");
+            AssertEqual(100d, nest.Left, "distance au bord gauche conservée sur le principal");
+            AssertEqual(50d, nest.Top, "distance au bord haut conservée sur le principal");
+            Assert(nest.Left >= 0 && nest.Top >= 0, "zone dans le principal");
+            Assert(nest.Left + nest.Width <= primary.WorkRight, "bord droit dans le principal");
+            Assert(nest.Top + nest.Height <= primary.WorkBottom, "bord bas dans le principal");
+        }
+
+        private static void MostSimilarProfileIsUsedAsSource()
+        {
+            var target = new MonitorDescriptor(0, 0, 1920, 1080, 1.0, true, 0, 0, 1920, 1020);
+            var far = new MonitorDescriptor(5000, 0, 1000, 800, 1.0, true, 5000, 0, 1000, 740);
+            var near = new MonitorDescriptor(0, 0, 2000, 1000, 1.0, true, 0, 0, 2000, 940);
+            var farKey = DisplayProfiles.ComputeKey(new[] { far });
+            var nearKey = DisplayProfiles.ComputeKey(new[] { near });
+            var targetKey = DisplayProfiles.ComputeKey(new[] { target });
+
+            var nest = new NestData { Title = "Commune", Left = 5010, Top = 10, Width = 200, Height = 100 };
+            var data = new AppData { ActiveProfileKey = farKey };
+            data.Nests.Add(nest);
+            data.Profiles.Add(new DisplayProfile
+            {
+                Key = farKey,
+                Description = "Écran éloigné",
+                Nests = { [nest.Id.ToString()] = new NestGeometry { Left = 5010, Top = 10, Width = 200, Height = 100 } }
+            });
+            data.Profiles.Add(new DisplayProfile
+            {
+                Key = nearKey,
+                Description = "Écran proche",
+                Nests = { [nest.Id.ToString()] = new NestGeometry { Left = 1900, Top = 20, Width = 80, Height = 100 } }
+            });
+            DisplayProfiles.RememberMonitors(data, farKey, new[] { far });
+            DisplayProfiles.RememberMonitors(data, nearKey, new[] { near });
+
+            DisplayProfileSwitcher.Switch(data, new[] { target });
+
+            AssertEqual(targetKey, data.ActiveProfileKey, "nouveau profil actif");
+            // Depuis le profil proche : largeur portée au minimum 120, puis 1920 - 120 - 20 = 1780.
+            AssertEqual(1780d, nest.Left, "source la plus similaire utilisée");
+            AssertEqual(20d, nest.Top, "distance haute de la source similaire conservée");
+            AssertEqual(120d, nest.Width, "largeur minimale conservée");
         }
 
         private sealed class FakeDisplayProvider : IDisplayLayoutProvider

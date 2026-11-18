@@ -156,6 +156,23 @@ namespace DeskNest
         {
             data.Profiles ??= new List<DisplayProfile>();
             data.ActiveProfileKey ??= "";
+            data.Displays ??= new Dictionary<string, List<MonitorLayout>>(StringComparer.OrdinalIgnoreCase);
+
+            var displays = new Dictionary<string, List<MonitorLayout>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in data.Displays)
+            {
+                if (string.IsNullOrWhiteSpace(entry.Key) || entry.Value == null) continue;
+                var monitors = entry.Value.Where(m => m != null).ToList();
+                foreach (var m in monitors)
+                {
+                    if (m.Width <= 0 || m.Height <= 0) continue;
+                    if (m.DpiScale <= 0) m.DpiScale = 1;
+                    if (m.WorkWidth <= 0) { m.WorkX = m.X; m.WorkWidth = m.Width; }
+                    if (m.WorkHeight <= 0) { m.WorkY = m.Y; m.WorkHeight = m.Height; }
+                }
+                displays[entry.Key.Trim()] = monitors;
+            }
+            data.Displays = displays;
 
             data.Profiles.RemoveAll(p => p == null);
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -229,6 +246,7 @@ namespace DeskNest
             }
 
             profile.Nests = CaptureGeometry(data.Nests);
+            RememberMonitors(data, data.ActiveProfileKey, current);
         }
 
         public static DisplayProfile CreateProfile(IReadOnlyList<MonitorDescriptor> monitors, IEnumerable<NestData> nests)
@@ -239,6 +257,36 @@ namespace DeskNest
                 Description = BuildDescription(monitors),
                 Nests = CaptureGeometry(nests)
             };
+        }
+
+        // Les écrans ne font pas partie du profil (géométrie seule) : ils sont mémorisés
+        // dans une table séparée, indispensable pour adapter depuis une config disparue.
+        public static void RememberMonitors(AppData data, string key, IReadOnlyList<MonitorDescriptor> monitors)
+        {
+            if (string.IsNullOrWhiteSpace(key) || monitors == null) return;
+            data.Displays ??= new Dictionary<string, List<MonitorLayout>>(StringComparer.OrdinalIgnoreCase);
+            data.Displays[key] = monitors.Select(m => new MonitorLayout
+            {
+                X = m.X, Y = m.Y, Width = m.Width, Height = m.Height,
+                WorkX = m.WorkX, WorkY = m.WorkY, WorkWidth = m.WorkWidth, WorkHeight = m.WorkHeight,
+                DpiScale = m.DpiScale, IsPrimary = m.IsPrimary
+            }).ToList();
+        }
+
+        public static IReadOnlyList<MonitorDescriptor> GetMonitorsFor(AppData data, string? key)
+        {
+            if (data?.Displays == null || string.IsNullOrEmpty(key) ||
+                !data.Displays.TryGetValue(key, out var layouts) || layouts == null)
+                return Array.Empty<MonitorDescriptor>();
+            return layouts.Where(m => m != null && m.Width > 0 && m.Height > 0)
+                .Select(ToDescriptor).ToList();
+        }
+
+        public static MonitorDescriptor ToDescriptor(MonitorLayout m)
+        {
+            if (m == null) throw new ArgumentNullException(nameof(m));
+            return new MonitorDescriptor(m.X, m.Y, m.Width, m.Height, m.DpiScale, m.IsPrimary,
+                m.WorkX, m.WorkY, m.WorkWidth, m.WorkHeight);
         }
 
         private static string? NormalizeId(string? key)
