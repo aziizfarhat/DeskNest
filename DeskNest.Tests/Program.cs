@@ -30,6 +30,8 @@ namespace DeskNest.Tests
             Run("configuration inconnue : ancrage droit et hauteur développée cadrée", UnknownConfigurationKeepsRightAnchorAndClampsExpandedSize);
             Run("écran secondaire débranché : zones ramenées sur le principal", RemovedSecondaryMonitorMovesNestsToPrimary);
             Run("profil source : plus grande recouvrance d'écran choisie", MostSimilarProfileIsUsedAsSource);
+            Run("sécurité : zone entièrement hors écran ramenée à l'écran", FullyOffScreenNestIsMovedInside);
+            Run("sécurité : zone partiellement visible laissée en place", PartiallyVisibleNestIsKept);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -577,6 +579,44 @@ namespace DeskNest.Tests
             AssertEqual(1780d, nest.Left, "source la plus similaire utilisée");
             AssertEqual(20d, nest.Top, "distance haute de la source similaire conservée");
             AssertEqual(120d, nest.Width, "largeur minimale conservée");
+        }
+
+        private static void FullyOffScreenNestIsMovedInside()
+        {
+            var monitor = new MonitorDescriptor(0, 0, 1920, 1080, 1.0, true, 0, 0, 1920, 1020);
+            var nest = new NestData
+            {
+                Title = "Hors écran", Left = 3000, Top = 500, Width = 300, Height = 200
+            };
+            var data = new AppData();
+            data.Nests.Add(nest);
+
+            var adjusted = DisplaySafety.EnsureVisible(data, new[] { monitor });
+
+            AssertEqual(1, adjusted, "une zone déplacée");
+            AssertEqual(1620d, nest.Left, "bord droit ramené dans le travail");
+            AssertEqual(500d, nest.Top, "haut conservé");
+            AssertEqual(300d, nest.Width, "largeur conservée");
+            AssertEqual(200d, nest.Height, "hauteur conservée");
+            Assert(nest.Left + nest.Width <= monitor.WorkRight, "zone entière dans le travail");
+            Assert(nest.Top + nest.Height <= monitor.WorkBottom, "bas dans le travail");
+        }
+
+        private static void PartiallyVisibleNestIsKept()
+        {
+            var monitor = new MonitorDescriptor(0, 0, 1920, 1080, 1.0, true, 0, 0, 1920, 1020);
+            var nest = new NestData
+            {
+                Title = "Partiellement visible", Left = 1800, Top = 100, Width = 300, Height = 200
+            };
+            var data = new AppData();
+            data.Nests.Add(nest);
+
+            var adjusted = DisplaySafety.EnsureVisible(data, new[] { monitor });
+
+            AssertEqual(0, adjusted, "aucun déplacement");
+            AssertEqual(1800d, nest.Left, "position laissée en place");
+            AssertEqual(100d, nest.Top, "hauteur laissée en place");
         }
 
         private sealed class FakeDisplayProvider : IDisplayLayoutProvider

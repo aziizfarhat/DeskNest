@@ -47,16 +47,25 @@ namespace DeskNest
 
         private void ApplyDisplayProfileFromCurrentMonitors()
         {
-            var result = DisplayProfileSwitcher.Switch(_data, DisplayProfiles.CurrentMonitors());
-            if (!result.Changed) return;
+            var monitors = DisplayProfiles.CurrentMonitors();
+            var result = DisplayProfileSwitcher.Switch(_data, monitors);
+            if (result.Changed)
+            {
+                Diag.Log($"profils : bascule vers {_data.ActiveProfileKey} " +
+                         $"(profil exact={result.ProfileFound}, adaptation={result.Adapted})");
+            }
 
-            Diag.Log($"profils : bascule vers {_data.ActiveProfileKey} " +
-                     $"(profil exact={result.ProfileFound}, adaptation={result.Adapted})");
+            // D5 : vérifié au démarrage comme après chaque bascule D3/D4.
+            var fixedCount = DisplaySafety.EnsureVisible(_data, monitors);
+            if (!result.Changed && fixedCount == 0) return;
+            if (fixedCount > 0)
+                Diag.Log($"profils : {fixedCount} zone(s) rendue(s) visible(s)");
+
             foreach (var w in _windows.ToList())
             {
                 w.ApplyExternalChange();
-                // Reprend les valeurs vivantes déjà calculées par le switcher, y compris
-                // pour un profil exact : le recadrage du constructeur doit être ignoré.
+                // Reprend les valeurs vivantes déjà calculées par le switcher et le filet
+                // de sécurité ; le recadrage du constructeur doit être ignoré.
                 w.SetBounds(w.Data.Left, w.Data.Top, w.Data.Width, w.Data.Height);
             }
             Storage.SaveNow(_data);
