@@ -126,10 +126,39 @@ namespace DeskNest
         private string _imageBrushPath = "";
 
         // Recherche : filtre temporaire (non enregistré dans la configuration).
+        // Le modèle XAML n'est appliqué qu'aux zones Fichiers/To-do : pour Notes,
+        // aucun champ de recherche n'est créé (_hasSearchBar = false).
         private string _searchText = "";
         private bool _updatingSearch;
         private bool _searchReady;
+        private bool _hasSearchBar;
+        private TextBox _searchBox = null!;
+        private TextBlock _searchHint = null!;
+        private Button _searchClear = null!;
         private bool HasFilter => !string.IsNullOrWhiteSpace(_searchText);
+
+        private bool HasSearchBar => _hasSearchBar;
+
+        // Indique si la barre de recherche a été instanciée (jamais pour Notes).
+        public bool HasSearchControl => _hasSearchBar;
+
+        // Les éléments du modèle sont créés à la demande ; on les retrouve dans
+        // l'arbre visuel une fois le ContentControl développé.
+        private static T? FindTemplateElement<T>(DependencyObject root, string name) where T : FrameworkElement
+        {
+            if (root is FrameworkElement fe)
+            {
+                fe.ApplyTemplate();
+                if (fe.Name == name && fe is T typed) return typed;
+            }
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
+            {
+                var found = FindTemplateElement<T>(VisualTreeHelper.GetChild(root, i), name);
+                if (found != null) return found;
+            }
+            return null;
+        }
 
         // Développement au survol
         private enum HoverMode { None, Expand, Collapse }
@@ -169,6 +198,39 @@ namespace DeskNest
             _manager = manager;
             Data = data;
             FlowDirection = Loc.Flow;
+
+            // Notes n'a pas de recherche d'éléments : on ne crée même pas le contrôle.
+            // Fichiers et portails gardent exactement la même barre de recherche qu'avant,
+            // désormais partagée avec les listes To-do.
+            _hasSearchBar = Data.Type != NestTypes.Notes;
+            if (_hasSearchBar)
+            {
+                SearchHost.ContentTemplate = (DataTemplate)FindResource("NestSearchBarTemplate");
+                SearchHost.Content = new object();
+                SearchHost.ApplyTemplate();
+                var box = FindTemplateElement<TextBox>(SearchHost, "SearchBox");
+                // Repli : selon le moment du cycle de vie, le modèle peut n'être réalisé
+                // qu'à la première passe de disposition.
+                if (box == null)
+                {
+                    SearchHost.UpdateLayout();
+                    box = FindTemplateElement<TextBox>(SearchHost, "SearchBox");
+                }
+                if (box == null)
+                {
+                    // Ne jamais faire échouer l'ouverture d'une zone pour un souci de modèle.
+                    Diag.Log("recherche : modèle introuvable, barre désactivée");
+                    _hasSearchBar = false;
+                    SearchHost.Content = null;
+                    SearchHost.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    _searchBox = box;
+                    _searchHint = FindTemplateElement<TextBlock>(SearchHost, "SearchHint") ?? null!;
+                    _searchClear = FindTemplateElement<Button>(SearchHost, "SearchClear") ?? null!;
+                }
+            }
 
             _portalTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
             _portalTimer.Tick += (_, _) => { _portalTimer.Stop(); RefreshItems(); };
@@ -669,7 +731,9 @@ namespace DeskNest
             int id = ++_animId;
             TitleBar.Visibility = Data.TitleVisible ? Visibility.Visible : Visibility.Collapsed;
             bool rolled = IsRolled;
-            SearchBar.Visibility = !rolled && _manager.Settings.ShowSearchBar ? Visibility.Visible : Visibility.Collapsed;
+            // Notes n'a jamais de barre de recherche, quel que soit ShowSearchBar.
+            SearchHost.Visibility = HasSearchBar && !rolled && _manager.Settings.ShowSearchBar
+                ? Visibility.Visible : Visibility.Collapsed;
             Handles.Visibility = (Data.Locked || rolled) ? Visibility.Collapsed : Visibility.Visible;
             double target = rolled ? TitleHeight + 2 : Math.Max(Data.Height, 60);
 
@@ -973,17 +1037,18 @@ namespace DeskNest
 
         private void UpdateSearchUi()
         {
-            bool empty = string.IsNullOrEmpty(SearchBox.Text);
-            SearchHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
-            SearchClear.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+            if (!HasSearchBar) return;
+            bool empty = string.IsNullOrEmpty(_searchBox.Text);
+            _searchHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+            _searchClear.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
         }
 
         // Vide la recherche sans déclencher d'actualisation (l'appelant en lance une).
         private void ResetSearch()
         {
-            if (SearchBox.Text.Length == 0 && _searchText.Length == 0) return;
+            if (_searchText.Length == 0 && (!HasSearchBar || _searchBox.Text.Length == 0)) return;
             _updatingSearch = true;
-            SearchBox.Clear();
+            if (HasSearchBar) _searchBox.Clear();
             _updatingSearch = false;
             _searchText = "";
             UpdateSearchUi();
@@ -992,7 +1057,7 @@ namespace DeskNest
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (!_searchReady || _updatingSearch) return;
-            _searchText = SearchBox.Text;
+            _searchText = _searchBox.Text;
             UpdateSearchUi();
             _portalPage = 0;
             RefreshItems();
@@ -1002,15 +1067,15 @@ namespace DeskNest
         private void SearchBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key != Key.Escape) return;
-            if (SearchBox.Text.Length > 0) SearchBox.Clear();
+            if (_searchBox.Text.Length > 0) _searchBox.Clear();
             else ClearSelection();
             e.Handled = true;
         }
 
         private void SearchClear_Click(object sender, RoutedEventArgs e)
         {
-            SearchBox.Clear();
-            SearchBox.Focus();
+            _searchBox.Clear();
+            _searchBox.Focus();
         }
 
         // Un clic sur le fond de la barre de recherche (loupe, espace vide) donne le focus
@@ -1021,7 +1086,7 @@ namespace DeskNest
             for (var d = e.OriginalSource as DependencyObject; d != null;
                  d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
                 if (d is Button) return; // le bouton d'effacement gère son propre clic
-            SearchBox.Focus();
+            _searchBox.Focus();
             e.Handled = true;
         }
 
@@ -1783,7 +1848,7 @@ namespace DeskNest
             // La barre de recherche garde le focus après une recherche. On la laisse gérer la
             // frappe, sauf pour Suppr quand elle est vide : l'utilisateur veut alors retirer
             // l'élément sélectionné, comme dans l'Explorateur.
-            if (SearchBox.IsKeyboardFocusWithin && !(e.Key == Key.Delete && SearchBox.Text.Length == 0)) return;
+            if (HasSearchBar && _searchBox.IsKeyboardFocusWithin && !(e.Key == Key.Delete && _searchBox.Text.Length == 0)) return;
             CancelRenameTimer();
             var mods = Keyboard.Modifiers;
 
@@ -1888,7 +1953,7 @@ namespace DeskNest
         // continuent de lui être destinés.
         private void FocusZone()
         {
-            if (SearchBox.IsKeyboardFocusWithin) Keyboard.ClearFocus();
+            if (HasSearchBar && _searchBox.IsKeyboardFocusWithin) Keyboard.ClearFocus();
             Focus();
             Keyboard.Focus(this);
         }
