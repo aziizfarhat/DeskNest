@@ -146,6 +146,9 @@ namespace DeskNest
         // développées, et libéré dès qu'elles sont repliées (pas de contrôle caché gardé en vie).
         private FrameworkElement? _altContent;
         private bool _contentReleased;
+        private TextBox? _notesBox;
+        private DispatcherTimer? _notesTimer;
+        private string _notesText = "";
         private string PortalName
         {
             get
@@ -427,11 +430,65 @@ namespace DeskNest
             ApplyAltFonts();
         }
 
-        // Remplacé par N2 (notes) et N3 (to-do) ; ne rien faire pour un type inconnu.
-        private FrameworkElement CreateNotesContent() => new Border();
+        // --- Notes : TextBox brut, sans rich text, avec undo natif ---
+        private FrameworkElement CreateNotesContent()
+        {
+            _notesText = NotesStore.Load(Data.Id);
+            var box = new TextBox
+            {
+                Text = _notesText,
+                AcceptsReturn = true,
+                MaxLength = NotesStore.MaxChars,
+                Background = new SolidColorBrush(Color.FromArgb(20, 255, 255, 255)),
+                Foreground = Brushes.White,
+                CaretBrush = Brushes.White,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(2),
+                IsUndoEnabled = true,
+                UndoLimit = 100,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+            };
+            box.TextChanged += NotesBox_TextChanged;
+            _notesBox = box;
+            return box;
+        }
+
         private FrameworkElement CreateTodoContent() => new Border();
-        private void ApplyAltFonts() { }
-        private void ReleaseAltContent() { }
+
+        private void ApplyAltFonts()
+        {
+            if (Data.Type == NestTypes.Notes && _notesBox != null)
+            {
+                if (string.IsNullOrWhiteSpace(Data.ItemFont)) _notesBox.ClearValue(Control.FontFamilyProperty);
+                else _notesBox.FontFamily = new FontFamily(Data.ItemFont);
+                _notesBox.FontSize = Data.ItemFontSize > 0 ? Data.ItemFontSize : _manager.Settings.NotesFontSize;
+                _notesBox.TextWrapping = _manager.Settings.NotesWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            }
+        }
+
+        private void ReleaseAltContent()
+        {
+            if (Data.Type == NestTypes.Notes) FlushNotes();
+        }
+
+        private void NotesBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_notesBox == null) return;
+            _notesText = _notesBox.Text;
+            _notesTimer ??= new DispatcherTimer();
+            _notesTimer.Tick += (_, _) => FlushNotes();
+            _notesTimer.Interval = TimeSpan.FromMilliseconds(Math.Clamp(_manager.Settings.NotesSaveDelayMs, 50, 60000));
+            _notesTimer.Stop();
+            _notesTimer.Start();
+        }
+
+        private void FlushNotes()
+        {
+            _notesTimer?.Stop();
+            if (_notesBox != null) _notesText = _notesBox.Text;
+            NotesStore.Save(Data.Id, _notesText);
+        }
 
         // Replier une zone ne doit pas garder son contenu (potentiellement gros) en mémoire.
         private void ReleaseContent()

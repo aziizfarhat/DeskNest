@@ -74,6 +74,10 @@ namespace DeskNest
             }
         }
 
+        // Abstraction partagée avec NotesStore : les notes utilisent le même système
+        // de fichiers que layout.json (système réel en production, mémoire aux tests).
+        public static IFileSystem TextFileSystem => _fs;
+
         public static void UsePhysicalFileSystem()
         {
             Flush();

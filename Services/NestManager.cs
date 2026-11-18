@@ -253,6 +253,9 @@ namespace DeskNest
 
             foreach (var w in _windows.ToList())
                 w.CloseForReal();
+            // La fermeture des fenêtres a vidé les notes ; on réessaie celles dont
+            // l'écriture avait échoué plus tôt (le texte est resté en mémoire).
+            NotesStore.RetryPending();
         }
     }
 }

@@ -25,6 +25,7 @@ namespace DeskNest.Tests
             Run("profondeur d'annulation bornée à 50", UndoDepthIsBounded);
             Run("migration Version 2 vers 3 : profil, géométrie et copie .v2.bak", MigrateV2LayoutCreatesProfileAndBackup);
             Run("N1 : ancien layout en Files et copie .v3.bak une seule fois", OldLayoutLoadsAsFilesAndCreatesV3Backup);
+            Run("N2 : notes aller-retour et échec d'écriture conservé", NotesRoundTripAndWriteFailureKeepsText);
             Run("zone supprimée retirée de tous les profils", DeletedNestIsRemovedFromEveryProfile);
             Run("profil actif préservé si les écrans ont changé", ActiveProfileIsNotOverwrittenOnMonitorChange);
             Run("bascule d'écran : ancien profil capturé puis profil exact appliqué", DisplaySwitchCapturesOldAndAppliesExactProfile);
@@ -276,6 +277,52 @@ namespace DeskNest.Tests
 
             Storage.SaveNow(loaded);
             AssertEqual(json, fs.ReadAllText(v3Path), "copie non écrasée par la suite");
+        }
+
+        private static void NotesRoundTripAndWriteFailureKeepsText()
+        {
+            var (fs, root) = Sandbox();
+            var id = Guid.NewGuid();
+            var path = Path.Combine(root, "Notes", id.ToString("N") + ".txt");
+
+            AssertEqual("", NotesStore.Load(id), "note absente = texte vide");
+            Assert(NotesStore.Save(id, "Première ligne\nDeuxième ligne"), "première sauvegarde");
+            AssertEqual("Première ligne\nDeuxième ligne", NotesStore.Load(id), "aller-retour de la note");
+            Assert(fs.FileExists(path), "fichier de note créé");
+            Assert(!File.Exists(path), "aucune écriture sur le disque réel");
+
+            var data = Sample("Notes");
+            data.Nests[0].Type = NestTypes.Notes;
+            Storage.SaveNow(data);
+            var layout = fs.ReadAllText(Path.Combine(root, "layout.json"));
+            Assert(!layout.Contains("Première ligne"), "le texte d'une note n'est pas dans layout.json");
+
+            Storage.UseFileSystem(new FailingFileSystem(fs), root);
+            Assert(!NotesStore.Save(id, "Nouveau texte"), "échec d'écriture signalé");
+            AssertEqual("Première ligne\nDeuxième ligne", NotesStore.Load(id), "ancien contenu intact après échec");
+
+            Storage.UseFileSystem(fs, root);
+            NotesStore.RetryPending();
+            AssertEqual("Nouveau texte", NotesStore.Load(id), "texte réécrit après réussite");
+        }
+
+        private sealed class FailingFileSystem : IFileSystem
+        {
+            private readonly IFileSystem _inner;
+            public FailingFileSystem(IFileSystem inner) => _inner = inner;
+
+            public bool FileExists(string path) => _inner.FileExists(path);
+            public string ReadAllText(string path) => _inner.ReadAllText(path);
+            public void WriteAllText(string path, string contents) => throw new IOException("écriture simulée en échec");
+            public void Copy(string sourcePath, string destinationPath, bool overwrite) => throw new IOException("copie simulée en échec");
+            public void Move(string sourcePath, string destinationPath) => throw new IOException("déplacement simulé en échec");
+            public void Delete(string path) => _inner.Delete(path);
+            public bool DirectoryExists(string path) => _inner.DirectoryExists(path);
+            public void CreateDirectory(string path) => _inner.CreateDirectory(path);
+            public string[] GetFiles(string path, string searchPattern, SearchOption searchOption) => _inner.GetFiles(path, searchPattern, searchOption);
+            public string[] GetDirectories(string path, string searchPattern, SearchOption searchOption) => _inner.GetDirectories(path, searchPattern, searchOption);
+            public DateTime GetLastWriteTimeUtc(string path) => _inner.GetLastWriteTimeUtc(path);
+            public void Replace(string sourcePath, string destinationPath, string destinationBackupPath, bool ignoreMetadataErrors) => throw new IOException("remplacement simulé en échec");
         }
 
         private static void MigrateV2LayoutCreatesProfileAndBackup()

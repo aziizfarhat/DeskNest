@@ -179,6 +179,11 @@ namespace DeskNest
         public int CornerRadius { get; set; } = 10;
         public bool ShowBorder { get; set; } = true;
         public string Language { get; set; } = "";               // langue de l'interface (vide = langue de Windows si prise en charge, sinon anglais)
+
+        // Notes (valeurs globales ; le texte lui-même est stocké hors de layout.json).
+        public int NotesFontSize { get; set; } = 13;
+        public bool NotesWrap { get; set; } = true;
+        public int NotesSaveDelayMs { get; set; } = 800;
     }
 
     public static class Palette

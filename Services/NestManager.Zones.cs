@@ -187,6 +187,7 @@ namespace DeskNest
         // Retire une zone sans toucher aux fichiers (annulation d'une création).
         private void RemoveNestSilent(NestData d)
         {
+            NotesStore.Delete(d.Id); // une note supprimée avec sa zone ne doit pas rester sur le disque
             _data.Nests.Remove(d);
             _data.ZonesCleared = _data.Nests.Count == 0;
             _baseline.Remove(d.Id);
@@ -226,6 +227,7 @@ namespace DeskNest
             _baseline.Remove(data.Id);
             _windows.Remove(w);
             w.CloseForReal();
+            NotesStore.Delete(data.Id);
             foreach (var p in items) RestoreOnDesktop(p);
             PushUndo(new DelegateUndo(Loc.T("undo.deleteZone"),
                 () => ReopenNestAt(data, index),
