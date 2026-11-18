@@ -270,7 +270,9 @@
  "tray.newTodo": "新しいTo-Doリスト",
  "tray.newNote": "新しいメモ",
  "todo.default": "To-Do {0}",
- "note.default": "メモ {0}"
+ "note.default": "メモ {0}",
+ "todo.add": "タスクを追加"
 }
+
 
 

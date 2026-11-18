@@ -270,7 +270,9 @@
  "tray.newTodo": "Nuovo elenco attività",
  "tray.newNote": "Nuova nota",
  "todo.default": "Attività {0}",
- "note.default": "Nota {0}"
+ "note.default": "Nota {0}",
+ "todo.add": "Aggiungi attività"
 }
+
 
 

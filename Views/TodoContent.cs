@@ -19,6 +19,7 @@ namespace DeskNest
         private readonly NestData _data;
         private readonly StackPanel _rows = new();
         private readonly TextBox _input;
+        private readonly Button _add;
         private readonly TextBlock _count;
         private readonly TextBlock _empty;
         private readonly Border _indicator;
@@ -54,8 +55,37 @@ namespace DeskNest
                 MaxLength = 500
             };
             _input.KeyDown += Input_KeyDown;
-            Children.Add(_input);
-            Grid.SetRow(_input, 0);
+
+            _add = new Button
+            {
+                Content = "+",
+                ToolTip = Loc.T("todo.add"),
+                FontSize = 16,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                Background = new SolidColorBrush(Color.FromArgb(60, 90, 150, 230)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                Width = 30,
+                Height = 28,
+                Margin = new Thickness(0, 4, 4, 6),
+                Padding = new Thickness(0),
+                Focusable = false,
+                Cursor = Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            KeyboardNavigation.SetIsTabStop(_add, false);
+            _add.Click += (_, _) => AddFromInput();
+
+            var inputRow = new Grid();
+            inputRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            inputRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            inputRow.Children.Add(_input);
+            inputRow.Children.Add(_add);
+            Grid.SetColumn(_input, 0);
+            Grid.SetColumn(_add, 1);
+            Children.Add(inputRow);
+            Grid.SetRow(inputRow, 0);
 
             _empty = new TextBlock
             {
@@ -120,21 +150,33 @@ namespace DeskNest
         {
             FlowDirection = Loc.Flow;
             _empty.Text = Loc.T("todo.empty");
+            _add.ToolTip = Loc.T("todo.add");
             Refresh();
         }
 
         private void Input_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key != Key.Enter) return;
+            // Key.Enter = touche principale, Key.Return = pavé numérique.
+            if (e.Key != Key.Enter && e.Key != Key.Return) return;
             e.Handled = true;
-            var text = _input.Text.Trim();
-            if (text.Length == 0) return;
-            var task = new TodoTask { Text = text };
+            AddFromInput();
+        }
+
+        private void AddFromInput()
+        {
+            if (!TodoOrder.TryCreate(_input.Text, out var task) || task == null) return;
             TodoOrder.Insert(_data.Tasks, task, _manager.Settings.TodoAddAtTop);
             _input.Clear();
             _manager.RequestSave();
             Refresh();
-            Focus();
+            FocusInput();
+        }
+
+        private void FocusInput()
+        {
+            _input.Focus();
+            Keyboard.Focus(_input);
+            _input.CaretIndex = _input.Text.Length;
         }
 
         private void Todo_PreviewKeyDown(object sender, KeyEventArgs e)

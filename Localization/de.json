@@ -270,7 +270,9 @@
  "tray.newTodo": "Neue Aufgabenliste",
  "tray.newNote": "Neue Notiz",
  "todo.default": "Aufgaben {0}",
- "note.default": "Notiz {0}"
+ "note.default": "Notiz {0}",
+ "todo.add": "Aufgabe hinzufügen"
 }
+
 
 

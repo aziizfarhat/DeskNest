@@ -270,7 +270,9 @@
  "tray.newTodo": "Nouvelle liste de tâches",
  "tray.newNote": "Nouvelle note",
  "todo.default": "Tâches {0}",
- "note.default": "Note {0}"
+ "note.default": "Note {0}",
+ "todo.add": "Ajouter une tâche"
 }
+
 
 

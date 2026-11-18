@@ -270,7 +270,9 @@
  "tray.newTodo": "Новый список задач",
  "tray.newNote": "Новая заметка",
  "todo.default": "Задачи {0}",
- "note.default": "Заметка {0}"
+ "note.default": "Заметка {0}",
+ "todo.add": "Добавить задачу"
 }
+
 
 

@@ -17,6 +17,20 @@ namespace DeskNest
             return list.Where(t => !t.Done).Concat(list.Where(t => t.Done)).ToList();
         }
 
+        // Entrée (touche principale ou pavé numérique) et bouton « + » passent par
+        // cette même méthode : une saisie vide ou blanche ne crée aucune tâche.
+        public static bool TryCreate(string? raw, out TodoTask? task)
+        {
+            var text = raw?.Trim() ?? "";
+            if (text.Length == 0)
+            {
+                task = null;
+                return false;
+            }
+            task = new TodoTask { Text = text };
+            return true;
+        }
+
         public static void Insert(List<TodoTask> tasks, TodoTask task, bool addAtTop)
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));

@@ -270,7 +270,9 @@
  "tray.newTodo": "قائمة مهام جديدة",
  "tray.newNote": "ملاحظة جديدة",
  "todo.default": "المهام {0}",
- "note.default": "ملاحظة {0}"
+ "note.default": "ملاحظة {0}",
+ "todo.add": "إضافة مهمة"
 }
+
 
 

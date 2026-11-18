@@ -1632,6 +1632,10 @@ namespace DeskNest
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (_editingTitle || _editingItem != null) return; // les touches appartiennent au champ de saisie
+            // Notes et To-do gèrent leurs propres touches. Ce gestionnaire de fenêtre est
+            // en amont (PreviewKeyDown) : sans cette garde, Entrée était consommé par
+            // OpenSelected() et n'atteignait jamais la saisie d'une tâche.
+            if (!IsFiles && AltContent.IsKeyboardFocusWithin) return;
             // La barre de recherche garde le focus après une recherche. On la laisse gérer la
             // frappe, sauf pour Suppr quand elle est vide : l'utilisateur veut alors retirer
             // l'élément sélectionné, comme dans l'Explorateur.
@@ -2572,6 +2576,7 @@ namespace DeskNest
         // glisser d'élément, édition, menu ou dialogue).
         internal bool IsBusy =>
             _moving || _resizing || _marquee || _menuOpen || _dragging || _dragOver || _editingTitle || _editingItem != null ||
+            (!IsFiles && AltContent.IsKeyboardFocusWithin) || // saisie en cours dans Notes / To-do
             (Hwnd != IntPtr.Zero && !IsWindowEnabled(Hwnd)); // fenêtre de dialogue ouverte
 
         private void StartHover(HoverMode mode, int ms)
