@@ -41,6 +41,8 @@ namespace DeskNest
         private DesktopWatcher? _desktopWatcher;
         private int _desktopWakeQueued;
         private bool _desktopSyncing;
+        private readonly DispatcherTimer _displayTimer;
+        private bool _applyingProfileBounds;
 
         // Trimming à l'inactivité : vérification toutes les 5 s, Action au bout de 60 s
         // sans saisie ou quand toutes les zones sont masquées, avec un délai minimal
@@ -72,6 +74,9 @@ namespace DeskNest
             // Regroupe les rafales d'événements (Win+D masque/restaure des dizaines de fenêtres à la suite).
             _desktopWake = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             _desktopWake.Tick += (_, _) => { _desktopWake.Stop(); DesktopTick(); };
+            // Regroupe les rafales de WM_DISPLAYCHANGE (brancher un écran peut en envoyer plusieurs).
+            _displayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+            _displayTimer.Tick += (_, _) => RefreshDisplayProfile();
             _trimTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
             _trimTimer.Tick += (_, _) => MaybeTrimMemory();
         }
@@ -88,6 +93,10 @@ namespace DeskNest
             else if (Storage.Issue == Storage.LoadIssue.Lost)
                 Warn(Loc.T("msg.layoutLost"));
 
+            // Si les écrans ont changé pendant que l'application était fermée, on
+            // restaure (ou on adapte) avant de créer les fenêtres.
+            ApplyDisplayProfileFromCurrentMonitors();
+
             if (_data.Nests.Count == 0)
             {
                 var first = NewNestData(Loc.T("zone.apps"));
@@ -99,8 +108,15 @@ namespace DeskNest
             // Reprend les fichiers gérés avant d'afficher les Nests.
             RestoreManagedItemsOnStartup();
 
-            foreach (var f in _data.Nests.ToList())
-                OpenWindow(f);
+            // Le constructeur recadre dans l'écran virtuel : lors d'une restauration de
+            // profil on réapplique les valeurs exactes juste après, sans les laisser dériver.
+            _applyingProfileBounds = true;
+            try
+            {
+                foreach (var f in _data.Nests.ToList())
+                    OpenWindow(f);
+            }
+            finally { _applyingProfileBounds = false; }
             InitBaselines();
 #if DEBUG
             LogMemory("zones affichées");
@@ -127,6 +143,7 @@ namespace DeskNest
                 _desktopWatcher.Start();
             }
             catch (Exception ex) { Diag.Log("suivi bureau : " + ex.Message); }
+            SubscribeDisplayChanges();
             _desktopTimer.Start();
             _trimTimer.Start();
 
@@ -153,6 +170,7 @@ namespace DeskNest
             if (_windows.Any(w => w.Data == d || w.Data.Id == d.Id)) return;
 
             var w = new NestWindow(this, d);
+            if (_applyingProfileBounds) w.SetBounds(d.Left, d.Top, d.Width, d.Height);
             _windows.Add(w);
             // Filet de sécurité : si la fenêtre est réellement fermée (fermeture
             // système, plantage de l'affichage...), on ne garde pas de référence morte.
@@ -213,6 +231,8 @@ namespace DeskNest
             _saveTimer.Stop();
             _desktopWake.Stop();
             _desktopTimer.Stop();
+            _displayTimer.Stop();
+            UnsubscribeDisplayChanges();
             _trimTimer.Stop();
             _updateTimer?.Stop();
             _desktopWatcher?.Dispose();

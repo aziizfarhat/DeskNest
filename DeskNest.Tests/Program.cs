@@ -26,6 +26,7 @@ namespace DeskNest.Tests
             Run("migration Version 2 vers 3 : profil, géométrie et copie .v2.bak", MigrateV2LayoutCreatesProfileAndBackup);
             Run("zone supprimée retirée de tous les profils", DeletedNestIsRemovedFromEveryProfile);
             Run("profil actif préservé si les écrans ont changé", ActiveProfileIsNotOverwrittenOnMonitorChange);
+            Run("bascule d'écran : ancien profil capturé puis profil exact appliqué", DisplaySwitchCapturesOldAndAppliesExactProfile);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -403,6 +404,59 @@ namespace DeskNest.Tests
             AssertEqual(top, kept.Top, "Top du profil préservé");
             AssertEqual(width, kept.Width, "Width du profil préservé");
             AssertEqual(height, kept.Height, "Height du profil préservé");
+        }
+
+        private static void DisplaySwitchCapturesOldAndAppliesExactProfile()
+        {
+            var big = new MonitorDescriptor(0, 0, 2560, 1440, 1.0, true);
+            var small = new MonitorDescriptor(0, 0, 1920, 1080, 1.0, true);
+            var bigKey = DisplayProfiles.ComputeKey(new[] { big });
+            var smallKey = DisplayProfiles.ComputeKey(new[] { small });
+
+            var nest = new NestData
+            {
+                Title = "Ancré à droite",
+                Left = 2040, Top = 80, Width = 420, Height = 320, RolledUp = true
+            };
+            var data = new AppData { ActiveProfileKey = bigKey };
+            data.Nests.Add(nest);
+            data.Profiles.Add(new DisplayProfile
+            {
+                Key = bigKey,
+                Description = "Grand écran",
+                Nests = { [nest.Id.ToString()] = new NestGeometry { Left = 2040, Top = 80, Width = 420, Height = 320 } }
+            });
+            data.Profiles.Add(new DisplayProfile
+            {
+                Key = smallKey,
+                Description = "Portable",
+                Nests = { [nest.Id.ToString()] = new NestGeometry { Left = 100, Top = 40, Width = 380, Height = 280 } }
+            });
+
+            nest.Left = 2050; // position réellement atteinte avant le débranchement
+
+            var result = DisplayProfileSwitcher.Switch(data, new[] { small });
+
+            Assert(result.Changed, "la configuration a changé");
+            Assert(result.ProfileFound, "le profil du portable existe");
+            Assert(!result.Adapted, "aucune adaptation nécessaire");
+            AssertEqual(smallKey, data.ActiveProfileKey, "nouveau profil actif");
+            AssertEqual(100d, nest.Left, "Left appliqué exactement");
+            AssertEqual(40d, nest.Top, "Top appliqué exactement");
+            AssertEqual(380d, nest.Width, "Width appliqué exactement");
+            AssertEqual(280d, nest.Height, "Height appliqué exactement");
+
+            var oldProfile = data.Profiles.First(p => p.Key == bigKey);
+            AssertEqual(2050d, oldProfile.Nests[nest.Id.ToString()].Left,
+                "ancienne position capturée avant la bascule");
+            var target = data.Profiles.First(p => p.Key == smallKey);
+            AssertEqual(100d, target.Nests[nest.Id.ToString()].Left,
+                "profil cible non écrasé par l'ancienne position");
+
+            nest.Left = 777; // l'utilisateur a déplacé la zone sur le portable
+            var same = DisplayProfileSwitcher.Switch(data, new[] { small });
+            Assert(!same.Changed, "un événement sans changement de clé ne bascule pas");
+            AssertEqual(777d, nest.Left, "position inchangée sans bascule");
         }
 
         private sealed class FakeDisplayProvider : IDisplayLayoutProvider
