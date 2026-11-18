@@ -600,7 +600,7 @@ namespace DeskNest
                 if (string.IsNullOrWhiteSpace(Data.ItemFont)) _notesBox.ClearValue(Control.FontFamilyProperty);
                 else _notesBox.FontFamily = new FontFamily(Data.ItemFont);
                 // Taille et retour à la ligne : réglages globaux (aucune surcharge par zone).
-                _notesBox.FontSize = Math.Clamp(_manager.Settings.NotesFontSize, 8, 28);
+                _notesBox.FontSize = FontSizeHelper.Safe(_manager.Settings.NotesFontSize, 13);
                 _notesBox.TextWrapping = _manager.Settings.NotesWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
             }
             else if (Data.Type == NestTypes.Todo && _altContent is TodoContent todo)
@@ -924,8 +924,9 @@ namespace DeskNest
                 TitleEdit.FontFamily = ff;
             }
 
-            TitleText.FontSize = Data.TitleFontSize;
-            TitleEdit.FontSize = Data.TitleFontSize;
+            double titleSize = FontSizeHelper.Safe(Data.TitleFontSize, 13, 8, 24);
+            TitleText.FontSize = titleSize;
+            TitleEdit.FontSize = titleSize;
 
             // Police et taille des noms des icônes
             if (string.IsNullOrWhiteSpace(Data.ItemFont))
@@ -937,7 +938,7 @@ namespace DeskNest
                 ItemsHost.FontFamily = new FontFamily(Data.ItemFont);
             }
 
-            ItemsHost.FontSize = Data.ItemFontSize;
+            ItemsHost.FontSize = FontSizeHelper.Safe(Data.ItemFontSize, 11, 8, 20);
             if (!IsFiles) ApplyAltFonts();
         }
 

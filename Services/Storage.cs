@@ -415,6 +415,10 @@ namespace DeskNest
             d.Moved ??= new List<MovedItem>();
             d.Templates ??= new List<NestTemplate>();
             d.Settings ??= new AppSettings();
+            // Tailles de police : JSON 12, 12.0 ou absent acceptés ; une valeur
+            // invalide (NaN du convertisseur) ou hors bornes revient au défaut.
+            d.Settings.TodoFontSize = FontSizeHelper.Safe(d.Settings.TodoFontSize, 12);
+            d.Settings.NotesFontSize = FontSizeHelper.Safe(d.Settings.NotesFontSize, 13);
             DisplayProfiles.NormalizeProfiles(d);
 
             // Un import ou une ancienne sauvegarde peut contenir deux fois la même zone

@@ -184,12 +184,15 @@ namespace DeskNest
         public string Language { get; set; } = "";               // langue de l'interface (vide = langue de Windows si prise en charge, sinon anglais)
 
         // Notes (valeurs globales ; le texte lui-même est stocké hors de layout.json).
-        public int NotesFontSize { get; set; } = 13;
+        // double : FontSize est un DependencyProperty double (voir FontSizeHelper).
+        [JsonConverter(typeof(FontSizeJsonConverter))]
+        public double NotesFontSize { get; set; } = 13;
         public bool NotesWrap { get; set; } = true;
         public int NotesSaveDelayMs { get; set; } = 800;
 
         // To-do (valeurs globales, sans surcharge par zone).
-        public int TodoFontSize { get; set; } = 12;
+        [JsonConverter(typeof(FontSizeJsonConverter))]
+        public double TodoFontSize { get; set; } = 12;
         public bool TodoStrikeThrough { get; set; } = true;
         public bool TodoCheckedToBottom { get; set; }
         public bool TodoAddAtTop { get; set; }

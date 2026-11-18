@@ -135,11 +135,11 @@ namespace DeskNest
             ChkSingleClick.IsChecked = s.OpenItemsWithSingleClick;
 
             // Notes et listes de tâches (les valeurs par défaut couvrent les anciens réglages).
-            TodoFontSize.Value = Math.Clamp(s.TodoFontSize, 8, 28);
+            TodoFontSize.Value = FontSizeHelper.Safe(s.TodoFontSize, 12);
             ChkTodoStrike.IsChecked = s.TodoStrikeThrough;
             ChkTodoBottom.IsChecked = s.TodoCheckedToBottom;
             ChkTodoAddTop.IsChecked = s.TodoAddAtTop;
-            NotesFontSize.Value = Math.Clamp(s.NotesFontSize, 8, 28);
+            NotesFontSize.Value = FontSizeHelper.Safe(s.NotesFontSize, 13);
             ChkNotesWrap.IsChecked = s.NotesWrap;
             NotesSaveDelay.Value = Math.Clamp(s.NotesSaveDelayMs, 100, 5000);
             ChkQuickSearch.IsChecked = s.ShowQuickActionsInSearch;
@@ -779,8 +779,8 @@ namespace DeskNest
         private void TodoFontSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (_loading) return;
-            _m.Settings.TodoFontSize = (int)TodoFontSize.Value;
-            TodoFontSizeLabel.Text = Loc.F("nt.todoFontSize", _m.Settings.TodoFontSize);
+            _m.Settings.TodoFontSize = FontSizeHelper.Safe(TodoFontSize.Value, 12);
+            TodoFontSizeLabel.Text = Loc.F("nt.todoFontSize", (int)_m.Settings.TodoFontSize);
             _m.SettingsChanged();
         }
 
@@ -808,8 +808,8 @@ namespace DeskNest
         private void NotesFontSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (_loading) return;
-            _m.Settings.NotesFontSize = (int)NotesFontSize.Value;
-            NotesFontSizeLabel.Text = Loc.F("nt.notesFontSize", _m.Settings.NotesFontSize);
+            _m.Settings.NotesFontSize = FontSizeHelper.Safe(NotesFontSize.Value, 13);
+            NotesFontSizeLabel.Text = Loc.F("nt.notesFontSize", (int)_m.Settings.NotesFontSize);
             _m.SettingsChanged();
         }
 

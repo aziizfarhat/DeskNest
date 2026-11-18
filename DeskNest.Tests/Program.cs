@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
 
 namespace DeskNest.Tests
 {
@@ -12,6 +14,7 @@ namespace DeskNest.Tests
         private static int _passed;
         private static int _failed;
 
+        [STAThread]
         private static int Main()
         {
             Run("aller-retour SaveNow/Load", RoundTripThroughSaveNow);
@@ -45,6 +48,9 @@ namespace DeskNest.Tests
             Run("F1 : titres par défaut localisés et numéro libre le plus bas", F1DefaultTitlesUseLocalizedLowestUnusedNumber);
             Run("F2/F3 : ajout, édition et refus de tâche vide", F2F3TodoAddEditAndEmptyRules);
             Run("F5 : cycle de vie des brouillons de note", F5NoteDraftLifecycle);
+            Run("police : TodoFontSize entier/décimal chargé et appliqué", FontSizeSettingsAcceptNumbersAndApply);
+            Run("police : TodoFontSize absent utilise le défaut", FontSizeSettingsAbsentUsesDefault);
+            Run("police : valeurs invalides ramenées au défaut ou bornées", FontSizeSettingsInvalidValuesAreSafe);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -574,6 +580,77 @@ namespace DeskNest.Tests
             AssertEqual("", NotesStore.Load(id), "note supprimée avec la zone");
             Assert(!fs.FileExists(notePath), "fichier de note supprimé");
             Assert(!fs.FileExists(draftPath), "fichier de brouillon supprimé");
+        }
+
+        private static void FontSizeSettingsAcceptNumbersAndApply()
+        {
+            var (fs, root) = Sandbox();
+            var path = Path.Combine(root, "layout.json");
+            fs.WriteAllText(path, @"{
+  ""Version"": 3,
+  ""ZonesCleared"": true,
+  ""Nests"": [],
+  ""Settings"": { ""Language"": ""en"", ""TodoFontSize"": 12, ""NotesFontSize"": 18.0 }
+}");
+
+            var s = Storage.Load().Settings;
+            AssertEqual(12.0, s.TodoFontSize, "TodoFontSize entier lu comme double");
+            AssertEqual(18.0, s.NotesFontSize, "NotesFontSize décimal lu comme double");
+
+            // Le chemin qui plantait au démarrage : SetValue(TextElement.FontSizeProperty, ...).
+            var block = new TextBlock();
+            FontSizeHelper.Apply(block, TextElement.FontSizeProperty, s.TodoFontSize, 12);
+            AssertEqual(12.0, block.FontSize, "taille appliquée au DependencyProperty");
+
+            // La forme 12.0 est acceptée sans traiter le layout comme corrompu.
+            fs.WriteAllText(path, @"{
+  ""Version"": 3,
+  ""ZonesCleared"": true,
+  ""Nests"": [],
+  ""Settings"": { ""Language"": ""en"", ""TodoFontSize"": 12.0, ""NotesFontSize"": 18 }
+}");
+            var again = Storage.Load().Settings;
+            AssertEqual(12.0, again.TodoFontSize, "TodoFontSize décimal relu");
+            AssertEqual(18.0, again.NotesFontSize, "NotesFontSize entier relu");
+        }
+
+        private static void FontSizeSettingsAbsentUsesDefault()
+        {
+            var (fs, root) = Sandbox();
+            fs.WriteAllText(Path.Combine(root, "layout.json"), @"{
+  ""Version"": 3,
+  ""ZonesCleared"": true,
+  ""Nests"": [],
+  ""Settings"": { ""Language"": ""en"" }
+}");
+
+            var s = Storage.Load().Settings;
+            AssertEqual(12.0, s.TodoFontSize, "TodoFontSize par défaut sans la clé");
+            AssertEqual(13.0, s.NotesFontSize, "NotesFontSize par défaut sans la clé");
+
+            var block = new TextBlock();
+            FontSizeHelper.Apply(block, TextElement.FontSizeProperty, s.TodoFontSize, 12);
+            AssertEqual(12.0, block.FontSize, "taille par défaut appliquée");
+        }
+
+        private static void FontSizeSettingsInvalidValuesAreSafe()
+        {
+            var (fs, root) = Sandbox();
+            fs.WriteAllText(Path.Combine(root, "layout.json"), @"{
+  ""Version"": 3,
+  ""ZonesCleared"": true,
+  ""Nests"": [],
+  ""Settings"": { ""Language"": ""en"", ""TodoFontSize"": "" invalide "", ""NotesFontSize"": -4 }
+}");
+
+            var s = Storage.Load().Settings;
+            AssertEqual(12.0, s.TodoFontSize, "valeur non numérique remplacée par le défaut");
+            AssertEqual(8.0, s.NotesFontSize, "valeur hors bornes ramenée au minimum");
+
+            // Même un objet non convertible ne doit pas empêcher l'application.
+            var block = new TextBlock();
+            FontSizeHelper.Apply(block, TextElement.FontSizeProperty, new object(), 12);
+            AssertEqual(12.0, block.FontSize, "repli appliqué sans exception");
         }
 
         private sealed class FailingFileSystem : IFileSystem
