@@ -88,6 +88,7 @@ namespace DeskNest
 
         private static string FilePath => System.IO.Path.Combine(Dir, "layout.json");
         private static string BakPath => System.IO.Path.Combine(Dir, "layout.json.bak");
+        private static string V2BakPath => System.IO.Path.Combine(Dir, "layout.json.v2.bak");
         private static string LastGoodPath => System.IO.Path.Combine(Dir, "layout-last-good.json");
         private static readonly JsonSerializerOptions Opt = new() { WriteIndented = true };
 
@@ -124,7 +125,7 @@ namespace DeskNest
 
             if (d != null)
             {
-                d = Normalize(d);
+                d = PrepareLoaded(d, FilePath);
                 // Un fichier sans zone n'est légitime que si l'utilisateur a supprimé
                 // la dernière zone. Sinon (mise à jour, écriture interrompue), on
                 // restaure la sauvegarde la plus récente au lieu de perdre les zones.
@@ -169,7 +170,7 @@ namespace DeskNest
             {
                 var d = JsonSerializer.Deserialize<AppData>(_fs.ReadAllText(path));
                 if (d == null) return null;
-                d = Normalize(d);
+                d = PrepareLoaded(d, path);
                 // Une sauvegarde vide n'est jamais une restauration utile.
                 return d.Nests.Count > 0 ? d : null;
             }
@@ -195,6 +196,7 @@ namespace DeskNest
             try
             {
                 Normalize(data);
+                DisplayProfiles.EnsureActiveProfile(data);
                 hasZones = data.Nests.Count > 0;
                 json = JsonSerializer.Serialize(data, Opt);
             }
@@ -229,6 +231,7 @@ namespace DeskNest
             try
             {
                 Normalize(data);
+                DisplayProfiles.EnsureActiveProfile(data);
                 hasZones = data.Nests.Count > 0;
                 json = JsonSerializer.Serialize(data, Opt);
             }
@@ -332,6 +335,40 @@ namespace DeskNest
             }
         }
 
+        // Prépare un layout lu sur disque : migration V2 -> V3 (avec copie unique du
+        // fichier source) puis profils normalisés. Les positions vivantes ne bougent pas.
+        private static AppData PrepareLoaded(AppData d, string? v2SourcePath)
+        {
+            d = Normalize(d);
+            if (d.Version < 3 && v2SourcePath != null)
+                CopyV2Backup(v2SourcePath);
+            if (d.Version < 3)
+                Diag.Log("migration : layout Version 2 vers Version 3");
+            DisplayProfiles.EnsureActiveProfile(d);
+            return d;
+        }
+
+        // Une seule copie du layout d'origine, avant toute réécriture au format V3.
+        private static void CopyV2Backup(string sourcePath)
+        {
+            try
+            {
+                if (string.Equals(sourcePath, V2BakPath, StringComparison.OrdinalIgnoreCase)) return;
+                if (_fs.FileExists(V2BakPath))
+                {
+                    Diag.Log("migration : layout.json.v2.bak déjà présent");
+                    return;
+                }
+                if (!_fs.FileExists(sourcePath)) return;
+                _fs.Copy(sourcePath, V2BakPath, false);
+                Diag.Log("migration : copie conservée dans layout.json.v2.bak");
+            }
+            catch (Exception ex)
+            {
+                Diag.Log("migration : copie V2 impossible : " + ex.Message);
+            }
+        }
+
         // Les collections peuvent être nulles dans un JSON édité à la main : on ne veut pas planter au démarrage.
         private static AppData Normalize(AppData d)
         {
@@ -340,6 +377,7 @@ namespace DeskNest
             d.Moved ??= new List<MovedItem>();
             d.Templates ??= new List<NestTemplate>();
             d.Settings ??= new AppSettings();
+            DisplayProfiles.NormalizeProfiles(d);
 
             // Un import ou une ancienne sauvegarde peut contenir deux fois la même zone
             // (même Id) : sans ce filtre, deux fenêtres se superposeraient et les
@@ -474,7 +512,7 @@ namespace DeskNest
             try
             {
                 var d = JsonSerializer.Deserialize<AppData>(_fs.ReadAllText(path));
-                return d == null ? null : Normalize(d);
+                return d == null ? null : PrepareLoaded(d, null);
             }
             catch (Exception ex)
             {

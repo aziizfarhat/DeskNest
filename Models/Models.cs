@@ -47,8 +47,12 @@ namespace DeskNest
 
     public class AppData
     {
-        public int Version { get; set; } = 2;
+        public int Version { get; set; } = 3;
         public List<NestData> Nests { get; set; } = new();
+        // Dispositions enregistrées par configuration d'écrans. Les champs Left/Top/Width/Height
+        // des NestData restent les valeurs vivantes du profil actif.
+        public List<DisplayProfile> Profiles { get; set; } = new();
+        public string ActiveProfileKey { get; set; } = "";
         // Éléments du bureau que l'application a masqués (attribut "caché") après un glisser dans une zone.
         public List<string> HiddenByApp { get; set; } = new();
         public AppSettings Settings { get; set; } = new();
@@ -60,6 +64,24 @@ namespace DeskNest
         // Sans ce marqueur, un layout.json vide est considéré comme perdu et restauré
         // depuis la sauvegarde la plus récente (voir Storage.Load).
         public bool ZonesCleared { get; set; }
+    }
+
+    // Profil de disposition pour une configuration d'écrans donnée.
+    // Un profil ne contient QUE de la géométrie : jamais d'éléments, de titres ou de couleurs.
+    public class DisplayProfile
+    {
+        public string Key { get; set; } = "";
+        public string Description { get; set; } = "";
+        public Dictionary<string, NestGeometry> Nests { get; set; } = new();
+    }
+
+    // Géométrie d'une zone dans un profil, en DIPs (même espace que NestData).
+    public class NestGeometry
+    {
+        public double Left { get; set; }
+        public double Top { get; set; }
+        public double Width { get; set; }
+        public double Height { get; set; }
     }
 
     // Modèle de zone : tout ce qui définit son look, réutilisable pour créer une nouvelle zone.
