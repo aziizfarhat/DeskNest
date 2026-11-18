@@ -4,7 +4,7 @@
         xmlns:l="clr-namespace:DeskNest"
         Title="DeskNest" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" ShowActivated="True" ResizeMode="NoResize" Topmost="True"
-        Width="680" Height="470" WindowStartupLocation="CenterScreen"
+        Width="680" Height="510" WindowStartupLocation="CenterScreen"
         TextOptions.TextFormattingMode="Display" PreviewKeyDown="Window_PreviewKeyDown"
         MouseLeftButtonDown="Window_MouseLeftButtonDown">
     <Border x:Name="PaletteBorder" Margin="20" Background="#F21E1E2E" CornerRadius="12"
@@ -14,6 +14,7 @@
         </Border.Effect>
         <Grid Margin="16">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
@@ -38,7 +39,12 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" Margin="0,10,0,0">
+            <!-- Actions rapides : même composant que la fenêtre d'actions, en version compacte. -->
+            <ContentControl x:Name="QuickActionsHost" Grid.Row="1" HorizontalAlignment="Center"
+                            Margin="0,8,0,0" Visibility="Collapsed" Focusable="False"
+                            KeyboardNavigation.IsTabStop="False"/>
+
+            <Grid Grid.Row="2" Margin="0,10,0,0">
                 <ListBox x:Name="ResultsList" Background="Transparent" BorderThickness="0"
                          Foreground="White" SelectionMode="Single" IsTextSearchEnabled="False"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -96,7 +102,7 @@
                            VerticalAlignment="Center" IsHitTestVisible="False"/>
             </Grid>
 
-            <Grid Grid.Row="2" Margin="4,10,4,0">
+            <Grid Grid.Row="3" Margin="4,10,4,0">
                 <TextBlock x:Name="CountText" Foreground="#70FFFFFF" FontSize="11"/>
                 <TextBlock Text="↑ ↓   Enter   Esc" Foreground="#70FFFFFF" FontSize="11"
                            HorizontalAlignment="Right"/>

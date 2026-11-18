@@ -27,6 +27,7 @@ namespace DeskNest
         private bool _ready;
         private bool _closing;
         private KeyboardHook? _keyboardHook;
+        private QuickActionsBar? _quickActions;
         private IntPtr _hwnd;
 
         public bool IsClosing => _closing;
@@ -43,6 +44,9 @@ namespace DeskNest
         {
             InitializeComponent();
             _manager = manager;
+            _quickActions = new QuickActionsBar(QuickInvoke, compact: true);
+            QuickActionsHost.Content = _quickActions;
+            ApplyQuickActionsVisibility();
             ResultsList.ItemsSource = _view;
             QueryBox.TextChanged += (_, _) =>
             {
@@ -56,6 +60,8 @@ namespace DeskNest
             {
                 _keyboardHook?.Dispose();
                 _keyboardHook = null;
+                _quickActions?.Dispose();
+                _quickActions = null;
                 Loc.Changed -= OnLanguageChanged;
             };
             Loc.Changed += OnLanguageChanged;
@@ -65,6 +71,24 @@ namespace DeskNest
         {
             // Les noms des zones et du bureau doivent suivre la langue choisie.
             if (_ready) BuildEntries();
+            _quickActions?.RefreshLabels();
+            ApplyQuickActionsVisibility();
+        }
+
+        private void ApplyQuickActionsVisibility()
+        {
+            QuickActionsHost.Visibility = _manager.Settings.ShowQuickActionsInSearch
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        // Un clic exécute l'action et ferme la palette. Aucun raccourci clavier
+        // n'est attaché ici : les chiffres et les flèches appartiennent à la recherche.
+        private void QuickInvoke(QuickActionKind kind)
+        {
+            if (_closing) return;
+            ClosePalette();
+            Dispatcher.BeginInvoke(new Action(() => _manager.ExecuteQuickAction(kind)),
+                DispatcherPriority.Background);
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)

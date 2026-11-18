@@ -189,6 +189,9 @@ namespace DeskNest
         public bool TodoStrikeThrough { get; set; } = true;
         public bool TodoCheckedToBottom { get; set; }
         public bool TodoAddAtTop { get; set; }
+
+        // Affiche la rangée d'actions rapides dans la palette de recherche.
+        public bool ShowQuickActionsInSearch { get; set; } = true;
     }
 
     public static class Palette

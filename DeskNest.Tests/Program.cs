@@ -29,6 +29,7 @@ namespace DeskNest.Tests
             Run("N2 : notes aller-retour et échec d'écriture conservé", NotesRoundTripAndWriteFailureKeepsText);
             Run("N3 : ordre des tâches coché en bas et ajout haut/bas", TodoOrderingRules);
             Run("N5 : placement au curseur clampé et sans recouvrement", CursorPlacementAvoidsWindows);
+            Run("N6 : anciens réglages chargés avec les nouvelles valeurs par défaut", OldSettingsKeepNewDefaults);
             Run("zone supprimée retirée de tous les profils", DeletedNestIsRemovedFromEveryProfile);
             Run("profil actif préservé si les écrans ont changé", ActiveProfileIsNotOverwrittenOnMonitorChange);
             Run("bascule d'écran : ancien profil capturé puis profil exact appliqué", DisplaySwitchCapturesOldAndAppliesExactProfile);
@@ -280,6 +281,30 @@ namespace DeskNest.Tests
 
             Storage.SaveNow(loaded);
             AssertEqual(json, fs.ReadAllText(v3Path), "copie non écrasée par la suite");
+        }
+
+        private static void OldSettingsKeepNewDefaults()
+        {
+            var (fs, root) = Sandbox();
+            var json = @"{
+  ""Version"": 3,
+  ""ZonesCleared"": false,
+  ""Nests"": [ { ""Id"": ""cccccccc-3333-3333-3333-333333333333"", ""Title"": ""Zone"" } ],
+  ""Settings"": { ""Language"": ""fr"", ""ShowSearchBar"": false }
+}";
+            fs.WriteAllText(Path.Combine(root, "layout.json"), json);
+
+            var s = Storage.Load().Settings;
+
+            AssertEqual("fr", s.Language, "ancien réglage de langue conservé");
+            Assert(!s.ShowSearchBar, "ancien réglage de barre de recherche conservé");
+            AssertEqual(13, s.NotesFontSize, "taille des notes par défaut");
+            Assert(s.NotesWrap, "retour à la ligne des notes par défaut");
+            AssertEqual(800, s.NotesSaveDelayMs, "délai de sauvegarde par défaut");
+            Assert(s.TodoStrikeThrough, "barré des tâches cochées par défaut");
+            Assert(!s.TodoCheckedToBottom, "tâches cochées en bas désactivé par défaut");
+            Assert(!s.TodoAddAtTop, "ajout en haut désactivé par défaut");
+            Assert(s.ShowQuickActionsInSearch, "actions rapides dans la recherche actives par défaut");
         }
 
         private static void CursorPlacementAvoidsWindows()

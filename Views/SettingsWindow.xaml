@@ -470,6 +470,13 @@
                                         IsSnapToTickEnabled="True" ValueChanged="NotesSaveDelay_Changed"/>
                             </StackPanel>
                         </Border>
+
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkQuickSearch" l:L.Key="nt.quickSearch"
+                                          Click="ChkQuickSearch_Click"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

@@ -140,6 +140,7 @@ namespace DeskNest
             NotesFontSize.Value = Math.Clamp(s.NotesFontSize, 8, 28);
             ChkNotesWrap.IsChecked = s.NotesWrap;
             NotesSaveDelay.Value = Math.Clamp(s.NotesSaveDelayMs, 100, 5000);
+            ChkQuickSearch.IsChecked = s.ShowQuickActionsInSearch;
 
             DColor.SelectedIndex = IndexOfPreset(s.DefaultColor);
             DHex.Text = s.DefaultColor;
@@ -814,6 +815,13 @@ namespace DeskNest
             if (_loading) return;
             _m.Settings.NotesSaveDelayMs = (int)NotesSaveDelay.Value;
             NotesSaveDelayLabel.Text = Loc.F("nt.notesSaveDelay", _m.Settings.NotesSaveDelayMs);
+            _m.SettingsChanged();
+        }
+
+        private void ChkQuickSearch_Click(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _m.Settings.ShowQuickActionsInSearch = ChkQuickSearch.IsChecked == true;
             _m.SettingsChanged();
         }
 

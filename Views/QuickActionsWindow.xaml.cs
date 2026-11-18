@@ -76,27 +76,7 @@ namespace DeskNest
             Dispatcher.BeginInvoke(new Action(() => Execute(kind)), DispatcherPriority.Background);
         }
 
-        private void Execute(QuickActionKind kind)
-        {
-            switch (kind)
-            {
-                case QuickActionKind.NewZone:
-                    _manager.CreateNestAtCursor(NestTypes.Files);
-                    break;
-                case QuickActionKind.NewPortal:
-                    _manager.CreatePortalAtCursor();
-                    break;
-                case QuickActionKind.NewTodo:
-                    _manager.CreateNestAtCursor(NestTypes.Todo);
-                    break;
-                case QuickActionKind.NewNote:
-                    _manager.CreateNestAtCursor(NestTypes.Notes);
-                    break;
-                case QuickActionKind.Settings:
-                    _manager.ShowSettings();
-                    break;
-            }
-        }
+        private void Execute(QuickActionKind kind) => _manager.ExecuteQuickAction(kind);
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
