@@ -10,7 +10,7 @@ DeskNest is a lightweight Windows desktop organizer that helps you group applica
 
 Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
 
-> **Project status:** Under active development. DeskNest is currently at version 0.8.4.0.
+> **Project status:** Under active development. DeskNest is currently at version 0.8.5.0.
 
 ## Features
 
@@ -183,7 +183,7 @@ The script automatically:
 | `publish/DeskNest-<version>-Portable.zip` | Portable archive containing `DeskNest.exe` and `LICENSE` |
 | `installer/DeskNest-Setup-<version>.exe` | Windows installer (when Inno Setup 6 is available) |
 
-For example, with version `0.8.4.0` the script produces `publish/DeskNest-0.8.4.0-Portable.zip` and `installer/DeskNest-Setup-0.8.4.0.exe`.
+For example, with version `0.8.5.0` the script produces `publish/DeskNest-0.8.5.0-Portable.zip` and `installer/DeskNest-Setup-0.8.5.0.exe`.
 
 The target computer does not need the .NET Desktop Runtime to run the standalone release.
 

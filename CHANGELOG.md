@@ -5,6 +5,18 @@ All notable changes to DeskNest are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5.0] - 2026-11-18
+
+### Added
+
+- Display layout profiles keyed by monitor bounds, DPI scale and primary flag. Version 2 layouts are migrated once, with the original file copied to `layout.json.v2.bak`.
+- Display-change handling with a 1.5 s debounce: existing profiles are restored exactly when monitors return, and unknown configurations are adapted from the closest known profile.
+- Work-area anchoring and clamping for nests, including the expanded size of rolled-up zones and nests moved from a disconnected monitor to the primary screen.
+
+### Fixed
+
+- Nests are no longer left off-screen after a monitor change, and right-aligned nests keep their right anchor.
+
 ## [0.8.4.0] - 2026-11-17
 
 ### Changed
@@ -81,6 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `layout.json` is now written atomically through `File.Replace`, with `layout.json.bak` kept as the previous valid state and used when the main file is corrupt or empty.
 - Moving an item into or out of the managed store now saves the layout synchronously, so a crash cannot lose the original location.
 
+[0.8.5.0]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.5.0
 [0.8.4.0]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.4.0
 [0.8.3.4]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.3.4
 [0.8.3.3]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.3.3

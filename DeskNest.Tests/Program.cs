@@ -32,6 +32,7 @@ namespace DeskNest.Tests
             Run("profil source : plus grande recouvrance d'écran choisie", MostSimilarProfileIsUsedAsSource);
             Run("sécurité : zone entièrement hors écran ramenée à l'écran", FullyOffScreenNestIsMovedInside);
             Run("sécurité : zone partiellement visible laissée en place", PartiallyVisibleNestIsKept);
+            Run("D6 : aller-retour 2560x1440 → 1920x1080 → 2560x1440", RoundTripAcrossMonitorChangeRestoresExactLayout);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -231,82 +232,14 @@ namespace DeskNest.Tests
             var monitors = new[] { new MonitorDescriptor(0, 0, 2560, 1440, 1.0, true) };
             DisplayProfiles.UseProvider(new FakeDisplayProvider(monitors));
 
-            var json = @"{
-  ""Version"": 2,
-  ""ZonesCleared"": false,
-  ""Nests"": [
-    {
-      ""Id"": ""11111111-1111-1111-1111-111111111111"",
-      ""Title"": ""Bureau"",
-      ""Left"": 40.0,
-      ""Top"": 40.0,
-      ""Width"": 720.0,
-      ""Height"": 560.0,
-      ""RolledUp"": false,
-      ""Items"": [ ""C:\\Users\\example\\Desktop\\notes.txt"" ]
-    },
-    {
-      ""Id"": ""22222222-2222-2222-2222-222222222222"",
-      ""Title"": ""Notes"",
-      ""Left"": 2041.0,
-      ""Top"": 60.0,
-      ""Width"": 420.0,
-      ""Height"": 320.0,
-      ""RolledUp"": true
-    },
-    {
-      ""Id"": ""33333333-3333-3333-3333-333333333333"",
-      ""Title"": ""Photos"",
-      ""Left"": 1995.0,
-      ""Top"": 400.0,
-      ""Width"": 470.0,
-      ""Height"": 300.0,
-      ""RolledUp"": true
-    },
-    {
-      ""Id"": ""44444444-4444-4444-4444-444444444444"",
-      ""Title"": ""Projets"",
-      ""Left"": 2100.0,
-      ""Top"": 720.0,
-      ""Width"": 360.0,
-      ""Height"": 280.0,
-      ""RolledUp"": true
-    },
-    {
-      ""Id"": ""55555555-5555-5555-5555-555555555555"",
-      ""Title"": ""Musique"",
-      ""Left"": 2060.0,
-      ""Top"": 1020.0,
-      ""Width"": 405.0,
-      ""Height"": 240.0,
-      ""RolledUp"": true
-    },
-    {
-      ""Id"": ""66666666-6666-6666-6666-666666666666"",
-      ""Title"": ""Outils"",
-      ""Left"": 2080.0,
-      ""Top"": 1260.0,
-      ""Width"": 390.0,
-      ""Height"": 180.0,
-      ""RolledUp"": true
-    }
-  ]
-}";
+            var json = SampleV2Json();
             var layoutPath = Path.Combine(root, "layout.json");
             var v2Path = Path.Combine(root, "layout.json.v2.bak");
             fs.WriteAllText(layoutPath, json);
 
             var loaded = Storage.Load();
             var expectedKey = DisplayProfiles.ComputeKey(monitors);
-            var expected = new[]
-            {
-                new { Id = "11111111-1111-1111-1111-111111111111", Title = "Bureau", Left = 40d, Top = 40d, Width = 720d, Height = 560d, RolledUp = false },
-                new { Id = "22222222-2222-2222-2222-222222222222", Title = "Notes", Left = 2041d, Top = 60d, Width = 420d, Height = 320d, RolledUp = true },
-                new { Id = "33333333-3333-3333-3333-333333333333", Title = "Photos", Left = 1995d, Top = 400d, Width = 470d, Height = 300d, RolledUp = true },
-                new { Id = "44444444-4444-4444-4444-444444444444", Title = "Projets", Left = 2100d, Top = 720d, Width = 360d, Height = 280d, RolledUp = true },
-                new { Id = "55555555-5555-5555-5555-555555555555", Title = "Musique", Left = 2060d, Top = 1020d, Width = 405d, Height = 240d, RolledUp = true },
-                new { Id = "66666666-6666-6666-6666-666666666666", Title = "Outils", Left = 2080d, Top = 1260d, Width = 390d, Height = 180d, RolledUp = true }
-            };
+            var expected = SampleV2Expectations();
 
             AssertEqual(3, loaded.Version, "version migrée");
             AssertEqual(expectedKey, loaded.ActiveProfileKey, "profil actif");
@@ -617,6 +550,156 @@ namespace DeskNest.Tests
             AssertEqual(0, adjusted, "aucun déplacement");
             AssertEqual(1800d, nest.Left, "position laissée en place");
             AssertEqual(100d, nest.Top, "hauteur laissée en place");
+        }
+
+        private static void RoundTripAcrossMonitorChangeRestoresExactLayout()
+        {
+            var (fs, root) = Sandbox();
+            var big = new MonitorDescriptor(0, 0, 2560, 1440, 1.0, true, 0, 0, 2560, 1380);
+            var small = new MonitorDescriptor(0, 0, 1920, 1080, 1.0, true, 0, 0, 1920, 1020);
+            var bigKey = DisplayProfiles.ComputeKey(new[] { big });
+            var smallKey = DisplayProfiles.ComputeKey(new[] { small });
+            var expected = SampleV2Expectations();
+
+            DisplayProfiles.UseProvider(new FakeDisplayProvider(big));
+            fs.WriteAllText(Path.Combine(root, "layout.json"), SampleV2Json());
+            var data = Storage.Load();
+            AssertEqual(3, data.Version, "migration V3");
+            AssertEqual(bigKey, data.ActiveProfileKey, "profil 2560x1440");
+            Assert(fs.FileExists(Path.Combine(root, "layout.json.v2.bak")), "copie V2 créée");
+
+            var toSmall = DisplayProfileSwitcher.Switch(data, new[] { small });
+            Assert(toSmall.Changed && toSmall.Adapted, "adaptation vers 1920x1080");
+            AssertEqual(smallKey, data.ActiveProfileKey, "profil 1920x1080");
+
+            foreach (var item in expected.Where(e => e.RolledUp))
+            {
+                var nest = data.Nests.First(n => n.Id.ToString() == item.Id);
+                double sourceDistance = big.WorkRight - (item.Left + item.Width);
+                double targetDistance = small.WorkRight - (nest.Left + nest.Width);
+                AssertEqual(sourceDistance, targetDistance, "ancrage droit " + item.Title);
+            }
+            foreach (var nest in data.Nests)
+            {
+                Assert(nest.Left >= small.WorkX && nest.Top >= small.WorkY, "dans le travail du portable");
+                Assert(nest.Left + nest.Width <= small.WorkRight, "bord droit dans le portable");
+                Assert(nest.Top + Math.Max(60, nest.Height) <= small.WorkBottom,
+                    "taille développée dans le portable");
+            }
+
+            DisplayProfiles.UseProvider(new FakeDisplayProvider(small));
+            Storage.SaveNow(data);
+            var reloaded = Storage.Load();
+            AssertEqual(smallKey, reloaded.ActiveProfileKey, "profil du portable persisté");
+
+            var toBig = DisplayProfileSwitcher.Switch(reloaded, new[] { big });
+            Assert(toBig.Changed && toBig.ProfileFound && !toBig.Adapted, "retour au profil exact");
+            AssertEqual(bigKey, reloaded.ActiveProfileKey, "profil 2560x1440 restauré");
+            AssertExactLayout(reloaded, expected, "après retour");
+
+            Storage.SaveNow(reloaded);
+            DisplayProfiles.UseProvider(new FakeDisplayProvider(big));
+            var final = Storage.Load();
+            AssertExactLayout(final, expected, "après rechargement final");
+        }
+
+        private static void AssertExactLayout(AppData data, SampleNest[] expected, string stage)
+        {
+            AssertEqual(6, data.Nests.Count, "nombre de zones " + stage);
+            foreach (var item in expected)
+            {
+                var nest = data.Nests.FirstOrDefault(n => n.Id.ToString() == item.Id);
+                Assert(nest != null, "zone " + item.Title + " " + stage);
+                AssertEqual(item.Title, nest!.Title, "titre " + stage);
+                AssertEqual(item.Left, nest.Left, "Left " + item.Title + " " + stage);
+                AssertEqual(item.Top, nest.Top, "Top " + item.Title + " " + stage);
+                AssertEqual(item.Width, nest.Width, "Width " + item.Title + " " + stage);
+                AssertEqual(item.Height, nest.Height, "Height " + item.Title + " " + stage);
+                AssertEqual(item.RolledUp, nest.RolledUp, "RolledUp " + item.Title + " " + stage);
+            }
+        }
+
+        private static string SampleV2Json() => @"{
+  ""Version"": 2,
+  ""ZonesCleared"": false,
+  ""Nests"": [
+    {
+      ""Id"": ""11111111-1111-1111-1111-111111111111"",
+      ""Title"": ""Bureau"",
+      ""Left"": 40.0,
+      ""Top"": 40.0,
+      ""Width"": 720.0,
+      ""Height"": 560.0,
+      ""RolledUp"": false,
+      ""Items"": [ ""C:\\Users\\example\\Desktop\\notes.txt"" ]
+    },
+    {
+      ""Id"": ""22222222-2222-2222-2222-222222222222"",
+      ""Title"": ""Notes"",
+      ""Left"": 2041.0,
+      ""Top"": 60.0,
+      ""Width"": 420.0,
+      ""Height"": 320.0,
+      ""RolledUp"": true
+    },
+    {
+      ""Id"": ""33333333-3333-3333-3333-333333333333"",
+      ""Title"": ""Photos"",
+      ""Left"": 1995.0,
+      ""Top"": 400.0,
+      ""Width"": 470.0,
+      ""Height"": 300.0,
+      ""RolledUp"": true
+    },
+    {
+      ""Id"": ""44444444-4444-4444-4444-444444444444"",
+      ""Title"": ""Projets"",
+      ""Left"": 2100.0,
+      ""Top"": 720.0,
+      ""Width"": 360.0,
+      ""Height"": 280.0,
+      ""RolledUp"": true
+    },
+    {
+      ""Id"": ""55555555-5555-5555-5555-555555555555"",
+      ""Title"": ""Musique"",
+      ""Left"": 2060.0,
+      ""Top"": 1020.0,
+      ""Width"": 405.0,
+      ""Height"": 240.0,
+      ""RolledUp"": true
+    },
+    {
+      ""Id"": ""66666666-6666-6666-6666-666666666666"",
+      ""Title"": ""Outils"",
+      ""Left"": 2080.0,
+      ""Top"": 1260.0,
+      ""Width"": 390.0,
+      ""Height"": 180.0,
+      ""RolledUp"": true
+    }
+  ]
+}";
+
+        private static SampleNest[] SampleV2Expectations() => new[]
+        {
+            new SampleNest { Id = "11111111-1111-1111-1111-111111111111", Title = "Bureau", Left = 40, Top = 40, Width = 720, Height = 560, RolledUp = false },
+            new SampleNest { Id = "22222222-2222-2222-2222-222222222222", Title = "Notes", Left = 2041, Top = 60, Width = 420, Height = 320, RolledUp = true },
+            new SampleNest { Id = "33333333-3333-3333-3333-333333333333", Title = "Photos", Left = 1995, Top = 400, Width = 470, Height = 300, RolledUp = true },
+            new SampleNest { Id = "44444444-4444-4444-4444-444444444444", Title = "Projets", Left = 2100, Top = 720, Width = 360, Height = 280, RolledUp = true },
+            new SampleNest { Id = "55555555-5555-5555-5555-555555555555", Title = "Musique", Left = 2060, Top = 1020, Width = 405, Height = 240, RolledUp = true },
+            new SampleNest { Id = "66666666-6666-6666-6666-666666666666", Title = "Outils", Left = 2080, Top = 1260, Width = 390, Height = 180, RolledUp = true }
+        };
+
+        private sealed class SampleNest
+        {
+            public string Id = "";
+            public string Title = "";
+            public double Left;
+            public double Top;
+            public double Width;
+            public double Height;
+            public bool RolledUp;
         }
 
         private sealed class FakeDisplayProvider : IDisplayLayoutProvider
