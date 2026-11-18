@@ -5,6 +5,21 @@ All notable changes to DeskNest are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.6.0] - 2026-11-18
+
+### Added
+
+- Three nest types: classic file nests (now the default, including Folder Portals), plain-text Notes nests, and To-do list nests. Existing layouts load unchanged and are copied once to `layout.json.v3.bak` before the first write by this version.
+- Notes nests store UTF-8 text in `%APPDATA%\DeskNest\Notes\<nestId>.txt` with deferred (default 800 ms) atomic saves, native undo, word wrap and a configurable font size. Failed writes keep the text in memory and are retried.
+- To-do nests with inline editing, deletion, drag reorder with a drop indicator, strike-through for checked tasks, optional checked-to-bottom sorting, top/bottom insertion and a `done/total` count.
+- A "Notes & Todo List" Settings tab with all new options, including the `Show quick actions in search` toggle.
+- A quick-actions palette on tray double-click and a shared compact quick-actions row in the global search palette, with five mouse/keyboard-driven actions. New nests are placed at the cursor, clamped to the work area and offset to avoid covering visible nests.
+
+### Changed
+
+- Tray double-click now opens the quick-actions palette instead of Settings; the tray menu and its commands are unchanged.
+- Quick-action buttons never take focus or appear in the Tab order, so typing and arrow keys keep controlling search results.
+
 ## [0.8.5.0] - 2026-11-18
 
 ### Added
@@ -93,6 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `layout.json` is now written atomically through `File.Replace`, with `layout.json.bak` kept as the previous valid state and used when the main file is corrupt or empty.
 - Moving an item into or out of the managed store now saves the layout synchronously, so a crash cannot lose the original location.
 
+[0.8.6.0]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.6.0
 [0.8.5.0]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.5.0
 [0.8.4.0]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.4.0
 [0.8.3.4]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.3.4

@@ -10,7 +10,7 @@ DeskNest is a lightweight Windows desktop organizer that helps you group applica
 
 Instead of leaving everything scattered across your desktop, DeskNest provides a more organized and accessible workspace.
 
-> **Project status:** Under active development. DeskNest is currently at version 0.8.5.0.
+> **Project status:** Under active development. DeskNest is currently at version 0.8.6.0.
 
 ## Features
 
@@ -46,6 +46,37 @@ Folder Portals provide convenient access to folder contents directly from your d
 - Create Folder Portals.
 - Link zones to existing folders.
 - Keep frequently used files and folders organized and accessible.
+
+### Notes Nests
+
+Notes nests are plain-text notepads that live directly on your desktop. Their text is kept in `%APPDATA%\DeskNest\Notes\<nestId>.txt` as UTF-8, separate from `layout.json`, so layouts stay small and notes survive layout changes.
+
+- Text is saved automatically about 800 ms after the last keystroke (configurable in Settings › Notes & Todo List), and on close or exit.
+- Saves are atomic: a temporary file is written and then replaces the previous one, with a backup kept for recovery.
+- Native TextBox undo and redo (`Ctrl+Z` / `Ctrl+Y`); layout undo/redo never affects note text.
+- Word wrap and a configurable font size. Rich text is intentionally not supported.
+- Deleting a note nest also deletes its text file. A missing file simply opens as an empty note.
+- A failed write keeps the text in memory and retries instead of losing it.
+
+### To-do Lists
+
+To-do nests keep simple task lists on your desktop. Each nest shows a `done/total` count.
+
+- Type a task in the input row at the top and press `Enter` to add it.
+- Click a task to edit it in place; press `Delete` to remove the selected task.
+- Checked tasks can be struck through, and can optionally move to the bottom; new tasks can be added at the top or the bottom.
+- Reorder tasks by dragging the small grip at the left of a row: a drop indicator shows the target position, and file drag-and-drop is not affected.
+- Tasks are stored in `layout.json` with their id, text, and done state.
+
+### Quick Actions
+
+Double-click the DeskNest tray icon to open a compact quick-actions palette, styled like the global search palette. It offers five large buttons: **New zone**, **New Folder Portal**, **New to-do list**, **New note**, and **Settings**.
+
+- Use the arrow keys, press `1`–`5`, or press `Enter` to run the highlighted action; `Esc` or a click outside closes the window.
+- New nests are created centered at the mouse cursor, clamped to the screen's work area and offset so they do not cover visible nests. Their title is immediately ready to edit.
+- Cancelling the folder picker creates nothing. The tray menu and its commands are unchanged.
+- The same five actions appear as a slim icon row in the global search palette. The buttons never take keyboard focus and are not in the Tab order, so typing and arrow keys still control search results; clicking one runs the action and closes the palette.
+- The search-palette row can be turned off with **Show quick actions in search** in Settings › Notes & Todo List.
 
 ### Global Search
 
@@ -183,7 +214,7 @@ The script automatically:
 | `publish/DeskNest-<version>-Portable.zip` | Portable archive containing `DeskNest.exe` and `LICENSE` |
 | `installer/DeskNest-Setup-<version>.exe` | Windows installer (when Inno Setup 6 is available) |
 
-For example, with version `0.8.5.0` the script produces `publish/DeskNest-0.8.5.0-Portable.zip` and `installer/DeskNest-Setup-0.8.5.0.exe`.
+For example, with version `0.8.6.0` the script produces `publish/DeskNest-0.8.6.0-Portable.zip` and `installer/DeskNest-Setup-0.8.6.0.exe`.
 
 The target computer does not need the .NET Desktop Runtime to run the standalone release.
 
@@ -225,14 +256,19 @@ Some of the main source files:
 | File | Purpose |
 |---|---|
 | `App.xaml.cs` | Application startup and lifecycle |
-| `Views/NestWindow.xaml` | Zone interface |
-| `Views/SettingsWindow.xaml` | Application settings |
-| `Views/SearchPalette.xaml` | Global search palette |
+| `Views/NestWindow.xaml` | Zone interface (files, notes, to-do lists) |
+| `Views/SettingsWindow.xaml` | Application settings, including Notes & Todo List |
+| `Views/SearchPalette.xaml` | Global search palette with quick-actions row |
+| `Views/QuickActionsWindow.xaml` | Tray quick-actions palette |
+| `Views/QuickActionsBar.cs` | Shared quick-actions buttons for both palettes |
 | `Views/GuideOverlay.cs` | Alignment guide overlay |
 | `Views/TrayIcon.cs` | System tray integration |
 | `Views/DesktopContextMenu.cs` | Desktop background context menu |
 | `Services/NestManager*.cs` | Zone management, split by concern |
-| `Services/Storage.cs` | Layout persistence and backups |
+| `Services/Storage.cs` | Layout persistence, V3 backup and backups |
+| `Services/NotesStore.cs` | Deferred, atomic notes persistence |
+| `Services/TodoOrder.cs` | To-do ordering and insert/move rules |
+| `Services/CursorPlacement.cs` | Cursor-screen placement and non-overlap logic |
 | `Services/IFileSystem.cs` | File-system abstraction used by the tests |
 | `Services/UpdateChecker.cs` | GitHub release version comparison |
 | `Services/DesktopHelper.cs` | Windows desktop integration |

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Windows;
 
 namespace DeskNest.Tests
@@ -39,6 +40,8 @@ namespace DeskNest.Tests
             Run("sécurité : zone entièrement hors écran ramenée à l'écran", FullyOffScreenNestIsMovedInside);
             Run("sécurité : zone partiellement visible laissée en place", PartiallyVisibleNestIsKept);
             Run("D6 : aller-retour 2560x1440 → 1920x1080 → 2560x1440", RoundTripAcrossMonitorChangeRestoresExactLayout);
+            Run("N7 : parité des clés de traduction dans les douze langues", LocalizationKeysAreComplete);
+            Run("N7 : profils d'affichage préservent Notes et To-do", NewTypesSurviveDisplayProfiles);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -281,6 +284,79 @@ namespace DeskNest.Tests
 
             Storage.SaveNow(loaded);
             AssertEqual(json, fs.ReadAllText(v3Path), "copie non écrasée par la suite");
+        }
+
+        private static void LocalizationKeysAreComplete()
+        {
+            var assembly = typeof(Loc).Assembly;
+            Dictionary<string, string>? english = null;
+            foreach (var code in new[] { "en", "fr", "it", "de", "es", "pt", "ar", "zh", "ja", "ko", "ru", "uk" })
+            {
+                using var stream = assembly.GetManifestResourceStream("DeskNest.Localization." + code + ".json");
+                Assert(stream != null, "table de traduction " + code);
+                var table = JsonSerializer.Deserialize<Dictionary<string, string>>(stream!)!;
+                if (english == null) english = table;
+                else AssertEqual(english.Count, table.Count, "nombre de clés en " + code);
+                foreach (var key in english.Keys)
+                    Assert(table.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value),
+                        "clé « " + key + " » absente de " + code);
+            }
+
+            foreach (var key in new[]
+            {
+                "tab.notesTodo", "nt.todoTitle", "nt.todoStrike", "nt.todoBottom", "nt.todoAddTop",
+                "nt.notesTitle", "nt.notesFontSize", "nt.notesWrap", "nt.notesSaveDelay", "nt.quickSearch",
+                "todo.empty", "todo.count", "todo.drag", "tray.newTodo", "tray.newNote" })
+                Assert(english!.ContainsKey(key), "nouvelle clé absente : " + key);
+        }
+
+        private static void NewTypesSurviveDisplayProfiles()
+        {
+            var (_, root) = Sandbox();
+            var big = new MonitorDescriptor(0, 0, 2560, 1440, 1.0, true, 0, 0, 2560, 1380);
+            var small = new MonitorDescriptor(0, 0, 1920, 1080, 1.0, true, 0, 0, 1920, 1020);
+            var bigKey = DisplayProfiles.ComputeKey(new[] { big });
+            var smallKey = DisplayProfiles.ComputeKey(new[] { small });
+
+            DisplayProfiles.UseProvider(new FakeDisplayProvider(big));
+            var data = Sample("Notes");
+            var notes = data.Nests[0];
+            notes.Type = NestTypes.Notes;
+            notes.Left = 2000; notes.Top = 200; notes.Width = 420; notes.Height = 300;
+            double notesLeft = notes.Left, notesTop = notes.Top;
+            var todo = new NestData
+            {
+                Type = NestTypes.Todo, Title = "Tâches",
+                Left = 2100, Top = 600, Width = 380, Height = 300
+            };
+            todo.Tasks.Add(new TodoTask { Text = "Acheter du lait", Done = true });
+            data.Nests.Add(todo);
+            Storage.SaveNow(data);
+
+            var loaded = Storage.Load();
+            AssertEqual(bigKey, loaded.ActiveProfileKey, "profil initial");
+            AssertEqual(NestTypes.Notes, loaded.Nests[0].Type, "type Notes conservé");
+            AssertEqual(NestTypes.Todo, loaded.Nests[1].Type, "type Todo conservé");
+            AssertEqual(1, loaded.Nests[1].Tasks.Count, "tâches conservées");
+            AssertEqual("Acheter du lait", loaded.Nests[1].Tasks[0].Text, "texte de tâche conservé");
+            Assert(loaded.Nests[1].Tasks[0].Done, "état coché conservé");
+
+            DisplayProfileSwitcher.Switch(loaded, new[] { small });
+            Storage.SaveNow(loaded);
+            DisplayProfiles.UseProvider(new FakeDisplayProvider(small));
+            var adapted = Storage.Load();
+            AssertEqual(smallKey, adapted.ActiveProfileKey, "profil portable");
+            AssertEqual(NestTypes.Notes, adapted.Nests[0].Type, "type Notes après adaptation");
+            AssertEqual(NestTypes.Todo, adapted.Nests[1].Type, "type Todo après adaptation");
+            Assert(adapted.Nests.All(n => n.Left >= 0 && n.Left + n.Width <= 1920), "zones dans le portable");
+            AssertEqual("Acheter du lait", adapted.Nests[1].Tasks[0].Text, "tâches après adaptation");
+
+            var restored = DisplayProfileSwitcher.Switch(adapted, new[] { big });
+            Assert(restored.ProfileFound, "profil exact retrouvé");
+            AssertEqual(bigKey, adapted.ActiveProfileKey, "profil 2560x1440 restauré");
+            AssertEqual(notesLeft, adapted.Nests[0].Left, "position Notes restaurée");
+            AssertEqual(notesTop, adapted.Nests[0].Top, "hauteur Notes restaurée");
+            AssertEqual(NestTypes.Todo, adapted.Nests[1].Type, "type Todo restauré");
         }
 
         private static void OldSettingsKeepNewDefaults()
