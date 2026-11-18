@@ -253,5 +253,21 @@
  "sc.kShiftDel": "Shift + Del",
  "sc.kDouble": "نقر مزدوج",
  "sc.kMouseBack": "زر الرجوع بالفأرة",
- "sc.editHint": "انقر على أحد المربعات ثم اضغط التركيبة الجديدة. Esc يلغي، وBackspace يعيد القيمة الافتراضية."
+ "sc.editHint": "انقر على أحد المربعات ثم اضغط التركيبة الجديدة. Esc يلغي، وBackspace يعيد القيمة الافتراضية.",
+ "tab.notesTodo": "الملاحظات وقوائم المهام",
+ "nt.todoTitle": "قوائم المهام",
+ "nt.todoStrike": "شطب وتعتيم المهام المكتملة",
+ "nt.todoBottom": "نقل المهام المكتملة إلى الأسفل",
+ "nt.todoAddTop": "إضافة مهام جديدة في الأعلى",
+ "nt.notesTitle": "ملاحظات",
+ "nt.notesFontSize": "حجم الخط: {0} نقطة",
+ "nt.notesWrap": "الف الأسطر تلقائياً",
+ "nt.notesSaveDelay": "حفظ بعد: {0} مللي ثانية",
+ "nt.quickSearch": "إظهار الإجراءات السريعة في البحث",
+ "todo.empty": "لا توجد مهام بعد",
+ "todo.count": "{0}/{1} مكتملة",
+ "todo.drag": "اسحب لإعادة الترتيب",
+ "tray.newTodo": "قائمة مهام جديدة",
+ "tray.newNote": "ملاحظة جديدة"
 }
+

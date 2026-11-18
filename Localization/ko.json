@@ -253,5 +253,21 @@
  "sc.kShiftDel": "Shift + Del",
  "sc.kDouble": "두 번 클릭",
  "sc.kMouseBack": "마우스 뒤로 버튼",
- "sc.editHint": "단축키 상자를 클릭한 뒤 새 조합을 누르세요. Esc는 취소, Backspace는 기본값으로 복원합니다."
+ "sc.editHint": "단축키 상자를 클릭한 뒤 새 조합을 누르세요. Esc는 취소, Backspace는 기본값으로 복원합니다.",
+ "tab.notesTodo": "메모 및 할 일 목록",
+ "nt.todoTitle": "할 일 목록",
+ "nt.todoStrike": "완료된 작업에 취소선과 흐리게 표시",
+ "nt.todoBottom": "완료된 작업을 아래로 이동",
+ "nt.todoAddTop": "새 작업을 위에 추가",
+ "nt.notesTitle": "메모",
+ "nt.notesFontSize": "글꼴 크기: {0} pt",
+ "nt.notesWrap": "자동 줄바꿈",
+ "nt.notesSaveDelay": "저장 대기 시간: {0} ms",
+ "nt.quickSearch": "검색에 빠른 작업 표시",
+ "todo.empty": "아직 작업이 없습니다",
+ "todo.count": "{0}/{1} 완료",
+ "todo.drag": "드래그하여 순서 변경",
+ "tray.newTodo": "새 할 일 목록",
+ "tray.newNote": "새 메모"
 }
+

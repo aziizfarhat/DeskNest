@@ -253,5 +253,21 @@
  "sc.kShiftDel": "Shift + Delete",
  "sc.kDouble": "双击",
  "sc.kMouseBack": "鼠标后退键",
- "sc.editHint": "单击一个快捷键框，然后按下新的组合键。Esc 取消，Backspace 恢复默认值。"
+ "sc.editHint": "单击一个快捷键框，然后按下新的组合键。Esc 取消，Backspace 恢复默认值。",
+ "tab.notesTodo": "笔记与待办列表",
+ "nt.todoTitle": "待办列表",
+ "nt.todoStrike": "将已完成任务加删除线并变暗",
+ "nt.todoBottom": "将已完成任务移到底部",
+ "nt.todoAddTop": "在顶部添加新任务",
+ "nt.notesTitle": "笔记",
+ "nt.notesFontSize": "字体大小：{0} 磅",
+ "nt.notesWrap": "自动换行",
+ "nt.notesSaveDelay": "延迟保存：{0} 毫秒",
+ "nt.quickSearch": "在搜索中显示快捷操作",
+ "todo.empty": "暂无任务",
+ "todo.count": "{0}/{1} 已完成",
+ "todo.drag": "拖动以重新排序",
+ "tray.newTodo": "新建待办列表",
+ "tray.newNote": "新建笔记"
 }
+

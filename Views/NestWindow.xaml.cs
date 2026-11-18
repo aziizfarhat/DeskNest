@@ -462,7 +462,8 @@ namespace DeskNest
             {
                 if (string.IsNullOrWhiteSpace(Data.ItemFont)) _notesBox.ClearValue(Control.FontFamilyProperty);
                 else _notesBox.FontFamily = new FontFamily(Data.ItemFont);
-                _notesBox.FontSize = Data.ItemFontSize > 0 ? Data.ItemFontSize : _manager.Settings.NotesFontSize;
+                // Taille et retour à la ligne : réglages globaux (aucune surcharge par zone).
+                _notesBox.FontSize = Math.Clamp(_manager.Settings.NotesFontSize, 8, 28);
                 _notesBox.TextWrapping = _manager.Settings.NotesWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
             }
             else if (Data.Type == NestTypes.Todo && _altContent is TodoContent todo)

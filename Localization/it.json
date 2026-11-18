@@ -253,5 +253,21 @@
  "sc.kShiftDel": "Maiusc + Canc",
  "sc.kDouble": "Doppio clic",
  "sc.kMouseBack": "Pulsante indietro",
- "sc.editHint": "Fai clic su una casella e premi la nuova combinazione. Esc annulla, Backspace ripristina il valore predefinito."
+ "sc.editHint": "Fai clic su una casella e premi la nuova combinazione. Esc annulla, Backspace ripristina il valore predefinito.",
+ "tab.notesTodo": "Note ed elenchi attività",
+ "nt.todoTitle": "Elenchi attività",
+ "nt.todoStrike": "Barrare e attenuare le attività completate",
+ "nt.todoBottom": "Sposta le attività completate in basso",
+ "nt.todoAddTop": "Aggiungi nuove attività in alto",
+ "nt.notesTitle": "Note",
+ "nt.notesFontSize": "Dimensione carattere: {0} pt",
+ "nt.notesWrap": "A capo automatico",
+ "nt.notesSaveDelay": "Salva dopo: {0} ms",
+ "nt.quickSearch": "Mostra azioni rapide nella ricerca",
+ "todo.empty": "Nessuna attività",
+ "todo.count": "{0}/{1} completate",
+ "todo.drag": "Trascina per riordinare",
+ "tray.newTodo": "Nuovo elenco attività",
+ "tray.newNote": "Nuova nota"
 }
+

@@ -253,5 +253,21 @@
  "sc.kShiftDel": "Shift + Del",
  "sc.kDouble": "Duplo clique",
  "sc.kMouseBack": "Botão Voltar",
- "sc.editHint": "Clique numa caixa e prima a nova combinação. Esc cancela, Backspace repõe o valor predefinido."
+ "sc.editHint": "Clique numa caixa e prima a nova combinação. Esc cancela, Backspace repõe o valor predefinido.",
+ "tab.notesTodo": "Notas e listas de tarefas",
+ "nt.todoTitle": "Listas de tarefas",
+ "nt.todoStrike": "Riscar e atenuar tarefas concluídas",
+ "nt.todoBottom": "Mover tarefas concluídas para baixo",
+ "nt.todoAddTop": "Adicionar novas tarefas no topo",
+ "nt.notesTitle": "Notas",
+ "nt.notesFontSize": "Tamanho da fonte: {0} pt",
+ "nt.notesWrap": "Quebrar linhas automaticamente",
+ "nt.notesSaveDelay": "Guardar após: {0} ms",
+ "nt.quickSearch": "Mostrar ações rápidas na pesquisa",
+ "todo.empty": "Ainda não há tarefas",
+ "todo.count": "{0}/{1} concluídas",
+ "todo.drag": "Arrastar para reordenar",
+ "tray.newTodo": "Nova lista de tarefas",
+ "tray.newNote": "Nova nota"
 }
+

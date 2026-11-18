@@ -253,5 +253,21 @@
  "sc.kShiftDel": "Mayús + Supr",
  "sc.kDouble": "Doble clic",
  "sc.kMouseBack": "Botón Atrás",
- "sc.editHint": "Haz clic en una casilla y pulsa la nueva combinación. Esc cancela, Retroceso restaura el valor predeterminado."
+ "sc.editHint": "Haz clic en una casilla y pulsa la nueva combinación. Esc cancela, Retroceso restaura el valor predeterminado.",
+ "tab.notesTodo": "Notas y listas de tareas",
+ "nt.todoTitle": "Listas de tareas",
+ "nt.todoStrike": "Tachar y atenuar las tareas completadas",
+ "nt.todoBottom": "Mover las tareas completadas abajo",
+ "nt.todoAddTop": "Añadir nuevas tareas arriba",
+ "nt.notesTitle": "Notas",
+ "nt.notesFontSize": "Tamaño de fuente: {0} pt",
+ "nt.notesWrap": "Ajustar líneas automáticamente",
+ "nt.notesSaveDelay": "Guardar después de: {0} ms",
+ "nt.quickSearch": "Mostrar acciones rápidas en la búsqueda",
+ "todo.empty": "Aún no hay tareas",
+ "todo.count": "{0}/{1} completadas",
+ "todo.drag": "Arrastrar para reordenar",
+ "tray.newTodo": "Nueva lista de tareas",
+ "tray.newNote": "Nueva nota"
 }
+

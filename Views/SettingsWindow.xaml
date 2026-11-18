@@ -438,6 +438,42 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ===== Notes et listes de tâches ===== -->
+            <TabItem l:L.Key="tab.notesTodo" Tag="&#xE8FD;">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="4,12,4,12">
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock l:L.Key="nt.todoTitle" Style="{StaticResource SectionTitle}"/>
+                                <CheckBox x:Name="ChkTodoStrike" l:L.Key="nt.todoStrike"
+                                          Click="ChkTodoStrike_Click"/>
+                                <CheckBox x:Name="ChkTodoBottom" l:L.Key="nt.todoBottom"
+                                          Click="ChkTodoBottom_Click"/>
+                                <CheckBox x:Name="ChkTodoAddTop" l:L.Key="nt.todoAddTop"
+                                          Click="ChkTodoAddTop_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock l:L.Key="nt.notesTitle" Style="{StaticResource SectionTitle}"/>
+
+                                <TextBlock x:Name="NotesFontSizeLabel" Style="{StaticResource Label}"/>
+                                <Slider x:Name="NotesFontSize" Minimum="8" Maximum="28" TickFrequency="1"
+                                        IsSnapToTickEnabled="True" ValueChanged="NotesFontSize_Changed"/>
+
+                                <CheckBox x:Name="ChkNotesWrap" l:L.Key="nt.notesWrap" Margin="0,14,0,8"
+                                          Click="ChkNotesWrap_Click"/>
+
+                                <TextBlock x:Name="NotesSaveDelayLabel" Style="{StaticResource Label}"/>
+                                <Slider x:Name="NotesSaveDelay" Minimum="100" Maximum="5000" TickFrequency="100"
+                                        IsSnapToTickEnabled="True" ValueChanged="NotesSaveDelay_Changed"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- ===== Apparence ===== -->
             <TabItem l:L.Key="tab.appearance" Tag="&#xE790;">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">

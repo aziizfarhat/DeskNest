@@ -253,5 +253,21 @@
  "sc.kShiftDel": "Shift + Del",
  "sc.kDouble": "ダブルクリック",
  "sc.kMouseBack": "マウスの戻るボタン",
- "sc.editHint": "ショートカット欄をクリックして新しい組み合わせを押します。Esc でキャンセル、Backspace で既定値に戻ります。"
+ "sc.editHint": "ショートカット欄をクリックして新しい組み合わせを押します。Esc でキャンセル、Backspace で既定値に戻ります。",
+ "tab.notesTodo": "メモとTo-Doリスト",
+ "nt.todoTitle": "To-Doリスト",
+ "nt.todoStrike": "完了したタスクに打ち消し線を付けて薄く表示",
+ "nt.todoBottom": "完了したタスクを下へ移動",
+ "nt.todoAddTop": "新しいタスクを上に追加",
+ "nt.notesTitle": "メモ",
+ "nt.notesFontSize": "フォントサイズ: {0} pt",
+ "nt.notesWrap": "折り返し",
+ "nt.notesSaveDelay": "保存まで: {0} ms",
+ "nt.quickSearch": "検索にクイック操作を表示",
+ "todo.empty": "タスクはまだありません",
+ "todo.count": "{0}/{1} 完了",
+ "todo.drag": "ドラッグして並べ替え",
+ "tray.newTodo": "新しいTo-Doリスト",
+ "tray.newNote": "新しいメモ"
 }
+

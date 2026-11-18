@@ -253,5 +253,21 @@
  "sc.kShiftDel": "Umschalt + Entf",
  "sc.kDouble": "Doppelklick",
  "sc.kMouseBack": "Zurück-Taste",
- "sc.editHint": "Klicken Sie auf ein Feld und drücken Sie die neue Kombination. Esc bricht ab, Rücktaste stellt den Standard wieder her."
+ "sc.editHint": "Klicken Sie auf ein Feld und drücken Sie die neue Kombination. Esc bricht ab, Rücktaste stellt den Standard wieder her.",
+ "tab.notesTodo": "Notizen & Aufgabenlisten",
+ "nt.todoTitle": "Aufgabenlisten",
+ "nt.todoStrike": "Erledigte Aufgaben durchstreichen und abblenden",
+ "nt.todoBottom": "Erledigte Aufgaben nach unten verschieben",
+ "nt.todoAddTop": "Neue Aufgaben oben hinzufügen",
+ "nt.notesTitle": "Notizen",
+ "nt.notesFontSize": "Schriftgröße: {0} pt",
+ "nt.notesWrap": "Zeilenumbruch",
+ "nt.notesSaveDelay": "Speichern nach: {0} ms",
+ "nt.quickSearch": "Schnellaktionen in der Suche anzeigen",
+ "todo.empty": "Noch keine Aufgaben",
+ "todo.count": "{0}/{1} erledigt",
+ "todo.drag": "Ziehen zum Sortieren",
+ "tray.newTodo": "Neue Aufgabenliste",
+ "tray.newNote": "Neue Notiz"
 }
+

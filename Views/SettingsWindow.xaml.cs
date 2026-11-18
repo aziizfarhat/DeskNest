@@ -100,6 +100,8 @@ namespace DeskNest
             AboutVersion.Text = Loc.F("ab.version", version);
             LicenseRun.Text = Loc.T("ab.license");
             HeaderVersion.Text = Loc.F("ab.version", version);
+            NotesFontSizeLabel.Text = Loc.F("nt.notesFontSize", (int)NotesFontSize.Value);
+            NotesSaveDelayLabel.Text = Loc.F("nt.notesSaveDelay", (int)NotesSaveDelay.Value);
             if (Current is NestData d) ZOpacityLabel.Text = Loc.F("z.opacity", (int)(d.Opacity * 100));
             if (Current is NestData g) ZGradAngleLabel.Text = Loc.F("bg.angle", (int)g.GradientAngle);
         }
@@ -130,6 +132,14 @@ namespace DeskNest
             AnimMs.Value = s.RollAnimationMs;
             ChkThumbnails.IsChecked = s.ShowThumbnails;
             ChkSingleClick.IsChecked = s.OpenItemsWithSingleClick;
+
+            // Notes et listes de tâches (les valeurs par défaut couvrent les anciens réglages).
+            ChkTodoStrike.IsChecked = s.TodoStrikeThrough;
+            ChkTodoBottom.IsChecked = s.TodoCheckedToBottom;
+            ChkTodoAddTop.IsChecked = s.TodoAddAtTop;
+            NotesFontSize.Value = Math.Clamp(s.NotesFontSize, 8, 28);
+            ChkNotesWrap.IsChecked = s.NotesWrap;
+            NotesSaveDelay.Value = Math.Clamp(s.NotesSaveDelayMs, 100, 5000);
 
             DColor.SelectedIndex = IndexOfPreset(s.DefaultColor);
             DHex.Text = s.DefaultColor;
@@ -758,6 +768,52 @@ namespace DeskNest
         {
             if (_loading) return;
             _m.Settings.OpenItemsWithSingleClick = ChkSingleClick.IsChecked == true;
+            _m.SettingsChanged();
+        }
+
+        // ---------- Notes et listes de tâches ----------
+        // SettingsChanged applique immédiatement ces réglages aux zones déjà ouvertes.
+        private void ChkTodoStrike_Click(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _m.Settings.TodoStrikeThrough = ChkTodoStrike.IsChecked == true;
+            _m.SettingsChanged();
+        }
+
+        private void ChkTodoBottom_Click(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _m.Settings.TodoCheckedToBottom = ChkTodoBottom.IsChecked == true;
+            _m.SettingsChanged();
+        }
+
+        private void ChkTodoAddTop_Click(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _m.Settings.TodoAddAtTop = ChkTodoAddTop.IsChecked == true;
+            _m.SettingsChanged();
+        }
+
+        private void NotesFontSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_loading) return;
+            _m.Settings.NotesFontSize = (int)NotesFontSize.Value;
+            NotesFontSizeLabel.Text = Loc.F("nt.notesFontSize", _m.Settings.NotesFontSize);
+            _m.SettingsChanged();
+        }
+
+        private void ChkNotesWrap_Click(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _m.Settings.NotesWrap = ChkNotesWrap.IsChecked == true;
+            _m.SettingsChanged();
+        }
+
+        private void NotesSaveDelay_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_loading) return;
+            _m.Settings.NotesSaveDelayMs = (int)NotesSaveDelay.Value;
+            NotesSaveDelayLabel.Text = Loc.F("nt.notesSaveDelay", _m.Settings.NotesSaveDelayMs);
             _m.SettingsChanged();
         }
 

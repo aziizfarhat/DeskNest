@@ -253,5 +253,21 @@
  "sc.kShiftDel": "Shift + Del",
  "sc.kDouble": "Double-click",
  "sc.kMouseBack": "Mouse back button",
- "sc.editHint": "Click a shortcut box and press the new combination. Esc cancels, Backspace restores the default."
+ "sc.editHint": "Click a shortcut box and press the new combination. Esc cancels, Backspace restores the default.",
+ "tab.notesTodo": "Notes & Todo List",
+ "nt.todoTitle": "To-do lists",
+ "nt.todoStrike": "Strike through and dim checked tasks",
+ "nt.todoBottom": "Move checked tasks to the bottom",
+ "nt.todoAddTop": "Add new tasks at the top",
+ "nt.notesTitle": "Notes",
+ "nt.notesFontSize": "Font size: {0} pt",
+ "nt.notesWrap": "Wrap long lines",
+ "nt.notesSaveDelay": "Save after: {0} ms",
+ "nt.quickSearch": "Show quick actions in search",
+ "todo.empty": "No tasks yet",
+ "todo.count": "{0}/{1} done",
+ "todo.drag": "Drag to reorder",
+ "tray.newTodo": "New to-do list",
+ "tray.newNote": "New note"
 }
+
