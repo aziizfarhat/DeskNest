@@ -20,6 +20,7 @@ namespace DeskNest
         private MouseHook? _mouseHook;
         private SettingsWindow? _settings;
         private SearchPaletteWindow? _searchPalette;
+        private QuickActionsWindow? _quickActions;
         private GuideOverlay? _guides;
         private DispatcherTimer? _updateTimer;
         private bool _updateBusy;
@@ -249,6 +250,7 @@ namespace DeskNest
             _hotkey?.Dispose();
             _searchHotkey?.Dispose();
             _guides?.Dispose();
+            _quickActions?.CloseWindow();
             _settings?.Close();
 
             foreach (var w in _windows.ToList())

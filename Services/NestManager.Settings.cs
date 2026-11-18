@@ -29,6 +29,24 @@ namespace DeskNest
             if (zone != null) _settings.SelectZone(zone);
         }
 
+        // Fenêtre créée au premier appel puis libérée à la fermeture : aucune
+        // fenêtre cachée n'est conservée en mémoire.
+        public void ShowQuickActions()
+        {
+            if (_quickActions != null && !_quickActions.IsClosing)
+            {
+                _quickActions.Focus();
+                return;
+            }
+            var window = new QuickActionsWindow(this);
+            window.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_quickActions, window)) _quickActions = null;
+            };
+            _quickActions = window;
+            window.Show();
+        }
+
         public void ShowSearchPalette()
         {
             if (_searchPalette != null && !_searchPalette.IsClosing)

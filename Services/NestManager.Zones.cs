@@ -17,6 +17,47 @@ namespace DeskNest
 
         public void CreateNest() => AddNest(NewNestData(""));
 
+        // Création depuis les actions rapides : la zone apparaît dans l'écran du
+        // curseur, sans recouvrir les zones déjà visibles, puis son titre est éditable.
+        public void CreateNestAtCursor(string type)
+        {
+            var d = NewNestData("");
+            d.Type = NestTypes.IsKnown(type) ? type : NestTypes.Files;
+            if (d.Type == NestTypes.Todo) d.Height = 300;
+            PlaceAtCursor(d);
+            FinishQuickCreate(d);
+        }
+
+        public void CreatePortalAtCursor()
+        {
+            var dlg = new Microsoft.Win32.OpenFolderDialog { Title = Loc.T("dlg.chooseFolder") };
+            if (dlg.ShowDialog() != true) return; // annulation : aucune zone créée
+            var name = System.IO.Path.GetFileName(dlg.FolderName.TrimEnd('\\'));
+            var d = NewNestData(string.IsNullOrEmpty(name) ? dlg.FolderName : name);
+            d.Type = NestTypes.Files;
+            d.PortalPath = dlg.FolderName;
+            PlaceAtCursor(d);
+            FinishQuickCreate(d);
+        }
+
+        private void PlaceAtCursor(NestData d)
+        {
+            var occupied = _windows.Where(w => w.IsVisible)
+                .Select(w => new Rect(w.Left, w.Top,
+                    w.ActualWidth > 0 ? w.ActualWidth : w.Data.Width,
+                    Math.Max(w.Data.Height, w.ActualHeight)))
+                .ToList();
+            var spot = CursorPlacement.FindFreeSpot(CursorPlacement.Get(), d.Width, d.Height, occupied);
+            d.Left = spot.X;
+            d.Top = spot.Y;
+        }
+
+        private void FinishQuickCreate(NestData d)
+        {
+            AddNest(d, place: false);
+            _windows.FirstOrDefault(w => w.Data == d)?.BeginTitleEdit();
+        }
+
         public void CreatePortal()
         {
             var dlg = new Microsoft.Win32.OpenFolderDialog { Title = Loc.T("dlg.chooseFolder") };

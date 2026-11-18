@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Windows;
 
 namespace DeskNest.Tests
 {
@@ -27,6 +28,7 @@ namespace DeskNest.Tests
             Run("N1 : ancien layout en Files et copie .v3.bak une seule fois", OldLayoutLoadsAsFilesAndCreatesV3Backup);
             Run("N2 : notes aller-retour et échec d'écriture conservé", NotesRoundTripAndWriteFailureKeepsText);
             Run("N3 : ordre des tâches coché en bas et ajout haut/bas", TodoOrderingRules);
+            Run("N5 : placement au curseur clampé et sans recouvrement", CursorPlacementAvoidsWindows);
             Run("zone supprimée retirée de tous les profils", DeletedNestIsRemovedFromEveryProfile);
             Run("profil actif préservé si les écrans ont changé", ActiveProfileIsNotOverwrittenOnMonitorChange);
             Run("bascule d'écran : ancien profil capturé puis profil exact appliqué", DisplaySwitchCapturesOldAndAppliesExactProfile);
@@ -278,6 +280,25 @@ namespace DeskNest.Tests
 
             Storage.SaveNow(loaded);
             AssertEqual(json, fs.ReadAllText(v3Path), "copie non écrasée par la suite");
+        }
+
+        private static void CursorPlacementAvoidsWindows()
+        {
+            var work = new Rect(0, 0, 1920, 1040);
+            var ctx = new CursorPlacement.Context(new Point(1000, 600), work);
+            var existing = new List<Rect> { new Rect(950, 550, 320, 240) };
+            var spot = CursorPlacement.FindFreeSpot(ctx, 320, 240, existing);
+            var rect = new Rect(spot.X, spot.Y, 320, 240);
+
+            Assert(!rect.IntersectsWith(existing[0]), "nouvelle zone sans recouvrement");
+            Assert(rect.Left >= work.Left + 8 && rect.Right <= work.Right - 8 &&
+                   rect.Top >= work.Top + 8 && rect.Bottom <= work.Bottom - 8, "dans la zone utile");
+
+            var corner = new CursorPlacement.Context(new Point(1910, 1030), work);
+            var edge = CursorPlacement.FindFreeSpot(corner, 320, 240, new List<Rect>());
+            var edgeRect = new Rect(edge.X, edge.Y, 320, 240);
+            Assert(edgeRect.Right <= work.Right - 8 && edgeRect.Bottom <= work.Bottom - 8,
+                "zone clampée près du bord");
         }
 
         private static void TodoOrderingRules()

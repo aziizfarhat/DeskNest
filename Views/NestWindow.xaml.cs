@@ -1543,7 +1543,7 @@ namespace DeskNest
             BeginTitleEdit();
         }
 
-        private void BeginTitleEdit()
+        internal void BeginTitleEdit()
         {
             if (!Data.TitleVisible || _editingTitle) return;
             EndItemEdit(true);

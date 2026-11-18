@@ -23,7 +23,7 @@ namespace DeskNest
                 Text = "DeskNest",
                 Visible = true
             };
-            _ni.DoubleClick += (_, _) => manager.ShowSettings();
+            _ni.DoubleClick += (_, _) => manager.ShowQuickActions();
             IsAutostart(); // migration éventuelle de l'ancien nom dans la clé Run
             BuildMenu();
             Loc.Changed += BuildMenu; // le menu suit la langue choisie
