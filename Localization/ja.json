@@ -266,6 +266,8 @@
  "nt.quickSearch": "検索にクイック操作を表示",
  "todo.empty": "タスクはまだありません",
  "todo.count": "{0}/{1} 完了",
+ "todo.noMatch": "一致するタスクがありません",
+ "todo.filterCount": "{0}/{1}",
  "todo.drag": "ドラッグして並べ替え",
  "tray.newTodo": "新しいTo-Doリスト",
  "tray.newNote": "新しいメモ",

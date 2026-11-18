@@ -315,7 +315,7 @@ namespace DeskNest.Tests
             {
                 "tab.notesTodo", "nt.todoTitle", "nt.todoStrike", "nt.todoBottom", "nt.todoAddTop",
                 "nt.notesTitle", "nt.notesFontSize", "nt.notesWrap", "nt.notesSaveDelay", "nt.quickSearch",
-                "todo.empty", "todo.count", "todo.drag", "tray.newTodo", "tray.newNote",
+                "todo.empty", "todo.count", "todo.noMatch", "todo.filterCount", "todo.drag", "tray.newTodo", "tray.newNote",
                 "todo.default", "note.default", "todo.add", "todo.edit", "todo.validate", "nt.todoFontSize",
                 "note.edit", "note.validate", "note.discard", "note.discardTitle" })
                 Assert(english!.ContainsKey(key), "nouvelle clé absente : " + key);

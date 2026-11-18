@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -30,6 +31,15 @@ namespace DeskNest
         private TodoTask? _selected;
         private int _dropIndex;
         private bool _refreshing;
+
+        // Filtre temporaire saisi dans la barre de recherche de la zone : jamais enregistré.
+        private string _filter = "";
+        private readonly List<TodoTask> _displayed = new();
+        private bool HasFilter => !string.IsNullOrWhiteSpace(_filter);
+
+        // Avertit la fenêtre que l'ajout d'une tâche a vidé le filtre : elle doit
+        // effacer le texte de la barre de recherche partagée.
+        public event Action? FilterCleared;
 
         public TodoContent(NestManager manager, NestData data)
         {
@@ -150,6 +160,45 @@ namespace DeskNest
             Refresh();
         }
 
+        // ---------- Filtre des tâches (affichage seulement) ----------
+        public string FilterText => _filter;
+        public bool IsFiltering => HasFilter;
+        public IReadOnlyList<TodoTask> DisplayedTasks => _displayed;
+        public string CountText => _count.Text;
+        public string EmptyText => _empty.Text;
+        public bool ReorderEnabled => !HasFilter;
+
+        public void ApplyFilter(string? text)
+        {
+            string next = text ?? "";
+            if (string.Equals(next, _filter, StringComparison.Ordinal)) return;
+            _filter = next;
+            Refresh();
+        }
+
+        // Ajout programmatique (bouton « + » et touche Entrée passent par AddFromInput).
+        public void AddTask(string text)
+        {
+            _input.Text = text;
+            AddFromInput();
+        }
+
+        // Tous les mots doivent correspondre, sans tenir compte de la casse, des
+        // accents ou du type de kana. La recherche porte uniquement sur le texte.
+        private bool TaskMatches(TodoTask task)
+        {
+            string query = _filter.Trim();
+            if (query.Length == 0) return true;
+            var compare = CultureInfo.CurrentCulture.CompareInfo;
+            const CompareOptions options = CompareOptions.IgnoreCase |
+                                           CompareOptions.IgnoreNonSpace |
+                                           CompareOptions.IgnoreKanaType;
+            string text = task.Text ?? "";
+            foreach (string word in query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+                if (compare.IndexOf(text, word, options) < 0) return false;
+            return true;
+        }
+
         private void OnLanguageChanged()
         {
             FlowDirection = Loc.Flow;
@@ -171,6 +220,12 @@ namespace DeskNest
             if (!TodoOrder.TryCreate(_input.Text, out var task) || task == null) return;
             TodoOrder.Insert(_data.Tasks, task, _manager.Settings.TodoAddAtTop);
             _input.Clear();
+            // La nouvelle tâche doit être visible immédiatement : on vide le filtre.
+            if (HasFilter)
+            {
+                _filter = "";
+                FilterCleared?.Invoke();
+            }
             _manager.RequestSave();
             Refresh();
             FocusInput();
@@ -234,11 +289,20 @@ namespace DeskNest
             _editBox = null;
 
             _rows.Children.Clear();
-            var tasks = Ordered();
-            foreach (var task in tasks) _rows.Children.Add(BuildRow(task, editText));
-            _empty.Visibility = tasks.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            _displayed.Clear();
+            var tasks = Ordered(); // ordre et état Done inchangés : on ne filtre que l'affichage
+            foreach (var task in tasks)
+            {
+                if (!TaskMatches(task)) continue;
+                _displayed.Add(task);
+                _rows.Children.Add(BuildRow(task, editText));
+            }
+            _empty.Text = HasFilter ? Loc.T("todo.noMatch") : Loc.T("todo.empty");
+            _empty.Visibility = _displayed.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             int done = tasks.Count(t => t.Done);
-            _count.Text = Loc.F("todo.count", done, tasks.Count);
+            _count.Text = HasFilter
+                ? Loc.F("todo.filterCount", _displayed.Count, tasks.Count)
+                : Loc.F("todo.count", done, tasks.Count);
             HideIndicator();
 
             if (editFocused && _editBox != null)
@@ -302,16 +366,18 @@ namespace DeskNest
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            // 1. Poignée de glisser (désactivée en mode édition).
+            // 1. Poignée de glisser (désactivée en édition et pendant un filtrage :
+            //    réordonner une liste partielle changerait la position des tâches cachées).
+            bool canDrag = !editing && !HasFilter;
             var grip = new Border
             {
                 Width = 10,
                 Height = 18,
                 Background = Brushes.Transparent,
-                Cursor = Cursors.SizeAll,
-                ToolTip = Loc.T("todo.drag"),
-                IsEnabled = !editing,
-                Opacity = editing ? 0.35 : 1.0,
+                Cursor = canDrag ? Cursors.SizeAll : Cursors.Arrow,
+                ToolTip = canDrag ? Loc.T("todo.drag") : null,
+                IsEnabled = canDrag,
+                Opacity = canDrag ? 1.0 : 0.35,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
@@ -456,7 +522,7 @@ namespace DeskNest
 
         private void BeginDrag(TodoTask task, UIElement source, MouseButtonEventArgs e)
         {
-            if (_editing != null) return; // une ligne en édition n'est pas déplaçable
+            if (_editing != null || HasFilter) return; // édition ou filtre : pas de réordonnancement
             if (e.LeftButton != MouseButtonState.Pressed) return;
             e.Handled = true;
             _drag = task;
@@ -470,7 +536,7 @@ namespace DeskNest
         private void Todo_DragOver(object sender, DragEventArgs e)
         {
             e.Handled = true; // empêche le Root de la zone d'appliquer ses règles de dépôt de fichiers
-            if (_drag == null || !e.Data.GetDataPresent(TodoFormat))
+            if (HasFilter || _drag == null || !e.Data.GetDataPresent(TodoFormat))
             {
                 e.Effects = DragDropEffects.None;
                 return;
@@ -482,7 +548,7 @@ namespace DeskNest
         private void Todo_Drop(object sender, DragEventArgs e)
         {
             e.Handled = true;
-            if (_drag == null || !e.Data.GetDataPresent(TodoFormat)) { HideIndicator(); return; }
+            if (HasFilter || _drag == null || !e.Data.GetDataPresent(TodoFormat)) { HideIndicator(); return; }
             var ordered = Ordered();
             var dragged = ordered.FirstOrDefault(t => t.Id == _drag.Id);
             int index = _dropIndex;

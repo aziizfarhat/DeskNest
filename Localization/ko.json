@@ -266,6 +266,8 @@
  "nt.quickSearch": "검색에 빠른 작업 표시",
  "todo.empty": "아직 작업이 없습니다",
  "todo.count": "{0}/{1} 완료",
+ "todo.noMatch": "일치하는 작업이 없습니다",
+ "todo.filterCount": "{0}/{1}",
  "todo.drag": "드래그하여 순서 변경",
  "tray.newTodo": "새 할 일 목록",
  "tray.newNote": "새 메모",

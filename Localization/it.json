@@ -266,6 +266,8 @@
  "nt.quickSearch": "Mostra azioni rapide nella ricerca",
  "todo.empty": "Nessuna attività",
  "todo.count": "{0}/{1} completate",
+ "todo.noMatch": "Nessuna attività corrispondente",
+ "todo.filterCount": "{0}/{1}",
  "todo.drag": "Trascina per riordinare",
  "tray.newTodo": "Nuovo elenco attività",
  "tray.newNote": "Nuova nota",

@@ -266,6 +266,8 @@
  "nt.quickSearch": "Schnellaktionen in der Suche anzeigen",
  "todo.empty": "Noch keine Aufgaben",
  "todo.count": "{0}/{1} erledigt",
+ "todo.noMatch": "Keine passende Aufgabe",
+ "todo.filterCount": "{0}/{1}",
  "todo.drag": "Ziehen zum Sortieren",
  "tray.newTodo": "Neue Aufgabenliste",
  "tray.newNote": "Neue Notiz",

@@ -266,6 +266,8 @@
  "nt.quickSearch": "在搜索中显示快捷操作",
  "todo.empty": "暂无任务",
  "todo.count": "{0}/{1} 已完成",
+ "todo.noMatch": "没有匹配的任务",
+ "todo.filterCount": "{0}/{1}",
  "todo.drag": "拖动以重新排序",
  "tray.newTodo": "新建待办列表",
  "tray.newNote": "新建笔记",

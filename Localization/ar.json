@@ -266,6 +266,8 @@
  "nt.quickSearch": "إظهار الإجراءات السريعة في البحث",
  "todo.empty": "لا توجد مهام بعد",
  "todo.count": "{0}/{1} مكتملة",
+ "todo.noMatch": "لا توجد مهمة مطابقة",
+ "todo.filterCount": "{0}/{1}",
  "todo.drag": "اسحب لإعادة الترتيب",
  "tray.newTodo": "قائمة مهام جديدة",
  "tray.newNote": "ملاحظة جديدة",

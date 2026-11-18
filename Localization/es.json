@@ -266,6 +266,8 @@
  "nt.quickSearch": "Mostrar acciones rápidas en la búsqueda",
  "todo.empty": "Aún no hay tareas",
  "todo.count": "{0}/{1} completadas",
+ "todo.noMatch": "Ninguna tarea coincidente",
+ "todo.filterCount": "{0}/{1}",
  "todo.drag": "Arrastrar para reordenar",
  "tray.newTodo": "Nueva lista de tareas",
  "tray.newNote": "Nueva nota",

@@ -266,6 +266,8 @@
  "nt.quickSearch": "Afficher les actions rapides dans la recherche",
  "todo.empty": "Aucune tâche pour l'instant",
  "todo.count": "{0}/{1} terminées",
+ "todo.noMatch": "Aucune tâche correspondante",
+ "todo.filterCount": "{0}/{1}",
  "todo.drag": "Glisser pour réordonner",
  "tray.newTodo": "Nouvelle liste de tâches",
  "tray.newNote": "Nouvelle note",

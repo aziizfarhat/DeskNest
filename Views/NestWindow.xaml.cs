@@ -653,7 +653,12 @@ namespace DeskNest
             ApplyNotesMode(false);
         }
 
-        private FrameworkElement CreateTodoContent() => new TodoContent(_manager, Data);
+        private FrameworkElement CreateTodoContent()
+        {
+            var todo = new TodoContent(_manager, Data);
+            todo.FilterCleared += () => ResetSearch();
+            return todo;
+        }
 
         private void ApplyAltFonts()
         {
@@ -734,6 +739,9 @@ namespace DeskNest
             // Notes n'a jamais de barre de recherche, quel que soit ShowSearchBar.
             SearchHost.Visibility = HasSearchBar && !rolled && _manager.Settings.ShowSearchBar
                 ? Visibility.Visible : Visibility.Collapsed;
+            // Le filtre des tâches est temporaire : replier la zone le vide. Les zones
+            // Fichiers gardent leur recherche actuelle, volontairement intacte.
+            if (rolled && Data.Type == NestTypes.Todo && HasFilter) ResetSearch();
             Handles.Visibility = (Data.Locked || rolled) ? Visibility.Collapsed : Visibility.Visible;
             double target = rolled ? TitleHeight + 2 : Math.Max(Data.Height, 60);
 
@@ -1052,6 +1060,14 @@ namespace DeskNest
             _updatingSearch = false;
             _searchText = "";
             UpdateSearchUi();
+            ApplySearchToTodo();
+        }
+
+        // Le filtre de la barre de recherche est appliqué aux seules tâches affichées.
+        private void ApplySearchToTodo()
+        {
+            if (Data.Type == NestTypes.Todo && _altContent is TodoContent todo)
+                todo.ApplyFilter(_searchText);
         }
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1059,6 +1075,7 @@ namespace DeskNest
             if (!_searchReady || _updatingSearch) return;
             _searchText = _searchBox.Text;
             UpdateSearchUi();
+            ApplySearchToTodo();
             _portalPage = 0;
             RefreshItems();
             ContentScroll.ScrollToTop();
