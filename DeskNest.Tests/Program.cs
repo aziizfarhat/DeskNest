@@ -83,6 +83,7 @@ namespace DeskNest.Tests
             Run("B3 : barre de titre icône, titre, tri puis menu à droite", B3TitleBarOrdering);
             Run("B4 : icônes Todo et Notes distinctes dans une ressource partagée", B4DistinctTypeIconsFromSharedResource);
             Run("P1 : éléments totalement opaques sous tri actif", P1ItemsStayOpaqueWhileSorted);
+            Run("P2 : chevron du portail à gauche et visible seulement en sous-dossier", P2PortalBackChevronMovesLeft);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -1543,39 +1544,96 @@ namespace DeskNest.Tests
             var sort = (UIElement)FindByName(bar, "SortButton")!;
             var menu = (UIElement)FindByName(bar, "MenuButton")!;
 
-            AssertEqual(0, Grid.GetColumn(icon), "icône de type en première colonne");
-            AssertEqual(1, Grid.GetColumn(text), "titre juste après l'icône");
-            AssertEqual(1, Grid.GetColumn(edit), "édition du titre dans la même colonne");
-            AssertEqual(2, Grid.GetColumn(back), "retour du portail avant le tri");
+            AssertEqual(0, Grid.GetColumn(back), "retour en première colonne");
+            AssertEqual(1, Grid.GetColumn(icon), "icône de type juste après le retour");
+            AssertEqual(2, Grid.GetColumn(text), "titre juste après l'icône");
+            AssertEqual(2, Grid.GetColumn(edit), "édition du titre dans la même colonne");
             AssertEqual(3, Grid.GetColumn(sort), "tri juste avant le menu");
             AssertEqual(4, Grid.GetColumn(menu), "menu à l'extrême droite");
-            Assert(Grid.GetColumn(icon) < Grid.GetColumn(text) &&
+            Assert(Grid.GetColumn(back) < Grid.GetColumn(icon) &&
+                   Grid.GetColumn(icon) < Grid.GetColumn(text) &&
                    Grid.GetColumn(text) < Grid.GetColumn(sort) &&
-                   Grid.GetColumn(sort) < Grid.GetColumn(menu), "ordre icône < titre < tri < menu");
-            AssertEqual(GridUnitType.Auto, grid.ColumnDefinitions[0].Width.GridUnitType, "l'icône ne prend que sa place");
-            Assert(grid.ColumnDefinitions[1].Width.IsStar, "le titre occupe la colonne évolutive");
+                   Grid.GetColumn(sort) < Grid.GetColumn(menu), "ordre retour < icône < titre < tri < menu");
+            AssertEqual(GridUnitType.Auto, grid.ColumnDefinitions[0].Width.GridUnitType, "le retour ne prend que sa place");
+            AssertEqual(GridUnitType.Auto, grid.ColumnDefinitions[1].Width.GridUnitType, "l'icône ne prend que sa place");
+            Assert(grid.ColumnDefinitions[2].Width.IsStar, "le titre occupe la colonne évolutive");
             AssertEqual(TextTrimming.CharacterEllipsis, text.TextTrimming, "titre tronqué avec ellipsis");
             AssertEqual(Visibility.Visible, icon.Visibility, "icône visible");
             AssertEqual(Visibility.Visible, text.Visibility, "titre visible");
 
-            // Portail : le retour s'insère entre le titre et le tri, le menu reste à droite.
+            // Portail : le retour reste à gauche, le menu reste à droite.
             var portal = new NestData { Title = "Portail", Type = NestTypes.Files, PortalPath = @"C:\Data" };
             var wp = new NestWindow(manager, portal);
-            AssertEqual(2, Grid.GetColumn((UIElement)FindByName(wp, "BackButton")!), "retour présent dans un portail");
+            AssertEqual(0, Grid.GetColumn((UIElement)FindByName(wp, "BackButton")!), "retour à gauche dans un portail");
             AssertEqual(3, Grid.GetColumn((UIElement)FindByName(wp, "SortButton")!), "tri avant le menu dans un portail");
             AssertEqual(4, Grid.GetColumn((UIElement)FindByName(wp, "MenuButton")!), "menu toujours à droite dans un portail");
 
-            // Notes : pas de tri, mais l'icône et le titre gardent leur place.
+            // Notes : pas de tri ni de retour, mais l'icône et le titre gardent leur place.
             var note = new NestData { Title = "Note", Type = NestTypes.Notes };
             var wn = new NestWindow(manager, note);
             AssertEqual(Visibility.Collapsed, (FindByName(wn, "SortButton") as Button)!.Visibility, "pas de tri pour Notes");
-            AssertEqual(0, Grid.GetColumn((UIElement)FindByName(wn, "TitleIcon")!), "icône toujours à gauche pour Notes");
-            AssertEqual(1, Grid.GetColumn((UIElement)FindByName(wn, "TitleText")!), "titre toujours après l'icône pour Notes");
+            AssertEqual(Visibility.Collapsed, (FindByName(wn, "BackButton") as Button)!.Visibility, "pas de retour pour Notes");
+            AssertEqual(1, Grid.GetColumn((UIElement)FindByName(wn, "TitleIcon")!), "icône toujours après la colonne retour");
+            AssertEqual(2, Grid.GetColumn((UIElement)FindByName(wn, "TitleText")!), "titre toujours après l'icône pour Notes");
             AssertEqual(4, Grid.GetColumn((UIElement)FindByName(wn, "MenuButton")!), "menu toujours à droite pour Notes");
 
             w.Close();
             wp.Close();
             wn.Close();
+        }
+
+        // ---------- P2 : chevron de retour du portail ----------
+        private static void P2PortalBackChevronMovesLeft()
+        {
+            var (_, _) = Sandbox();
+            var root = Path.Combine(Path.GetTempPath(), "desknest-p2-" + Guid.NewGuid().ToString("N"));
+            var sub = Path.Combine(root, "Sub");
+            Directory.CreateDirectory(sub);
+            try
+            {
+                var manager = new NestManager();
+                var data = new NestData { Title = "Portail", Type = NestTypes.Files, PortalPath = root };
+                var window = new NestWindow(manager, data);
+
+                var bar = (Border)FindByName(window, "TitleBar")!;
+                var grid = (Grid)VisualTreeHelper.GetChild(bar, 0);
+                var back = (Button)FindByName(bar, "BackButton")!;
+                var icon = (UIElement)FindByName(bar, "TitleIcon")!;
+                var title = (TextBlock)FindByName(bar, "TitleText")!;
+
+                AssertEqual(Visibility.Collapsed, back.Visibility, "racine : aucun chevron");
+                AssertEqual(0, Grid.GetColumn(back), "chevron à l'extrême gauche");
+                AssertEqual(1, Grid.GetColumn(icon), "icône juste après le chevron");
+                AssertEqual(2, Grid.GetColumn(title), "titre juste après l'icône");
+                Assert(grid.ColumnDefinitions[2].Width.IsStar, "titre évolutif");
+                AssertEqual(TextTrimming.CharacterEllipsis, title.TextTrimming, "ellipsis conservé");
+                AssertEqual(Loc.T("m.back"), back.ToolTip as string, "infobulle localisée conservée");
+
+                // Sous-dossier : le chevron apparaît, avec la même zone de clic.
+                InvokePrivate(window, "NavigateTo", sub, true);
+                AssertEqual(Visibility.Visible, back.Visibility, "sous-dossier : chevron visible");
+                AssertEqual(24.0, back.Width, "largeur de la zone de clic inchangée");
+                AssertEqual(22.0, back.Height, "hauteur de la zone de clic inchangée");
+
+                // Repli / survol-dépliage : le chevron suit la barre de titre.
+                data.RolledUp = true;
+                window.ApplyExternalChange();
+                AssertEqual(Visibility.Visible, back.Visibility, "replié : chevron conservé");
+                data.RolledUp = false;
+                window.ApplyExternalChange();
+                AssertEqual(Visibility.Visible, back.Visibility, "déplié : chevron conservé");
+
+                // Retour d'un niveau : chevron masqué à la racine.
+                back.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                AssertEqual(Visibility.Collapsed, back.Visibility, "retour à la racine : chevron masqué");
+
+                // Les autres types de zone n'affichent jamais le chevron.
+                var note = new NestWindow(manager, new NestData { Title = "Note", Type = NestTypes.Notes });
+                AssertEqual(Visibility.Collapsed, (FindByName(note, "BackButton") as Button)!.Visibility, "aucun chevron pour Notes");
+                note.Close();
+                window.Close();
+            }
+            finally { Directory.Delete(root, true); }
         }
 
         // ---------- P1 : opacité des éléments sous tri actif ----------

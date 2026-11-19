@@ -827,7 +827,10 @@ namespace DeskNest
                 t += " › " + IOPath.GetFileName(_portalCurrent.TrimEnd('\\'));
             TitleText.Text = t;
             TitleIcon.Data = NestIcons.For(Data.Type, IsPortal);
-            BackButton.Visibility = IsPortal && _portalHistory.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            // Le retour n'apparaît que dans un sous-dossier et seulement s'il existe
+            // un dossier précédent ; à la racine sa colonne Auto ne prend aucune place.
+            BackButton.Visibility = IsPortal && _portalCurrent != null && _portalHistory.Count > 0
+                ? Visibility.Visible : Visibility.Collapsed;
             // Même règle que le bouton menu : visible dès que la barre de titre
             // l'est ; replier ou masquer le titre masque la barre entière.
             SortButton.Visibility = IsFiles ? Visibility.Visible : Visibility.Collapsed;
