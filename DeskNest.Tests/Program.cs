@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -70,6 +72,7 @@ namespace DeskNest.Tests
             Run("V5 : zones indépendantes, glisser désactivé, bouton de tri", SortIsPerNestAndDisablesDrag);
             Run("V5 : menu de zone Todo/Note utilise la palette", NestMenuEntriesUseQuickActions);
             Run("V5 : routage des verbes de ligne de commande", CommandVerbsRouting);
+            Run("B1 : le bouton de tri ouvre le menu et n'agit que sur sa zone", SortMenuOpenAndPerNestCommands);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -1186,6 +1189,68 @@ namespace DeskNest.Tests
                     manager.Nests.Last().Type, verb + " distribué à la palette");
             }
             foreach (var w in manager.Windows.ToList()) w.Close();
+        }
+
+        private static void SortMenuOpenAndPerNestCommands()
+        {
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            var a = new NestData { Title = "A", Type = NestTypes.Files };
+            var b = new NestData { Title = "B", Type = NestTypes.Files };
+            var wa = new NestWindow(manager, a);
+            var wb = new NestWindow(manager, b);
+
+            var field = typeof(NestWindow).GetField("_sortMenu", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert(field != null, "menu de tri présent");
+            var menu = (ContextMenu)field!.GetValue(wa)!;
+            var menuB = (ContextMenu)field.GetValue(wb)!;
+            Assert(!ReferenceEquals(menu, menuB), "chaque zone a son propre menu");
+
+            // Le clic sur le bouton doit ouvrir le menu, exactement comme le bouton menu.
+            var button = FindByName(wa, "SortButton") as Button;
+            Assert(button != null, "bouton de tri présent");
+            Assert(!menu.IsOpen, "menu fermé au départ");
+            button!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert(menu.IsOpen, "le clic sur le bouton ouvre le menu de tri");
+            menu.IsOpen = false;
+
+            MenuItem Criterion(ContextMenu m, string mode) =>
+                m.Items.OfType<MenuItem>().First(i => string.Equals(i.Tag as string, mode, StringComparison.Ordinal));
+            MenuItem Order(ContextMenu m, string key) =>
+                m.Items.OfType<MenuItem>().First(i => string.Equals(i.Header as string, Loc.T(key), StringComparison.Ordinal));
+
+            // L'ordre n'a pas de sens en tri manuel.
+            menuB.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent));
+            Assert(!Order(menuB, "sort.ascending").IsEnabled && !Order(menuB, "sort.descending").IsEnabled,
+                "ordre désactivé en tri manuel");
+
+            Criterion(menu, NestSort.Name).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            AssertEqual(NestSort.Name, a.SortBy, "critère choisi dans la zone A");
+            AssertEqual(NestSort.Manual, b.SortBy, "la zone B n'est pas touchée");
+            Assert(!wa.ReorderEnabled && wb.ReorderEnabled, "glisser désactivé seulement dans A");
+
+            Order(menu, "sort.descending").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Assert(a.SortDescending, "ordre décroissant appliqué à A");
+            Assert(!b.SortDescending, "ordre de B inchangé");
+
+            menu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent));
+            Assert(Criterion(menu, NestSort.Name).IsChecked, "coche sur le critère courant");
+            Assert(Order(menu, "sort.descending").IsChecked, "coche sur l'ordre courant");
+            Assert(!Criterion(menu, NestSort.Manual).IsChecked, "aucune coche sur Manuel");
+            Assert(Order(menu, "sort.ascending").IsEnabled && Order(menu, "sort.descending").IsEnabled,
+                "ordre activé dès qu'un tri est choisi");
+
+            var saved = new AppData();
+            saved.Nests.Add(a);
+            saved.Nests.Add(b);
+            Storage.SaveNow(saved);
+            var loaded = Storage.Load();
+            AssertEqual(NestSort.Name, loaded.Nests[0].SortBy, "critère persisté");
+            Assert(loaded.Nests[0].SortDescending, "ordre persisté");
+            AssertEqual(NestSort.Manual, loaded.Nests[1].SortBy, "zone B toujours manuelle après rechargement");
+
+            wa.Close();
+            wb.Close();
         }
 
         private sealed class FailingFileSystem : IFileSystem

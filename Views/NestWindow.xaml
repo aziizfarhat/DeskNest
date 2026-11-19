@@ -291,7 +291,8 @@
 
                     <!-- Tri : réservé juste à gauche du menu, affiché pour les zones Fichiers et les portails. -->
                     <Button x:Name="SortButton" Grid.Column="3" Width="24" Height="22" Margin="0,0,0,0"
-                            Style="{StaticResource FlatIconButton}" Visibility="Collapsed" l:L.TipKey="sort.tooltip">
+                            Style="{StaticResource FlatIconButton}" Click="SortButton_Click"
+                            Visibility="Collapsed" l:L.TipKey="sort.tooltip">
                         <Path Data="M3,4 H11 M5,7 H9 M7,10 H7" Stroke="{Binding Foreground, ElementName=TitleText}"
                               StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                               Width="14" Height="14"/>
