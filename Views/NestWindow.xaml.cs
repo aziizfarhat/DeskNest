@@ -2638,6 +2638,10 @@ namespace DeskNest
             var m = new ContextMenu { FlowDirection = Loc.Flow };
             m.Items.Add(Mi(Loc.T("tray.newZone"), () => _manager.CreateNest()));
             m.Items.Add(Mi(Loc.T("tray.newPortal"), () => _manager.CreatePortal()));
+            // Même chemin que la palette d'actions rapides : placement au curseur,
+            // réglages par défaut et titre directement éditable.
+            m.Items.Add(Mi(Loc.T("tray.newTodo"), () => _manager.ExecuteQuickAction(QuickActionKind.NewTodo)));
+            m.Items.Add(Mi(Loc.T("tray.newNote"), () => _manager.ExecuteQuickAction(QuickActionKind.NewNote)));
             _miUndo = Mi(Loc.T("menu.undo"), () => _manager.Undo());
             _miUndo.InputGestureText = "Ctrl+Z";
             _miRedo = Mi(Loc.T("menu.redo"), () => _manager.Redo());
