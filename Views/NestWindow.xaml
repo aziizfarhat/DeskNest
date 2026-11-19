@@ -138,9 +138,8 @@
                     <Setter TargetName="NameText" Property="Visibility" Value="Collapsed"/>
                     <Setter TargetName="NameEdit" Property="Visibility" Value="Visible"/>
                 </DataTrigger>
-                <!-- Tri actif : plus de poignée de réordonnancement, cellule estompée. -->
+                <!-- Tri actif : seul le curseur change ; la cellule reste totalement opaque. -->
                 <DataTrigger Binding="{Binding ReorderEnabled}" Value="False">
-                    <Setter TargetName="Cell" Property="Opacity" Value="0.68"/>
                     <Setter TargetName="Cell" Property="Cursor" Value="Arrow"/>
                 </DataTrigger>
             </DataTemplate.Triggers>
@@ -191,9 +190,8 @@
                     <Setter TargetName="NameText" Property="Visibility" Value="Collapsed"/>
                     <Setter TargetName="NameEdit" Property="Visibility" Value="Visible"/>
                 </DataTrigger>
-                <!-- Tri actif : plus de poignée de réordonnancement, cellule estompée. -->
+                <!-- Tri actif : seul le curseur change ; la cellule reste totalement opaque. -->
                 <DataTrigger Binding="{Binding ReorderEnabled}" Value="False">
-                    <Setter TargetName="Cell" Property="Opacity" Value="0.68"/>
                     <Setter TargetName="Cell" Property="Cursor" Value="Arrow"/>
                 </DataTrigger>
             </DataTemplate.Triggers>

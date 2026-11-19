@@ -82,6 +82,7 @@ namespace DeskNest.Tests
             Run("B2 : portail de centaines d'éléments : page en cache au dépliage", () => WithWpfContext(B2PortalManyItemsUseCachedPage));
             Run("B3 : barre de titre icône, titre, tri puis menu à droite", B3TitleBarOrdering);
             Run("B4 : icônes Todo et Notes distinctes dans une ressource partagée", B4DistinctTypeIconsFromSharedResource);
+            Run("P1 : éléments totalement opaques sous tri actif", P1ItemsStayOpaqueWhileSorted);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -1575,6 +1576,50 @@ namespace DeskNest.Tests
             w.Close();
             wp.Close();
             wn.Close();
+        }
+
+        // ---------- P1 : opacité des éléments sous tri actif ----------
+        private static (double Opacity, Cursor Cursor) CellAppearance(NestWindow window, string templateKey, ItemVM vm)
+        {
+            var host = new ContentControl
+            {
+                ContentTemplate = (DataTemplate)window.Resources[templateKey]!,
+                Content = vm
+            };
+            host.ApplyTemplate();
+            var cell = (Border)FindByName(host, "Cell")!;
+            return (cell.Opacity, cell.Cursor);
+        }
+
+        private static void P1ItemsStayOpaqueWhileSorted()
+        {
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            var data = new NestData { Title = "Tri", Type = NestTypes.Files, SortBy = NestSort.Name };
+            data.Items.Add(@"C:\Data\a.txt");
+            var window = new NestWindow(manager, data);
+
+            var host = (ItemsControl)FindByName(window, "ItemsHost")!;
+            var vm = (host.ItemsSource as IEnumerable<ItemVM>)!.First();
+            Assert(!vm.ReorderEnabled, "tri actif : glisser désactivé");
+            AssertEqual(Loc.T("sort.reorderHint"), vm.ItemToolTip, "infobulle « choisir le tri manuel » conservée");
+
+            foreach (var key in new[] { "GridItemTemplate", "ListItemTemplate" })
+            {
+                var (opacity, cursor) = CellAppearance(window, key, vm);
+                AssertEqual(1.0, opacity, "opacité pleine sous tri actif : " + key);
+                AssertEqual(Cursors.Arrow, cursor, "curseur non glissable conservé : " + key);
+
+                vm.IsSelected = true;
+                AssertEqual(1.0, CellAppearance(window, key, vm).Opacity, "opacité pleine si sélectionné : " + key);
+                vm.IsSelected = false;
+            }
+
+            vm.ReorderEnabled = true;
+            foreach (var key in new[] { "GridItemTemplate", "ListItemTemplate" })
+                AssertEqual(1.0, CellAppearance(window, key, vm).Opacity, "opacité pleine en tri manuel : " + key);
+
+            window.Close();
         }
 
         // ---------- B4 : icônes de type partagées ----------
