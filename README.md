@@ -12,6 +12,12 @@ Instead of leaving everything scattered across your desktop, DeskNest provides a
 
 > **Project status:** Under active development. DeskNest is currently at version 0.8.7.0.
 
+### What's new in 0.8.7.0
+
+- A **sort button** in the nest title bar: sort each nest independently by name, type, size, creation date or modification date, in either direction. Sorting is kept per nest, never changes your manual item order, and disables drag reordering while active. Folder Portals re-sort at every folder level and after watched changes.
+- **New to-do list** and **New note** entries in the nest menu, the desktop background context menu and the tray menu, using the same cursor-placed creation path as the quick-actions palette.
+- The **menu button moved to the far right** of the title bar and is now three vertical dots; the other icons sit immediately to its left and the title takes the remaining space with an ellipsis.
+
 ## Features
 
 ### Desktop Zones (Nests)
@@ -25,6 +31,7 @@ Create independent desktop areas to organize your items by category, purpose, or
 - Preview images, videos, and PDF files with thumbnails instead of generic icons.
 - Open items with a single click or a double-click (option in Settings › Behavior).
 - Adjust icon size and fonts.
+- Sort a nest's items from the title-bar sort button: Manual (default), Name, Type, Size, Date created or Date modified, ascending or descending. The choice is per nest and survives restarts; display layout profiles stay geometry-only. Folders come first and names use a natural, case- and accent-insensitive comparison. Manual order is never rewritten and drag reordering is disabled while a sort is active.
 - Hide zone titles.
 - Roll up zones to save desktop space.
 - Lock zones.
@@ -90,8 +97,8 @@ Press `Ctrl+Shift+Space` to open the search palette and search every zone, folde
 
 DeskNest integrates with the Windows desktop environment.
 
-- Dedicated context menu for desktop zones.
-- Desktop background context menu for creating new zones and Folder Portals.
+- Dedicated context menu for desktop zones, with **New to-do list** and **New note** alongside **New zone** and **New Folder Portal**.
+- Desktop background context menu for creating new zones, Folder Portals, to-do lists and notes.
 - Windows startup option.
 - Configurable global hotkeys for toggling zones and opening the search palette (Settings › Shortcuts).
 - Single-instance application support.
@@ -102,8 +109,7 @@ DeskNest integrates with the Windows desktop environment.
 - Recovery of items left in the managed store after a crash.
 - Optional Authenticode code-signing for release builds.
 
-The desktop background context menu is available while DeskNest is running and is removed when the application exits normally.
-The desktop background context menu uses DeskNest's localization system.
+The desktop background context menu is written by the installer and stays available after DeskNest exits; the application only refreshes its labels and executable path at startup and on language change. The uninstaller removes the entries. The menu uses DeskNest's localization system.
 
 ### Multilingual Interface
 

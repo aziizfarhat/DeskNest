@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace DeskNest
 {
@@ -88,7 +89,9 @@ namespace DeskNest
         [DllImport("shlwapi.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
         private static extern int StrCmpLogicalW(string psz1, string psz2);
 
-        // Nombre naturel, insensible à la casse et aux accents (API Windows).
+        // Tri naturel insensible à la casse ET aux accents. StrCmpLogicalW gère
+        // les nombres et la casse, mais est sensible aux accents : on retire
+        // donc les diacritiques avant la comparaison (NFD + marques non espacées).
         public static int NaturalCompare(string? a, string? b)
         {
             a ??= "";
@@ -96,7 +99,7 @@ namespace DeskNest
             if (ReferenceEquals(a, b)) return 0;
             try
             {
-                int r = StrCmpLogicalW(a, b);
+                int r = StrCmpLogicalW(Fold(a), Fold(b));
                 return r < 0 ? -1 : r > 0 ? 1 : 0;
             }
             catch
@@ -104,6 +107,17 @@ namespace DeskNest
                 return Math.Sign(string.Compare(a, b, CultureInfo.CurrentCulture,
                     CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace));
             }
+        }
+
+        private static string Fold(string value)
+        {
+            if (value.Length == 0) return value;
+            var decomposed = value.Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder(decomposed.Length);
+            foreach (var ch in decomposed)
+                if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                    sb.Append(ch);
+            return sb.ToString().Normalize(NormalizationForm.FormC);
         }
 
         public static List<ItemMeta> Sort(IEnumerable<ItemMeta>? source, string sortBy, bool descending)

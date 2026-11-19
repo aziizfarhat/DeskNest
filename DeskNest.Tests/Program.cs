@@ -58,6 +58,18 @@ namespace DeskNest.Tests
             Run("S3 : recherche des zones Fichiers inchangée", S3FilesSearchBehaviorUnchanged);
             Run("S3 : aucune barre de recherche créée pour Notes", S3NotesHasNoSearchControl);
             Run("S3 : ShowSearchBar=false masque la barre des To-do", S3ShowSearchBarFalseHidesTheBox);
+            Run("V5 : critères et sens de tri", SortCriteriaAndOrder);
+            Run("V5 : dossiers avant les fichiers, quel que soit le critère et le sens", SortFoldersFirstInEveryMode);
+            Run("V5 : nombres naturels, casse et accents ignorés", SortNaturalCaseAndAccents);
+            Run("V5 : départage par nom et ordre stable", SortTiesByNameAndStability);
+            Run("V5 : éléments manquants en fin dans leur ordre relatif", SortMissingItemsLast);
+            Run("V5 : tri manuel ou inconnu sans effet sur l'ordre d'origine", SortManualIsNoOp);
+            Run("V5 : tri persisté, anciens layouts en manuel", SortPersistsAndOldLayoutsLoadManual);
+            Run("V5 : profils d'affichage sans métadonnées de tri", SortExcludedFromGeometryProfiles);
+            Run("V5 : portail (sous-dossier, retour, changement de contenu)", SortAppliesToPortalLevelsAndChanges);
+            Run("V5 : zones indépendantes, glisser désactivé, bouton de tri", SortIsPerNestAndDisablesDrag);
+            Run("V5 : menu de zone Todo/Note utilise la palette", NestMenuEntriesUseQuickActions);
+            Run("V5 : routage des verbes de ligne de commande", CommandVerbsRouting);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -840,6 +852,340 @@ namespace DeskNest.Tests
             window.ApplyExternalChange();
             AssertEqual(Visibility.Visible, host.Visibility, "barre affichée après réactivation");
             window.Close();
+        }
+
+        // ---------- V5 : tri (comparateur pur) ----------
+        private static ItemMeta Meta(
+            string name,
+            bool folder = false,
+            long size = 0,
+            DateTime? created = null,
+            DateTime? modified = null,
+            bool available = true,
+            string? path = null) =>
+            new(path ?? @"C:\Data\" + name, name, folder, size,
+                created ?? DateTime.MinValue, modified ?? DateTime.MinValue, available);
+
+        private static string Names(IEnumerable<ItemMeta> items) =>
+            string.Join(",", items.Select(i => i.Name));
+
+        private static void SortCriteriaAndOrder()
+        {
+            var d = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var a = Meta("alpha.txt", size: 300, created: d, modified: d.AddDays(3), path: "a");
+            var b = Meta("beta.md", size: 100, created: d.AddDays(2), modified: d.AddDays(1), path: "b");
+            var c = Meta("gamma.txt", size: 200, created: d.AddDays(1), modified: d.AddDays(2), path: "c");
+            var input = new[] { a, b, c };
+
+            AssertEqual("alpha.txt,beta.md,gamma.txt", Names(NestItemSorter.Sort(input, NestSort.Name, false)), "Nom croissant");
+            AssertEqual("gamma.txt,beta.md,alpha.txt", Names(NestItemSorter.Sort(input, NestSort.Name, true)), "Nom décroissant");
+            AssertEqual("beta.md,alpha.txt,gamma.txt", Names(NestItemSorter.Sort(input, NestSort.Type, false)), "Type croissant (extension puis nom)");
+            AssertEqual("alpha.txt,gamma.txt,beta.md", Names(NestItemSorter.Sort(input, NestSort.Type, true)), "Type décroissant (extension puis nom)");
+            AssertEqual("beta.md,gamma.txt,alpha.txt", Names(NestItemSorter.Sort(input, NestSort.Size, false)), "Taille croissante");
+            AssertEqual("alpha.txt,gamma.txt,beta.md", Names(NestItemSorter.Sort(input, NestSort.Size, true)), "Taille décroissante");
+            AssertEqual("alpha.txt,gamma.txt,beta.md", Names(NestItemSorter.Sort(input, NestSort.DateCreated, false)), "Date de création croissante");
+            AssertEqual("beta.md,gamma.txt,alpha.txt", Names(NestItemSorter.Sort(input, NestSort.DateCreated, true)), "Date de création décroissante");
+            AssertEqual("beta.md,gamma.txt,alpha.txt", Names(NestItemSorter.Sort(input, NestSort.DateModified, false)), "Date de modification croissante");
+            AssertEqual("alpha.txt,gamma.txt,beta.md", Names(NestItemSorter.Sort(input, NestSort.DateModified, true)), "Date de modification décroissante");
+        }
+
+        private static void SortFoldersFirstInEveryMode()
+        {
+            var d = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var zDir = Meta("zeta", folder: true, created: d.AddDays(1), modified: d.AddDays(1), path: "dz");
+            var aDir = Meta("alpha", folder: true, created: d, modified: d.AddDays(2), path: "da");
+            var zFile = Meta("z.txt", size: 1, path: "fz");
+            var aFile = Meta("a.txt", size: 999, path: "fa");
+            var input = new[] { zFile, zDir, aFile, aDir };
+
+            foreach (var mode in new[] { NestSort.Name, NestSort.DateCreated })
+            {
+                AssertEqual("alpha,zeta", string.Join(",", NestItemSorter.Sort(input, mode, false).Take(2).Select(i => i.Name)), $"dossiers en tête ({mode} croissant)");
+                AssertEqual("zeta,alpha", string.Join(",", NestItemSorter.Sort(input, mode, true).Take(2).Select(i => i.Name)), $"dossiers en tête ({mode} décroissant)");
+            }
+            AssertEqual("zeta,alpha", string.Join(",", NestItemSorter.Sort(input, NestSort.DateModified, false).Take(2).Select(i => i.Name)), "dossiers en tête (DateModified croissant)");
+            AssertEqual("alpha,zeta", string.Join(",", NestItemSorter.Sort(input, NestSort.DateModified, true).Take(2).Select(i => i.Name)), "dossiers en tête (DateModified décroissant)");
+
+            // Type et Taille n'ont pas de sens pour un dossier : il garde un tri par nom
+            // croissant, même quand les fichiers sont triés en sens inverse.
+            foreach (var mode in new[] { NestSort.Type, NestSort.Size })
+            {
+                AssertEqual("alpha,zeta", string.Join(",", NestItemSorter.Sort(input, mode, false).Take(2).Select(i => i.Name)), $"dossiers par nom ({mode} croissant)");
+                AssertEqual("alpha,zeta", string.Join(",", NestItemSorter.Sort(input, mode, true).Take(2).Select(i => i.Name)), $"dossiers par nom ({mode} décroissant)");
+            }
+
+            Assert(NestItemSorter.Sort(input, NestSort.Size, false).Skip(2).All(i => !i.IsFolder), "fichiers toujours après les dossiers");
+            Assert(NestItemSorter.Sort(input, NestSort.Name, true).Skip(2).All(i => !i.IsFolder), "fichiers toujours après les dossiers en sens inverse");
+        }
+
+        private static void SortNaturalCaseAndAccents()
+        {
+            Assert(NestItemSorter.NaturalCompare("item2.txt", "item10.txt") < 0, "tri naturel : 2 avant 10");
+            Assert(NestItemSorter.NaturalCompare("Item10.TXT", "item2.txt") > 0, "casse ignorée, tri naturel conservé");
+            AssertEqual(0, NestItemSorter.NaturalCompare("école.txt", "ecole.txt"), "accents ignorés");
+            AssertEqual(0, NestItemSorter.NaturalCompare("ÉCOLE.TXT", "ecole.txt"), "casse et accents ignorés");
+
+            var input = new[]
+            {
+                Meta("item10.txt", path: "i10"),
+                Meta("école.txt", path: "e1"),
+                Meta("item2.txt", path: "i2"),
+                Meta("ecole.TXT", path: "e2")
+            };
+            AssertEqual("école.txt,ecole.TXT,item2.txt,item10.txt",
+                Names(NestItemSorter.Sort(input, NestSort.Name, false)),
+                "tri naturel insensible à la casse et aux accents");
+        }
+
+        private static void SortTiesByNameAndStability()
+        {
+            var b = Meta("beta.txt", size: 100, path: "b");
+            var a = Meta("alpha.txt", size: 100, path: "a");
+            foreach (var desc in new[] { false, true })
+                AssertEqual("alpha.txt,beta.txt",
+                    Names(NestItemSorter.Sort(new[] { b, a }, NestSort.Size, desc)),
+                    "égalité sur le critère : départage par nom, même en sens inverse");
+
+            var first = Meta("same.txt", size: 5, path: "p1");
+            var second = Meta("same.txt", size: 5, path: "p2");
+            AssertEqual("p1,p2", string.Join(",", NestItemSorter.Sort(new[] { first, second }, NestSort.Size, false).Select(i => i.Path)),
+                "égalité complète : ordre d'entrée conservé");
+            AssertEqual("p2,p1", string.Join(",", NestItemSorter.Sort(new[] { second, first }, NestSort.Size, true).Select(i => i.Path)),
+                "égalité complète en sens inverse : ordre d'entrée conservé");
+        }
+
+        private static void SortMissingItemsLast()
+        {
+            var missingB = Meta("missing-b.txt", available: false, path: "mb");
+            var ok = Meta("ok.txt", path: "ok");
+            var missingA = Meta("missing-a.txt", available: false, path: "ma");
+            var input = new[] { missingB, ok, missingA };
+
+            foreach (var desc in new[] { false, true })
+                AssertEqual("ok.txt,missing-b.txt,missing-a.txt",
+                    Names(NestItemSorter.Sort(input, NestSort.Name, desc)),
+                    "éléments manquants repoussés en fin dans leur ordre relatif");
+
+            var absent = Path.Combine(Path.GetTempPath(), "desknest-v5-" + Guid.NewGuid().ToString("N") + ".txt");
+            var read = ItemMeta.Read(absent);
+            Assert(!read.Available, "chemin absent marqué indisponible");
+            AssertEqual(Path.GetFileName(absent), read.Name, "nom conservé pour un élément absent");
+        }
+
+        private static void SortManualIsNoOp()
+        {
+            var source = new List<ItemMeta>
+            {
+                Meta("z.txt", path: "z"), Meta("a.txt", path: "a"), Meta("m.txt", path: "m")
+            };
+            foreach (var mode in new[] { NestSort.Manual, "Inconnu", "", null })
+                foreach (var desc in new[] { false, true })
+                    AssertEqual("z.txt,a.txt,m.txt",
+                        Names(NestItemSorter.Sort(source, mode!, desc)),
+                        "mode inactif : ordre manuscrit intact");
+
+            Assert(!NestSort.IsActive(NestSort.Manual) && !NestSort.IsActive("Inconnu"), "seuls les modes connus et non manuels sont actifs");
+            AssertEqual(NestSort.Manual, NestSort.Normalize("Inconnu"), "valeur inconnue ramenée à Manuel");
+            AssertEqual("z.txt,a.txt,m.txt", Names(source), "la source n'est jamais réécrite par un tri");
+        }
+
+        private static void SortPersistsAndOldLayoutsLoadManual()
+        {
+            var (_, _) = Sandbox();
+            var data = Sample("Tri");
+            data.Nests[0].SortBy = NestSort.DateCreated;
+            data.Nests[0].SortDescending = true;
+            Storage.SaveNow(data);
+            var loaded = Storage.Load();
+            AssertEqual(NestSort.DateCreated, loaded.Nests[0].SortBy, "critère de tri persisté");
+            Assert(loaded.Nests[0].SortDescending, "sens de tri persisté");
+
+            var (fs, root) = Sandbox();
+            fs.WriteAllText(Path.Combine(root, "layout.json"), SampleV3Json());
+            var old = Storage.Load();
+            AssertEqual(2, old.Nests.Count, "ancien layout conservé");
+            Assert(old.Nests.All(n => n.SortBy == NestSort.Manual), "ancien layout : tri manuel par défaut");
+            Assert(old.Nests.All(n => !n.SortDescending), "ancien layout : sens croissant par défaut");
+        }
+
+        private static void SortExcludedFromGeometryProfiles()
+        {
+            var (_, _) = Sandbox();
+            var data = Sample("Profil");
+            var nest = data.Nests[0];
+            nest.SortBy = NestSort.Type;
+            nest.SortDescending = true;
+
+            var props = typeof(NestGeometry).GetProperties();
+            AssertEqual(4, props.Length, "un profil ne contient que Left/Top/Width/Height");
+            Assert(props.All(p => p.Name != "SortBy" && p.Name != "SortDescending"), "aucun champ de tri dans un profil");
+
+            var before = DisplayProfiles.GeometryOf(nest);
+            var captured = DisplayProfiles.CaptureGeometry(data.Nests);
+            nest.SortBy = NestSort.Size;
+            nest.SortDescending = false;
+            var after = DisplayProfiles.CaptureGeometry(data.Nests);
+
+            AssertEqual(4, after[nest.Id.ToString()].GetType().GetProperties().Length, "capture sans métadonnées de tri");
+            AssertEqual(before.Left, after[nest.Id.ToString()].Left, "changer le tri n'altère pas la géométrie capturée");
+            DisplayProfiles.ApplyGeometry(nest, before);
+            AssertEqual(NestSort.Size, nest.SortBy, "appliquer un profil ne touche pas au tri");
+            Assert(!nest.SortDescending, "appliquer un profil ne touche pas au sens du tri");
+        }
+
+        private static void SortAppliesToPortalLevelsAndChanges()
+        {
+            var rootEntries = new[]
+            {
+                Meta("10.txt", path: @"C:\portal\10.txt"),
+                Meta("2.txt", path: @"C:\portal\2.txt")
+            };
+            var subEntries = new[]
+            {
+                Meta("b.txt", path: @"C:\portal\Sub\b.txt"),
+                Meta("a.txt", path: @"C:\portal\Sub\a.txt")
+            };
+
+            AssertEqual("2.txt,10.txt", Names(NestItemSorter.Sort(rootEntries, NestSort.Name, false)), "racine du portail triée");
+            AssertEqual("a.txt,b.txt", Names(NestItemSorter.Sort(subEntries, NestSort.Name, false)), "sous-dossier trié avec le même critère");
+            AssertEqual("10.txt,2.txt", Names(NestItemSorter.Sort(rootEntries, NestSort.Name, true)), "retour à la racine : tri réappliqué");
+
+            var changed = rootEntries.Concat(new[] { Meta("1.txt", path: @"C:\portal\1.txt") }).ToList();
+            AssertEqual("1.txt,2.txt,10.txt", Names(NestItemSorter.Sort(changed, NestSort.Name, false)), "ajout : tri réappliqué");
+            changed.RemoveAll(i => i.Path == @"C:\portal\1.txt");
+            AssertEqual("2.txt,10.txt", Names(NestItemSorter.Sort(changed, NestSort.Name, false)), "retrait : tri réappliqué");
+        }
+
+        // ---------- V5 : tri dans la fenêtre ----------
+        private static void SortIsPerNestAndDisablesDrag()
+        {
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            var a = new NestData { Title = "A", Type = NestTypes.Files, SortBy = NestSort.Name };
+            var b = new NestData { Title = "B", Type = NestTypes.Files, SortBy = NestSort.Manual };
+            var wa = new NestWindow(manager, a);
+            var wb = new NestWindow(manager, b);
+
+            Assert(!wa.ReorderEnabled, "tri actif : réordonnancement manuel désactivé");
+            Assert(wb.ReorderEnabled, "tri manuel : réordonnancement autorisé");
+
+            b.SortBy = NestSort.Type;
+            wb.ApplyExternalChange();
+            Assert(!wb.ReorderEnabled && !wa.ReorderEnabled, "chaque zone porte son propre état");
+
+            a.SortBy = NestSort.Manual;
+            wa.ApplyExternalChange();
+            Assert(wa.ReorderEnabled && !wb.ReorderEnabled, "retour au manuscrit dans une zone seulement");
+
+            // ItemVM porte le même état que la fenêtre.
+            var withItem = new NestData { Title = "C", Type = NestTypes.Files };
+            withItem.Items.Add(@"C:\Data\fichier.txt");
+            var wc = new NestWindow(manager, withItem);
+            var host = FindByName(wc, "ItemsHost") as ItemsControl;
+            var vm = (host?.ItemsSource as IEnumerable<ItemVM>)?.FirstOrDefault();
+            Assert(vm != null, "élément affiché pour tester le glisser");
+            Assert(vm!.ReorderEnabled, "manuel : glisser autorisé sur l'élément");
+            withItem.SortBy = NestSort.Size;
+            wc.ApplyExternalChange();
+            Assert(!vm.ReorderEnabled, "tri actif : glisser désactivé sur l'élément");
+            AssertEqual(Loc.T("sort.reorderHint"), vm.ItemToolTip, "infobulle « glisser désactivé »");
+            withItem.SortBy = NestSort.Manual;
+            wc.ApplyExternalChange();
+            Assert(vm.ReorderEnabled, "retour au manuscrit : glisser réautorisé");
+
+            // Le bouton de tri est dans la barre de titre : il suit exactement le
+            // bouton menu (masqué avec la barre, disponible quand la zone est repliée).
+            var sortA = FindByName(wa, "SortButton") as Button;
+            var barA = FindByName(wa, "TitleBar") as Border;
+            Assert(sortA != null && barA != null, "bouton de tri et barre de titre présents");
+            Assert(ReferenceEquals(sortA, FindByName(barA!, "SortButton")), "bouton de tri placé dans la barre de titre");
+            AssertEqual(Visibility.Visible, barA!.Visibility, "barre de titre visible");
+            AssertEqual(Visibility.Visible, sortA!.Visibility, "tri visible pour une zone Fichiers");
+
+            a.TitleVisible = false;
+            wa.ApplyExternalChange();
+            AssertEqual(Visibility.Collapsed, barA.Visibility, "titre masqué : barre entière masquée");
+            AssertEqual(Visibility.Visible, sortA.Visibility, "bouton de tri masqué avec le menu par la barre");
+
+            a.TitleVisible = true;
+            a.RolledUp = true;
+            wa.ApplyExternalChange();
+            AssertEqual(Visibility.Visible, barA.Visibility, "zone repliée : barre conservée");
+            AssertEqual(Visibility.Visible, sortA.Visibility, "tri disponible dans la barre repliée comme le menu");
+
+            var note = new NestData { Title = "Note", Type = NestTypes.Notes };
+            var wn = new NestWindow(manager, note);
+            AssertEqual(Visibility.Collapsed, (FindByName(wn, "SortButton") as Button)!.Visibility, "pas de bouton de tri pour Notes");
+
+            wa.Close();
+            wb.Close();
+            wc.Close();
+            wn.Close();
+        }
+
+        // ---------- V5 : menu et ligne de commande ----------
+        private static MenuItem? MenuEntry(ContextMenu menu, string header) =>
+            menu.Items.OfType<MenuItem>().FirstOrDefault(i => string.Equals(i.Header as string, header, StringComparison.Ordinal));
+
+        private static void ClickEntry(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+
+        private static void NestMenuEntriesUseQuickActions()
+        {
+            Loc.SetLanguage("en");
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            manager.Settings.Enabled = false; // pas de fenêtre affichée pendant le test
+            var data = new NestData { Title = "Menu", Type = NestTypes.Files };
+            var window = new NestWindow(manager, data);
+            var root = FindByName(window, "Root") as Border;
+            Assert(root?.ContextMenu != null, "menu de zone présent");
+
+            var todo = MenuEntry(root!.ContextMenu!, Loc.T("tray.newTodo"));
+            var note = MenuEntry(root.ContextMenu!, Loc.T("tray.newNote"));
+            Assert(todo != null, "entrée « New to-do list » dans le menu de la zone");
+            Assert(note != null, "entrée « New note » dans le menu de la zone");
+
+            int before = manager.Nests.Count;
+            ClickEntry(todo!);
+            AssertEqual(before + 1, manager.Nests.Count, "Todo créée depuis le menu");
+            AssertEqual(NestTypes.Todo, manager.Nests.Last().Type, "la Todo suit le chemin de la palette");
+
+            manager.Settings.Enabled = false;
+            ClickEntry(note!);
+            AssertEqual(before + 2, manager.Nests.Count, "Note créée depuis le menu");
+            AssertEqual(NestTypes.Notes, manager.Nests.Last().Type, "la Note suit le chemin de la palette");
+
+            window.Close();
+            foreach (var w in manager.Windows.ToList()) w.Close();
+        }
+
+        private static void CommandVerbsRouting()
+        {
+            Assert(DeskNestCommands.IsKnown(DeskNestCommands.NewZone), "--new-zone reconnu");
+            Assert(DeskNestCommands.IsKnown(DeskNestCommands.NewPortal), "--new-portal reconnu");
+            Assert(DeskNestCommands.IsKnown(DeskNestCommands.NewTodo), "--new-todo reconnu");
+            Assert(DeskNestCommands.IsKnown(DeskNestCommands.NewNote), "--new-note reconnu");
+            Assert(!DeskNestCommands.IsKnown("--inconnu"), "verbe inconnu refusé");
+            Assert(!DeskNestCommands.IsKnown(null), "verbe nul refusé");
+
+            AssertEqual(QuickActionKind.NewZone, DeskNestCommands.QuickAction(DeskNestCommands.NewZone), "correspondance NewZone");
+            AssertEqual(QuickActionKind.NewPortal, DeskNestCommands.QuickAction(DeskNestCommands.NewPortal), "correspondance NewPortal");
+            AssertEqual(QuickActionKind.NewTodo, DeskNestCommands.QuickAction(DeskNestCommands.NewTodo), "correspondance NewTodo");
+            AssertEqual(QuickActionKind.NewNote, DeskNestCommands.QuickAction(DeskNestCommands.NewNote), "correspondance NewNote");
+            Assert(DeskNestCommands.QuickAction("--inconnu") == null, "aucune action pour un verbe inconnu");
+            Assert(!CommandServer.SendAsync("--inconnu", 50).GetAwaiter().GetResult(), "verbe inconnu rejeté sans ouvrir le pipe");
+
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            foreach (var verb in new[] { DeskNestCommands.NewTodo, DeskNestCommands.NewNote })
+            {
+                manager.Settings.Enabled = false;
+                var kind = DeskNestCommands.QuickAction(verb)!.Value;
+                manager.ExecuteQuickAction(kind);
+                AssertEqual(kind == QuickActionKind.NewTodo ? NestTypes.Todo : NestTypes.Notes,
+                    manager.Nests.Last().Type, verb + " distribué à la palette");
+            }
+            foreach (var w in manager.Windows.ToList()) w.Close();
         }
 
         private sealed class FailingFileSystem : IFileSystem

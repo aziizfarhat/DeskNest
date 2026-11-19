@@ -5,6 +5,23 @@ All notable changes to DeskNest are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7.0] - 2026-11-19
+
+### Added
+
+- Per-nest display sorting from a new button in the nest title bar: Manual (default), Name, Type, Size, Date created and Date modified, each ascending or descending. The setting is independent for every nest, survives restarts, and is deliberately excluded from display layout profiles. Folders always come first; names use a natural, case- and accent-insensitive comparison; unreadable or missing items are pushed to the end. Manual item order is never rewritten by a sort, and drag reordering is disabled while a sort is active. Metadata is read once per item outside the UI thread through a bounded, path-keyed cache invalidated on last write. Folder Portals re-sort at every folder level and after watched content changes.
+- **New to-do list** and **New note** entries in the nest right-click menu and in the title-bar menu button, using the same quick-actions creation path as the palette and the global search row (cursor placement, defaults, inline title edit).
+- **New to-do list** and **New note** entries in the tray menu and in the desktop background context menu. They use the existing command-line / single-instance pipe mechanism (`--new-todo`, `--new-note`), with the verb list centralized in `DeskNestCommands`. Installer-written registry entries make the desktop menu persistent across application exits; an update to an existing installation receives all four verbs without a migration step.
+
+### Changed
+
+- Nest title bar layout: the menu button is now the rightmost icon, with the sort button, portal Back button and nest icon immediately to its left. The title takes all remaining space and truncates with an ellipsis, with no overlap at the minimum width. The hamburger glyph is replaced by three vertical dots drawn as a `Path`/`EllipseGeometry` in the title foreground, with the same hit area and hover behavior. Rolled-up and hidden-title behavior is unchanged.
+- The desktop background context menu is no longer deleted when DeskNest exits; labels and the executable path are refreshed at startup and on language change, and only the uninstaller removes the entries.
+
+### Fixed
+
+- Natural name comparison now strips diacritics before calling `StrCmpLogicalW`, so accented and unaccented spellings sort together while keeping natural number ordering and case insensitivity.
+
 ## [0.8.6.0] - 2026-11-18
 
 ### Added
@@ -118,6 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `layout.json` is now written atomically through `File.Replace`, with `layout.json.bak` kept as the previous valid state and used when the main file is corrupt or empty.
 - Moving an item into or out of the managed store now saves the layout synchronously, so a crash cannot lose the original location.
 
+[0.8.7.0]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.7.0
 [0.8.6.0]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.6.0
 [0.8.5.0]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.5.0
 [0.8.4.0]: https://github.com/aziizfarhat/DeskNest/releases/tag/v0.8.4.0
