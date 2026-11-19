@@ -85,6 +85,12 @@ namespace DeskNest.Tests
             Run("P1 : éléments totalement opaques sous tri actif", P1ItemsStayOpaqueWhileSorted);
             Run("P2 : chevron du portail à gauche et visible seulement en sous-dossier", P2PortalBackChevronMovesLeft);
             Run("P3 : marge gauche de 8 DIP devant le premier élément de la barre de titre", P3TitleBarLeftPadding);
+            Run("R1 : réordonnement manuel visible, persisté et rechargé", () => WithWpfContext(R1ManualReorderIsVisibleAndPersisted));
+            Run("R2 : tri puis retour manuel sans réécrire l'ordre ni le repère", () => WithWpfContext(R2SortRoundTripKeepsManualOrder));
+            Run("R3 : ancien layout et tri invalide chargés en manuel", () => WithWpfContext(R3OldAndInvalidSortLoadAsManual));
+            Run("R4 : dépôt interne début/milieu/fin avec repère", () => WithWpfContext(R4InternalDropPositionsWithMarker));
+            Run("R5 : dépôt de fichiers début/milieu/fin avec et sans repère", () => WithWpfContext(R5FileDropPositionsAndMarkers));
+            Run("R6 : réordonnement du portail inchangé", () => WithWpfContext(R6PortalReorderUnchanged));
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -1799,6 +1805,371 @@ namespace DeskNest.Tests
             var paths = FindVisualChildren<System.Windows.Shapes.Path>(bar).ToList();
             Assert(paths.Any(p => ReferenceEquals(p.Data, NestIcons.Todo)), "tuile « nouvelle tâche » utilise la géométrie partagée");
             Assert(paths.Any(p => ReferenceEquals(p.Data, NestIcons.Notes)), "tuile « nouvelle note » utilise la géométrie partagée");
+        }
+
+        // ---------- R : réordonnancement manuel (régression 0.8.7.0) ----------
+        private static List<string> NewFiles(string dir, params string[] names)
+        {
+            var paths = names.Select(n => Path.Combine(dir, n)).ToList();
+            foreach (var p in paths) File.WriteAllText(p, "x");
+            return paths;
+        }
+
+        private static IEnumerable<string> Names(IEnumerable<string> paths) => paths.Select(Path.GetFileName)!;
+
+        private static NestData ManualFiles(string title, IReadOnlyList<string> paths)
+        {
+            var data = new NestData
+            {
+                Title = title, Type = NestTypes.Files, ListView = true,
+                Left = 100, Top = 100, Width = 420, Height = 320
+            };
+            data.Items.AddRange(paths);
+            return data;
+        }
+
+        private static void ShowAndPump(NestWindow window, int expectedItems)
+        {
+            window.Show();
+            window.UpdateLayout();
+            PumpUntil(() => VisibleNames(window).Count == expectedItems, "conteneurs affichés");
+        }
+
+        // Lit l'ordre réel des conteneurs WPF, et non celui de la source liée :
+        // c'est précisément ce qui restait figé dans la régression.
+        private static List<string> VisibleNames(NestWindow window)
+        {
+            var host = (ItemsControl)FindByName(window, "ItemsHost")!;
+            host.UpdateLayout();
+            var names = new List<string>();
+            for (int i = 0; i < host.Items.Count; i++)
+                if (host.ItemContainerGenerator.ContainerFromIndex(i) is FrameworkElement cell &&
+                    cell.DataContext is ItemVM vm)
+                    names.Add(Path.GetFileName(vm.FullPath)!);
+            return names;
+        }
+
+        private static void Pump() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
+
+        private static void ResetFiles(NestWindow window, NestData data, IReadOnlyList<string> paths)
+        {
+            data.Items.Clear();
+            data.Items.AddRange(paths);
+            window.ReloadItems();
+            string expected = Joined(Names(paths));
+            PumpUntil(() => Joined(DisplayedNames(window)) == expected && Joined(VisibleNames(window)) == expected,
+                      "réinitialisation " + expected);
+        }
+
+        private static Rect ItemRect(NestWindow window, int index)
+        {
+            var host = (ItemsControl)FindByName(window, "ItemsHost")!;
+            if (host.ItemContainerGenerator.ContainerFromIndex(index) is not FrameworkElement cell)
+                throw new InvalidOperationException("conteneur absent à l'index " + index);
+            var topLeft = cell.TranslatePoint(new Point(0, 0), host);
+            return new Rect(topLeft.X, topLeft.Y, cell.ActualWidth, cell.ActualHeight);
+        }
+
+        private static Point BeforeItem(NestWindow window, int index)
+        {
+            var r = ItemRect(window, index);
+            return new Point(r.Left + 2, r.Top + 2);
+        }
+
+        private static Point AfterItem(NestWindow window, int index)
+        {
+            var r = ItemRect(window, index);
+            return new Point(r.Left + 2, r.Bottom + 2);
+        }
+
+        private static DragEventArgs DragArgs(NestWindow window, Point hostPoint, DataObject payload,
+                                              DragDropEffects allowed, RoutedEvent routedEvent)
+        {
+            var root = (UIElement)FindByName(window, "Root")!;
+            var host = (Visual)FindByName(window, "ItemsHost")!;
+            var inRoot = host.TransformToAncestor(root).Transform(hostPoint);
+            var args = (DragEventArgs)Activator.CreateInstance(typeof(DragEventArgs),
+                BindingFlags.Instance | BindingFlags.NonPublic, null,
+                new object[] { payload, DragDropKeyStates.None, allowed, root, inRoot }, null)!;
+            args.RoutedEvent = routedEvent;
+            args.Source = root;
+            var actual = args.GetPosition((IInputElement)host);
+            Assert(Math.Abs(actual.X - hostPoint.X) < 1.5 && Math.Abs(actual.Y - hostPoint.Y) < 1.5,
+                   "position de dépôt convertie : attendu " + hostPoint + ", obtenu " + actual);
+            return args;
+        }
+
+        private static DataObject InternalPayload(NestWindow window, params string[] paths)
+        {
+            var payload = new DataObject();
+            payload.SetData(NestWindow.ItemFormat, window.Data.Id + "|" + string.Join("\n", paths));
+            return payload;
+        }
+
+        private static DataObject FilePayload(params string[] paths)
+        {
+            var payload = new DataObject();
+            payload.SetData(DataFormats.FileDrop, paths);
+            return payload;
+        }
+
+        private static Visibility MarkerVisibility(NestWindow window) =>
+            ((UIElement)FindByName(window, "Marker")!).Visibility;
+
+        private static void DragOver(NestWindow window, Point point, DataObject payload,
+                                     DragDropEffects allowed, DragDropEffects expectedEffect,
+                                     Visibility expectedMarker, string label)
+        {
+            var root = (DependencyObject)FindByName(window, "Root")!;
+            var args = DragArgs(window, point, payload, allowed, UIElement.DragOverEvent);
+            InvokePrivate(window, "Root_DragOver", root, args);
+            AssertEqual(expectedEffect, args.Effects, "effet " + label);
+            AssertEqual(expectedMarker, MarkerVisibility(window), "repère " + label);
+        }
+
+        private static void DropInternal(NestWindow window, Point point, params string[] paths)
+        {
+            var root = (DependencyObject)FindByName(window, "Root")!;
+            DragOver(window, point, InternalPayload(window, paths), DragDropEffects.Move,
+                     DragDropEffects.Move, Visibility.Visible, "dépôt interne");
+            var drop = DragArgs(window, point, InternalPayload(window, paths),
+                                DragDropEffects.Move, UIElement.DropEvent);
+            InvokePrivate(window, "Root_Drop", root, drop);
+        }
+
+        private static void DropFiles(NestWindow window, Point point, params string[] paths)
+        {
+            var root = (DependencyObject)FindByName(window, "Root")!;
+            DragOver(window, point, FilePayload(paths), DragDropEffects.Copy,
+                     DragDropEffects.Copy, Visibility.Visible, "dépôt de fichier");
+            var drop = DragArgs(window, point, FilePayload(paths),
+                                DragDropEffects.Copy, UIElement.DropEvent);
+            InvokePrivate(window, "Root_Drop", root, drop);
+        }
+
+        private static void R1ManualReorderIsVisibleAndPersisted()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "desknest-r1-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var (_, _) = Sandbox();
+                var manager = new NestManager();
+                var paths = NewFiles(dir, "a.txt", "b.txt", "c.txt");
+                var data = ManualFiles("R1", paths);
+                var w = new NestWindow(manager, data);
+                ShowAndPump(w, paths.Count);
+
+                Assert(w.ReorderEnabled, "tri manuel : glisser autorisé");
+                InvokePrivate(w, "ReorderTo", new List<string> { paths[2] }, 0);
+                PumpUntil(() => Joined(VisibleNames(w)) == "c.txt,a.txt,b.txt", "ordre visible après déplacement");
+
+                string expected = "c.txt,a.txt,b.txt";
+                AssertEqual(expected, Joined(Names(data.Items)), "ordre enregistré en mémoire");
+                AssertEqual(expected, Joined(DisplayedNames(w)), "ordre de la source liée");
+                AssertEqual(expected, Joined(VisibleNames(w)), "ordre des conteneurs affichés");
+
+                var app = new AppData();
+                app.Nests.Add(data);
+                Storage.SaveNow(app);
+                var loaded = Storage.Load();
+                AssertEqual(expected, Joined(Names(loaded.Nests[0].Items)), "ordre après rechargement");
+                AssertEqual(NestSort.Manual, loaded.Nests[0].SortBy, "critère après rechargement");
+                w.Close();
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        private static void R2SortRoundTripKeepsManualOrder()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "desknest-r2-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var (_, _) = Sandbox();
+                var paths = NewFiles(dir, "c.txt", "a.txt", "b.txt");
+                var data = ManualFiles("R2", paths);
+                data.Locked = true; // le verrou ne concerne que le déplacement/redimensionnement de la zone
+                var w = new NestWindow(new NestManager(), data);
+                ShowAndPump(w, paths.Count);
+                Assert(w.ReorderEnabled, "zone verrouillée : réordonnement manuel toujours autorisé");
+
+                InvokePrivate(w, "SetSort", NestSort.Name, false);
+                PumpUntil(() => Joined(DisplayedNames(w)) == "a.txt,b.txt,c.txt", "tri par nom");
+                AssertEqual("c.txt,a.txt,b.txt", Joined(Names(data.Items)), "le tri ne réécrit pas l'ordre manuel");
+                Assert(!w.ReorderEnabled, "tri actif : glisser désactivé");
+                var host = (ItemsControl)FindByName(w, "ItemsHost")!;
+                var vm = (host.ItemsSource as IEnumerable<ItemVM>)!.First();
+                AssertEqual(Loc.T("sort.reorderHint"), vm.ItemToolTip, "infobulle sous tri actif");
+
+                InvokePrivate(w, "ReorderTo", new List<string> { paths[1] }, 0);
+                Pump();
+                AssertEqual("c.txt,a.txt,b.txt", Joined(Names(data.Items)), "déplacement refusé sous tri actif");
+
+                InvokePrivate(w, "SetSort", NestSort.Manual, false);
+                PumpUntil(() => Joined(DisplayedNames(w)) == "c.txt,a.txt,b.txt" &&
+                                Joined(VisibleNames(w)) == "c.txt,a.txt,b.txt", "retour à l'ordre manuel");
+                Assert(w.ReorderEnabled, "retour manuel : glisser réautorisé");
+                AssertEqual("c.txt,a.txt,b.txt", Joined(VisibleNames(w)), "ordre manuel exact restauré");
+
+                InvokePrivate(w, "ReorderTo", new List<string> { paths[1] }, 3);
+                PumpUntil(() => Joined(VisibleNames(w)) == "c.txt,b.txt,a.txt", "réordonnement après retour");
+                AssertEqual("c.txt,b.txt,a.txt", Joined(Names(data.Items)), "nouvel ordre persisté");
+                w.Close();
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        private static void R3OldAndInvalidSortLoadAsManual()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "desknest-r3-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var (fs, root) = Sandbox();
+                var layout = Path.Combine(root, "layout.json");
+                var a = Path.Combine(dir, "a.txt").Replace('\\', '/');
+                var b = Path.Combine(dir, "b.txt").Replace('\\', '/');
+                File.WriteAllText(Path.Combine(dir, "a.txt"), "x");
+                File.WriteAllText(Path.Combine(dir, "b.txt"), "x");
+
+                fs.WriteAllText(layout,
+                    "{\"Nests\":[{\"Title\":\"Ancien\",\"Type\":\"Files\",\"Items\":[\"" + a + "\",\"" + b + "\"]}]}");
+                var loaded = Storage.Load();
+                AssertEqual(NestSort.Manual, loaded.Nests[0].SortBy, "ancien layout sans SortBy");
+                Assert(!loaded.Nests[0].SortDescending, "ancien layout sans sens de tri");
+                var old = new NestWindow(new NestManager(), loaded.Nests[0]);
+                Assert(old.ReorderEnabled, "ancien layout : glisser autorisé");
+                old.Close();
+
+                fs.WriteAllText(layout,
+                    "{\"Nests\":[{\"Title\":\"Invalide\",\"Type\":\"Files\",\"SortBy\":\"Bogus\",\"Items\":[\"" + a + "\"]}]}");
+                loaded = Storage.Load();
+                AssertEqual(NestSort.Manual, loaded.Nests[0].SortBy, "SortBy invalide ramené au manuel");
+                var invalid = new NestWindow(new NestManager(), loaded.Nests[0]);
+                Assert(invalid.ReorderEnabled, "SortBy invalide : glisser autorisé");
+                invalid.Close();
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        private static void R4InternalDropPositionsWithMarker()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "desknest-r4-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var (_, _) = Sandbox();
+                var paths = NewFiles(dir, "a.txt", "b.txt", "c.txt");
+                var data = ManualFiles("R4", paths);
+                var w = new NestWindow(new NestManager(), data);
+                ShowAndPump(w, paths.Count);
+
+                DropInternal(w, BeforeItem(w, 0), paths[2]);
+                PumpUntil(() => Joined(VisibleNames(w)) == "c.txt,a.txt,b.txt", "dépôt au début");
+                AssertEqual("c.txt,a.txt,b.txt", Joined(Names(data.Items)), "ordre après dépôt au début");
+
+                ResetFiles(w, data, paths);
+                DropInternal(w, BeforeItem(w, 2), paths[0]);
+                PumpUntil(() => Joined(VisibleNames(w)) == "b.txt,a.txt,c.txt", "dépôt au milieu");
+                AssertEqual("b.txt,a.txt,c.txt", Joined(Names(data.Items)), "ordre après dépôt au milieu");
+
+                ResetFiles(w, data, paths);
+                DropInternal(w, AfterItem(w, 2), paths[0]);
+                PumpUntil(() => Joined(VisibleNames(w)) == "b.txt,c.txt,a.txt", "dépôt à la fin");
+                AssertEqual("b.txt,c.txt,a.txt", Joined(Names(data.Items)), "ordre après dépôt à la fin");
+                w.Close();
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        private static void R5FileDropPositionsAndMarkers()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "desknest-r5-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var (_, _) = Sandbox();
+                var paths = NewFiles(dir, "a.txt", "b.txt", "c.txt", "x0.txt", "x1.txt", "x2.txt", "x3.txt");
+                var data = ManualFiles("R5", paths.Take(3).ToList());
+                var w = new NestWindow(new NestManager(), data);
+                ShowAndPump(w, 3);
+
+                DropFiles(w, BeforeItem(w, 0), paths[3]);
+                PumpUntil(() => Joined(VisibleNames(w)) == "x0.txt,a.txt,b.txt,c.txt", "fichier au début");
+                AssertEqual("x0.txt,a.txt,b.txt,c.txt", Joined(Names(data.Items)), "fichier inséré au début");
+
+                ResetFiles(w, data, paths.Take(3).ToList());
+                DropFiles(w, BeforeItem(w, 2), paths[4]);
+                PumpUntil(() => Joined(VisibleNames(w)) == "a.txt,b.txt,x1.txt,c.txt", "fichier au milieu");
+                AssertEqual("a.txt,b.txt,x1.txt,c.txt", Joined(Names(data.Items)), "fichier inséré au milieu");
+
+                ResetFiles(w, data, paths.Take(3).ToList());
+                DropFiles(w, AfterItem(w, 2), paths[5]);
+                PumpUntil(() => Joined(VisibleNames(w)) == "a.txt,b.txt,c.txt,x2.txt", "fichier à la fin");
+                AssertEqual("a.txt,b.txt,c.txt,x2.txt", Joined(Names(data.Items)), "fichier inséré à la fin");
+
+                ResetFiles(w, data, paths.Take(3).ToList());
+                InvokePrivate(w, "SetSort", NestSort.Name, false);
+                PumpUntil(() => !w.ReorderEnabled && Joined(CachedNames(w)) == "a.txt,b.txt,c.txt", "tri actif");
+                DragOver(w, BeforeItem(w, 1), FilePayload(paths[6]), DragDropEffects.Copy,
+                         DragDropEffects.Copy, Visibility.Collapsed, "fichier sous tri");
+                AssertEqual(Visibility.Visible,
+                            ((UIElement)FindByName(w, "DropHint")!).Visibility,
+                            "infobulle affichée sans repère");
+
+                var root = (DependencyObject)FindByName(w, "Root")!;
+                var drop = DragArgs(w, BeforeItem(w, 1), FilePayload(paths[6]),
+                                    DragDropEffects.Copy, UIElement.DropEvent);
+                InvokePrivate(w, "Root_Drop", root, drop);
+                PumpUntil(() => data.Items.Count == 4 && Names(data.Items).Last() == "x3.txt",
+                          "fichier ajouté sans repère");
+                AssertEqual("a.txt,b.txt,c.txt,x3.txt", Joined(Names(data.Items)), "ajout en fin sous tri actif");
+
+                var before = Joined(Names(data.Items));
+                var internalDrop = DragArgs(w, BeforeItem(w, 0), InternalPayload(w, paths[1]),
+                                            DragDropEffects.Move, UIElement.DropEvent);
+                InvokePrivate(w, "Root_Drop", root, internalDrop);
+                Pump();
+                AssertEqual(before, Joined(Names(data.Items)), "réordonnement interne refusé sous tri actif");
+                w.Close();
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        private static void R6PortalReorderUnchanged()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "desknest-r6-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var (_, _) = Sandbox();
+                var paths = NewFiles(dir, "a.txt", "b.txt", "c.txt");
+                var data = new NestData
+                {
+                    Title = "R6", Type = NestTypes.Files, PortalPath = dir,
+                    Left = 100, Top = 100, Width = 420, Height = 320
+                };
+                var w = new NestWindow(new NestManager(), data);
+                ShowAndPump(w, paths.Count);
+                PumpUntil(() => Joined(DisplayedNames(w)) == "a.txt,b.txt,c.txt", "portail initial");
+
+                InvokePrivate(w, "ReorderTo", new List<string> { paths[2] }, 0);
+                PumpUntil(() => Joined(DisplayedNames(w)) == "c.txt,a.txt,b.txt" &&
+                                Joined(VisibleNames(w)) == "c.txt,a.txt,b.txt", "portail réordonnancé");
+
+                AssertEqual("c.txt,a.txt,b.txt", Joined(Names(data.PortalOrder[dir])), "PortalOrder réécrit");
+                AssertEqual(0, data.Items.Count, "Items reste vide pour un portail");
+
+                var app = new AppData();
+                app.Nests.Add(data);
+                Storage.SaveNow(app);
+                var loaded = Storage.Load();
+                AssertEqual("c.txt,a.txt,b.txt", Joined(Names(loaded.Nests[0].PortalOrder[dir])),
+                            "ordre du portail après rechargement");
+                w.Close();
+            }
+            finally { Directory.Delete(dir, true); }
         }
 
         private sealed class FailingFileSystem : IFileSystem

@@ -1703,7 +1703,14 @@ namespace DeskNest
                 else SetOrder(CurrentFolder, pageNames);
             }
             else
+            {
+                // Une List<T> liée à l'ItemsControl ne notifie pas ses mutations : le
+                // cache court-circuite alors RefreshItems et les conteneurs déjà créés
+                // gardent l'ancien ordre. Une nouvelle liste force WPF à les régénérer.
+                _vms = new List<ItemVM>(_vms);
                 Data.Items = _vms.Select(v => v.FullPath).ToList();
+                ItemsHost.ItemsSource = _vms;
+            }
 
             _manager.RequestSave();
             Dispatcher.BeginInvoke(new Action(RefreshItems));

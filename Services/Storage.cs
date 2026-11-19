@@ -455,6 +455,8 @@ namespace DeskNest
                 f.BackgroundImage ??= "";
                 // Un layout sans Type (ou un Type inconnu) reste une zone de fichiers.
                 if (!NestTypes.IsKnown(f.Type)) f.Type = NestTypes.Files;
+                // Anciens layouts sans SortBy, ou valeur éditée à la main : manuel.
+                f.SortBy = NestSort.Normalize(f.SortBy);
                 foreach (var task in f.Tasks)
                 {
                     if (task == null) continue;
