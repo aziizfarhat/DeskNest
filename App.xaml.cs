@@ -81,9 +81,7 @@ namespace DeskNest
             // Une autre instance de DeskNest fonctionne deja.
             if (!_ownsMutex)
             {
-                if (e.Args.Length == 1 &&
-                    (e.Args[0] == "--new-zone" ||
-                     e.Args[0] == "--new-portal"))
+                if (e.Args.Length == 1 && DeskNestCommands.IsKnown(e.Args[0]))
                 {
                     bool sent = await CommandServer.SendAsync(e.Args[0]);
 
@@ -125,9 +123,7 @@ namespace DeskNest
             // Si DeskNest vient d'etre lance par une ancienne entree
             // du menu contextuel (apres un plantage, par exemple),
             // on execute directement la commande demandee.
-            if (e.Args.Length == 1 &&
-                (e.Args[0] == "--new-zone" ||
-                 e.Args[0] == "--new-portal"))
+            if (e.Args.Length == 1 && DeskNestCommands.IsKnown(e.Args[0]))
             {
                 HandleCommand(e.Args[0]);
             }
@@ -137,12 +133,22 @@ namespace DeskNest
         {
             switch (command)
             {
-                case "--new-zone":
+                case DeskNestCommands.NewZone:
                     _manager?.CreateNest();
                     break;
 
-                case "--new-portal":
+                case DeskNestCommands.NewPortal:
                     _manager?.CreatePortal();
+                    break;
+
+                // Nouveaux verbes : même répartiteur que la palette d'actions
+                // rapides (placement au curseur, réglages par défaut, titre éditable).
+                case DeskNestCommands.NewTodo:
+                    _manager?.ExecuteQuickAction(QuickActionKind.NewTodo);
+                    break;
+
+                case DeskNestCommands.NewNote:
+                    _manager?.ExecuteQuickAction(QuickActionKind.NewNote);
                     break;
 
                 default:
@@ -193,7 +199,8 @@ namespace DeskNest
 
         protected override void OnExit(ExitEventArgs e)
         {
-            // Supprimer d'abord le menu du registre.
+            // Le menu du registre est persistant (écrit par l'installateur et
+            // actualisé au démarrage) : on ne le supprime plus à la fermeture.
             _desktopContextMenu?.Dispose();
             _desktopContextMenu = null;
 

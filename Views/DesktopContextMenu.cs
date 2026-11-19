@@ -24,9 +24,10 @@ namespace DeskNest
 
         public DesktopContextMenu()
         {
-            // Nettoyage des anciennes entrées laissées par un arrêt anormal.
-            RemoveRegistryEntries();
-
+            // Les entrées sont persistantes : écrites par l'installateur, puis
+            // actualisées ici (libellés et chemin) au démarrage. On ne supprime
+            // plus l'arborescence, sinon on effacerait les entrées de
+            // l'installateur à chaque mise à jour.
             Loc.Changed += OnLanguageChanged;
 
             Register();
@@ -44,8 +45,8 @@ namespace DeskNest
             }
             catch (Exception ex)
             {
+                // Ne pas détruire les entrées installer si l'actualisation échoue.
                 Diag.Log("Menu contextuel (enregistrement) : " + ex);
-                RemoveRegistryEntries();
             }
         }
 
@@ -96,14 +97,28 @@ namespace DeskNest
                 "NewZone",
                 Loc.T("tray.newZone"),
                 exe,
-                "--new-zone");
+                DeskNestCommands.NewZone);
 
             WriteCommand(
                 shell,
                 "NewPortal",
                 Loc.T("tray.newPortal"),
                 exe,
-                "--new-portal");
+                DeskNestCommands.NewPortal);
+
+            WriteCommand(
+                shell,
+                "NewTodo",
+                Loc.T("tray.newTodo"),
+                exe,
+                DeskNestCommands.NewTodo);
+
+            WriteCommand(
+                shell,
+                "NewNote",
+                Loc.T("tray.newNote"),
+                exe,
+                DeskNestCommands.NewNote);
         }
 
         private static void WriteCommand(
@@ -149,19 +164,6 @@ namespace DeskNest
             }
         }
 
-        private static void RemoveRegistryEntries()
-        {
-            try
-            {
-                Registry.CurrentUser.DeleteSubKeyTree(MenuKey, false);
-                NotifyExplorer();
-            }
-            catch (Exception ex)
-            {
-                Diag.Log("Suppression du menu contextuel : " + ex.Message);
-            }
-        }
-
         public void Dispose()
         {
             if (_disposed)
@@ -169,14 +171,8 @@ namespace DeskNest
 
             _disposed = true;
             Loc.Changed -= OnLanguageChanged;
-
-            if (_registered)
-            {
-                RemoveRegistryEntries();
-                _registered = false;
-
-                Diag.Log("Menu contextuel DeskNest supprimé.");
-            }
+            // Les entrées restent en place : seul le désinstallateur les supprime
+            // (Flags: uninsdeletekey dans installer.iss).
         }
     }
 }

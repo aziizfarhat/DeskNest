@@ -81,8 +81,7 @@ namespace DeskNest
                             .WaitAsync(cancellationToken)
                             .ConfigureAwait(false);
 
-                        if (command != "--new-zone" &&
-                            command != "--new-portal")
+                        if (command == null || !DeskNestCommands.IsKnown(command))
                         {
                             await writer.WriteLineAsync("ERROR")
                                 .ConfigureAwait(false);
@@ -162,7 +161,7 @@ namespace DeskNest
             string command,
             int timeoutMilliseconds = 6000)
         {
-            if (command != "--new-zone" && command != "--new-portal")
+            if (!DeskNestCommands.IsKnown(command))
                 return false;
 
             var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);

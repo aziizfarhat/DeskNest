@@ -63,6 +63,9 @@ namespace DeskNest
 
             menu.Items.Add(Loc.T("tray.newZone"), null, (_, _) => _manager.CreateNest());
             menu.Items.Add(Loc.T("tray.newPortal"), null, (_, _) => _manager.CreatePortal());
+            // Même répartiteur que la palette : placement au curseur et titre éditable.
+            menu.Items.Add(Loc.T("tray.newTodo"), null, (_, _) => _manager.ExecuteQuickAction(QuickActionKind.NewTodo));
+            menu.Items.Add(Loc.T("tray.newNote"), null, (_, _) => _manager.ExecuteQuickAction(QuickActionKind.NewNote));
 
             var fromTemplate = new System.Windows.Forms.ToolStripMenuItem(Loc.T("tray.newFromTemplate"));
             if (_manager.Templates.Count == 0)

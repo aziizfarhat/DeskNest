@@ -137,6 +137,60 @@ korean.UninstallCancel=취소
 russian.UninstallCancel=Отмена
 ukrainian.UninstallCancel=Скасувати
 
+; Libellés du menu contextuel du bureau (écrits dans le Registre à l'installation,
+; puis actualisés selon la langue de l'application au démarrage).
+english.MenuNewZone=New zone
+french.MenuNewZone=Nouvelle zone
+italian.MenuNewZone=Nuova zona
+german.MenuNewZone=Neuer Bereich
+spanish.MenuNewZone=Nueva zona
+portuguese.MenuNewZone=Nova zona
+arabic.MenuNewZone=منطقة جديدة
+chinesesimplified.MenuNewZone=新建区域
+japanese.MenuNewZone=新しいゾーン
+korean.MenuNewZone=새 영역
+russian.MenuNewZone=Новая зона
+ukrainian.MenuNewZone=Нова зона
+
+english.MenuNewPortal=New Folder Portal…
+french.MenuNewPortal=Nouveau Folder Portal…
+italian.MenuNewPortal=Nuovo Folder Portal…
+german.MenuNewPortal=Neues Folder Portal…
+spanish.MenuNewPortal=Nuevo Folder Portal…
+portuguese.MenuNewPortal=Novo Folder Portal…
+arabic.MenuNewPortal=Folder Portal جديد…
+chinesesimplified.MenuNewPortal=新建文件夹门户…
+japanese.MenuNewPortal=新しいフォルダーポータル…
+korean.MenuNewPortal=새 폴더 포털…
+russian.MenuNewPortal=Новый Folder Portal…
+ukrainian.MenuNewPortal=Новий Folder Portal…
+
+english.MenuNewTodo=New to-do list
+french.MenuNewTodo=Nouvelle liste de tâches
+italian.MenuNewTodo=Nuovo elenco attività
+german.MenuNewTodo=Neue Aufgabenliste
+spanish.MenuNewTodo=Nueva lista de tareas
+portuguese.MenuNewTodo=Nova lista de tarefas
+arabic.MenuNewTodo=قائمة مهام جديدة
+chinesesimplified.MenuNewTodo=新建待办列表
+japanese.MenuNewTodo=新しいTo-Doリスト
+korean.MenuNewTodo=새 할 일 목록
+russian.MenuNewTodo=Новый список задач
+ukrainian.MenuNewTodo=Новий список завдань
+
+english.MenuNewNote=New note
+french.MenuNewNote=Nouvelle note
+italian.MenuNewNote=Nuova nota
+german.MenuNewNote=Neue Notiz
+spanish.MenuNewNote=Nueva nota
+portuguese.MenuNewNote=Nova nota
+arabic.MenuNewNote=ملاحظة جديدة
+chinesesimplified.MenuNewNote=新建笔记
+japanese.MenuNewNote=新しいメモ
+korean.MenuNewNote=새 메모
+russian.MenuNewNote=Новая заметка
+ukrainian.MenuNewNote=Нова нотатка
+
 [Tasks]
 Name: "startup"; Description: "{cm:StartupTask}"; GroupDescription: "{cm:StartupGroup}"
 
@@ -152,7 +206,24 @@ Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Name: "{group}\DeskNest"; Filename: "{app}\DeskNest.exe"
 
 [Registry]
+; Démarrage avec Windows.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "DeskNest"; ValueData: """{app}\DeskNest.exe"""; Tasks: startup; Flags: uninsdeletevalue
+
+; Menu contextuel du bureau : entrées persistantes, écrites à l'installation
+; (y compris lors de la mise à jour d'une installation existante) et actualisées
+; au démarrage par l'application. uninsdeletekey supprime récursivement toute
+; l'arborescence à la désinstallation ; l'application ne l'efface plus à la fermeture.
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest"; ValueType: string; ValueName: "MUIVerb"; ValueData: "DeskNest"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest"; ValueType: string; ValueName: "SubCommands"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\DeskNest.exe"",0"
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest\Shell\NewZone"; ValueType: string; ValueName: ""; ValueData: "{cm:MenuNewZone}"
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest\Shell\NewZone\command"; ValueType: string; ValueName: ""; ValueData: """{app}\DeskNest.exe"" --new-zone"
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest\Shell\NewPortal"; ValueType: string; ValueName: ""; ValueData: "{cm:MenuNewPortal}"
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest\Shell\NewPortal\command"; ValueType: string; ValueName: ""; ValueData: """{app}\DeskNest.exe"" --new-portal"
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest\Shell\NewTodo"; ValueType: string; ValueName: ""; ValueData: "{cm:MenuNewTodo}"
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest\Shell\NewTodo\command"; ValueType: string; ValueName: ""; ValueData: """{app}\DeskNest.exe"" --new-todo"
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest\Shell\NewNote"; ValueType: string; ValueName: ""; ValueData: "{cm:MenuNewNote}"
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\Shell\DeskNest\Shell\NewNote\command"; ValueType: string; ValueName: ""; ValueData: """{app}\DeskNest.exe"" --new-note"
 
 [Run]
 Filename: "{app}\DeskNest.exe"; Description: "{cm:LaunchApp}"; Flags: nowait postinstall skipifsilent
