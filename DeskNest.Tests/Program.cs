@@ -4,12 +4,14 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace DeskNest.Tests
 {
@@ -73,6 +75,11 @@ namespace DeskNest.Tests
             Run("V5 : menu de zone Todo/Note utilise la palette", NestMenuEntriesUseQuickActions);
             Run("V5 : routage des verbes de ligne de commande", CommandVerbsRouting);
             Run("B1 : le bouton de tri ouvre le menu et n'agit que sur sa zone", SortMenuOpenAndPerNestCommands);
+            Run("B2 : liste triée en cache avant le survol et rafraîchie sur changement", () => WithWpfContext(B2ClassicOrderIsCachedBeforeExpand));
+            Run("B2 : portail racine/sous-dossier affiché dès la première image", () => WithWpfContext(B2PortalOrderIsCachedBeforeExpand));
+            Run("B2 : cache froid : ancien ordre affiché puis retri sans vidage", () => WithWpfContext(B2ColdCacheKeepsLastKnownOrder));
+            Run("B2 : des centaines d'éléments restent en cache au repli", () => WithWpfContext(B2ManyItemsStayCachedWhileRolled));
+            Run("B2 : portail de centaines d'éléments : page en cache au dépliage", () => WithWpfContext(B2PortalManyItemsUseCachedPage));
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -1251,6 +1258,268 @@ namespace DeskNest.Tests
 
             wa.Close();
             wb.Close();
+        }
+
+        // ---------- B2 : ordre d'affichage disponible avant le dépliage ----------
+        private static object? ReadField(object target, string name) =>
+            target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(target);
+
+        private static void InvokePrivate(object target, string name, params object?[] args) =>
+            target.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(target, args);
+
+        // Les rafraîchissements asynchrones reprennent sur le contexte de synchronisation :
+        // sans lui, ils reprendraient sur un threadpool et toucheraient la UI depuis le mauvais thread.
+        private sealed class DispatcherSyncContext : SynchronizationContext
+        {
+            private readonly Dispatcher _dispatcher;
+            public DispatcherSyncContext(Dispatcher dispatcher) => _dispatcher = dispatcher;
+
+            public override void Post(SendOrPostCallback d, object? state) =>
+                _dispatcher.BeginInvoke(new Action(() => d(state)), DispatcherPriority.Normal);
+
+            public override void Send(SendOrPostCallback d, object? state) =>
+                _dispatcher.Invoke(() => d(state));
+        }
+
+        private static void WithWpfContext(Action test)
+        {
+            var d = Dispatcher.CurrentDispatcher;
+            var previous = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSyncContext(d));
+            try { test(); }
+            finally { SynchronizationContext.SetSynchronizationContext(previous); }
+        }
+
+        // Les rafraîchissements asynchrones finissent par publier leur résultat sur le
+        // dispatcher. On pompe jusqu'à ce que l'état attendu soit observé (avec un délai
+        // de sécurité) plutôt que de compter sur un nombre d'itérations arbitraire.
+        private static void PumpUntil(Func<bool> condition, string label, int timeoutMs = 5000)
+        {
+            var d = Dispatcher.CurrentDispatcher;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (!condition() && sw.ElapsedMilliseconds < timeoutMs)
+                d.Invoke(() => { }, DispatcherPriority.Background);
+            Assert(condition(), "délai dépassé en attendant : " + label);
+        }
+
+        private static List<string> CachedPaths(NestWindow window)
+        {
+            var display = ReadField(window, "_display")!;
+            return (List<string>)display.GetType().GetField("Paths")!.GetValue(display)!;
+        }
+
+        private static List<string> CachedNames(NestWindow window) =>
+            CachedPaths(window).Select(p => Path.GetFileName(p)!).ToList();
+
+        private static List<string> DisplayedNames(NestWindow window)
+        {
+            var host = (ItemsControl)FindByName(window, "ItemsHost")!;
+            return (host.ItemsSource as IEnumerable<ItemVM>)?.Where(v => !v.IsUp)
+                       .Select(v => Path.GetFileName(v.FullPath)).ToList()
+                   ?? new List<string>();
+        }
+
+        private static string Joined(IEnumerable<string> names) => string.Join(",", names);
+
+        private static void B2ClassicOrderIsCachedBeforeExpand()
+        {
+            var (_, _) = Sandbox();
+            var dir = Path.Combine(Path.GetTempPath(), "desknest-b2-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var paths = new[] { "c.txt", "a.txt", "b.txt" }.Select(n => Path.Combine(dir, n)).ToList();
+                foreach (var p in paths) File.WriteAllText(p, "x");
+
+                var data = new NestData { Title = "Tri", Type = NestTypes.Files, RolledUp = true, SortBy = NestSort.Name };
+                data.Items.AddRange(paths);
+                var window = new NestWindow(new NestManager(), data);
+                PumpUntil(() => Joined(CachedNames(window)) == "a.txt,b.txt,c.txt", "tri initial");
+
+                AssertEqual("a.txt,b.txt,c.txt", Joined(CachedNames(window)), "tri calculé avant le survol");
+                AssertEqual(0, ((List<ItemVM>)ReadField(window, "_vms")!).Count, "repli : aucun ItemVM en mémoire");
+                var host = (ItemsControl)FindByName(window, "ItemsHost")!;
+                Assert(host.ItemsSource == null, "repli : source d'éléments libérée");
+
+                // Première image du dépliage : la liste est déjà construite depuis le cache.
+                InvokePrivate(window, "RestoreFilesContent");
+                AssertEqual("a.txt,b.txt,c.txt", Joined(DisplayedNames(window)), "liste visible dès la première image");
+                AssertEqual(3, CountItems(host), "trois éléments affichés sans attendre le tri");
+
+                data.RolledUp = false;
+                window.ApplyExternalChange();
+                AssertEqual("a.txt,b.txt,c.txt", Joined(DisplayedNames(window)), "dépliage complet conserve l'ordre");
+
+                // Ajout d'élément : le cache et l'affichage suivent.
+                var added = Path.Combine(dir, "d.txt");
+                File.WriteAllText(added, "x");
+                data.Items.Add(added);
+                window.ReloadItems();
+                PumpUntil(() => Joined(CachedNames(window)) == "a.txt,b.txt,c.txt,d.txt", "ajout trié");
+                AssertEqual("a.txt,b.txt,c.txt,d.txt", Joined(CachedNames(window)), "ajout répercuté dans le cache");
+                AssertEqual("a.txt,b.txt,c.txt,d.txt", Joined(DisplayedNames(window)), "ajout répercuté à l'affichage");
+
+                // Sens du tri : nouveau cache sans repasser par un dépliage.
+                data.SortDescending = true;
+                window.ApplyExternalChange();
+                PumpUntil(() => Joined(CachedNames(window)) == "d.txt,c.txt,b.txt,a.txt", "tri inversé");
+                AssertEqual("d.txt,c.txt,b.txt,a.txt", Joined(CachedNames(window)), "sens inversé en cache");
+                AssertEqual("d.txt,c.txt,b.txt,a.txt", Joined(DisplayedNames(window)), "sens inversé à l'affichage");
+
+                // Retour au tri manuel : l'ordre manuscrit est immédiat.
+                data.SortBy = NestSort.Manual;
+                data.SortDescending = false;
+                window.ApplyExternalChange();
+                PumpUntil(() => Joined(CachedNames(window)) == "c.txt,a.txt,b.txt,d.txt", "retour au manuscrit");
+                AssertEqual("c.txt,a.txt,b.txt,d.txt", Joined(CachedNames(window)), "ordre manuscrit restauré");
+
+                window.Close();
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        private static void B2PortalOrderIsCachedBeforeExpand()
+        {
+            var (_, _) = Sandbox();
+            var root = Path.Combine(Path.GetTempPath(), "desknest-b2p-" + Guid.NewGuid().ToString("N"));
+            var sub = Path.Combine(root, "Sub");
+            Directory.CreateDirectory(sub);
+            try
+            {
+                foreach (var n in new[] { "e.txt", "c.txt", "a.txt", "d.txt", "b.txt" })
+                    File.WriteAllText(Path.Combine(root, n), "x");
+                foreach (var n in new[] { "z.txt", "y.txt", "x.txt" })
+                    File.WriteAllText(Path.Combine(sub, n), "x");
+
+                var data = new NestData
+                {
+                    Title = "Portail", Type = NestTypes.Files, PortalPath = root,
+                    RolledUp = true, SortBy = NestSort.Name
+                };
+                var window = new NestWindow(new NestManager(), data);
+                PumpUntil(() => Joined(CachedNames(window)) == "Sub,a.txt,b.txt,c.txt,d.txt,e.txt", "racine du portail");
+
+                AssertEqual("Sub,a.txt,b.txt,c.txt,d.txt,e.txt", Joined(CachedNames(window)), "racine du portail triée en cache");
+                AssertEqual(0, ((List<ItemVM>)ReadField(window, "_vms")!).Count, "portail replié : aucun ItemVM");
+
+                InvokePrivate(window, "RestoreFilesContent");
+                AssertEqual("Sub,a.txt,b.txt,c.txt,d.txt,e.txt", Joined(DisplayedNames(window)), "racine affichée dès la première image");
+
+                data.RolledUp = false;
+                window.ApplyExternalChange();
+
+                // Sous-dossier : le cache suit le dossier courant.
+                InvokePrivate(window, "NavigateTo", sub, true);
+                PumpUntil(() => Joined(CachedNames(window)) == "x.txt,y.txt,z.txt", "sous-dossier du portail");
+                AssertEqual("x.txt,y.txt,z.txt", Joined(CachedNames(window)), "sous-dossier trié en cache");
+                AssertEqual("x.txt,y.txt,z.txt", Joined(DisplayedNames(window)), "sous-dossier affiché");
+
+                // Retour à la racine : le tri est réappliqué sans passer par le dépliage.
+                InvokePrivate(window, "NavigateTo", root, true);
+                PumpUntil(() => Joined(CachedNames(window)) == "Sub,a.txt,b.txt,c.txt,d.txt,e.txt", "retour racine portail");
+                AssertEqual("Sub,a.txt,b.txt,c.txt,d.txt,e.txt", Joined(CachedNames(window)), "retour à la racine trié");
+
+                window.Close();
+            }
+            finally { Directory.Delete(root, true); }
+        }
+
+        private static void B2ColdCacheKeepsLastKnownOrder()
+        {
+            var (_, _) = Sandbox();
+            var dir = Path.Combine(Path.GetTempPath(), "desknest-b2f-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var paths = new[] { "c.txt", "a.txt", "b.txt" }.Select(n => Path.Combine(dir, n)).ToList();
+                foreach (var p in paths) File.WriteAllText(p, "x");
+
+                var data = new NestData
+                {
+                    Title = "Froid", Type = NestTypes.Files,
+                    SortBy = NestSort.Name, SortDescending = true
+                };
+                data.Items.AddRange(paths);
+                var window = new NestWindow(new NestManager(), data);
+
+                // Le tri asynchrone n'a pas encore abouti : l'ordre connu est déjà affiché.
+                AssertEqual("c.txt,a.txt,b.txt", Joined(DisplayedNames(window)), "ordre connu affiché immédiatement");
+                var host = (ItemsControl)FindByName(window, "ItemsHost")!;
+                AssertEqual(3, CountItems(host), "aucune case vide pendant le tri");
+
+                PumpUntil(() => Joined(DisplayedNames(window)) == "c.txt,b.txt,a.txt", "tri à froid");
+                AssertEqual("c.txt,b.txt,a.txt", Joined(DisplayedNames(window)), "retri sans vider ni cacher la liste");
+                AssertEqual(3, CountItems(host), "même nombre d'éléments après le tri");
+                window.Close();
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        private static void B2ManyItemsStayCachedWhileRolled()
+        {
+            var (_, _) = Sandbox();
+            var dir = Path.Combine(Path.GetTempPath(), "desknest-b2n-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var paths = new List<string>();
+                for (int i = 0; i < 300; i++)
+                {
+                    var p = Path.Combine(dir, $"Fichier{i:000}.txt");
+                    File.WriteAllText(p, "x");
+                    paths.Add(p);
+                }
+                paths.Reverse(); // ordre manuscrit volontairement inverse de l'ordre naturel
+
+                var data = new NestData { Title = "Gros", Type = NestTypes.Files, RolledUp = true, SortBy = NestSort.Manual };
+                data.Items.AddRange(paths);
+                var window = new NestWindow(new NestManager(), data);
+                PumpUntil(() => CachedPaths(window).Count == 300, "cache 300 fichiers");
+
+                AssertEqual(300, CachedPaths(window).Count, "300 chemins conservés en cache");
+                AssertEqual("Fichier299.txt", CachedNames(window).First(), "ordre manuscrit conservé");
+                AssertEqual(0, ((List<ItemVM>)ReadField(window, "_vms")!).Count, "aucun ItemVM en mémoire au repli");
+
+                data.RolledUp = false;
+                window.ApplyExternalChange();
+                AssertEqual(300, CountItems((ItemsControl)FindByName(window, "ItemsHost")!), "300 éléments affichés au dépliage");
+                window.Close();
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        private static void B2PortalManyItemsUseCachedPage()
+        {
+            var (_, _) = Sandbox();
+            var dir = Path.Combine(Path.GetTempPath(), "desknest-b2m-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                for (int i = 0; i < 300; i++) File.WriteAllText(Path.Combine(dir, $"Fichier{i:000}.txt"), "x");
+
+                var data = new NestData
+                {
+                    Title = "Gros portail", Type = NestTypes.Files, PortalPath = dir,
+                    RolledUp = true, SortBy = NestSort.Name
+                };
+                var window = new NestWindow(new NestManager(), data);
+                PumpUntil(() => CachedPaths(window).Count == 300, "cache 300 fichiers portail");
+
+                AssertEqual(300, CachedPaths(window).Count, "300 chemins triés en cache");
+                AssertEqual("Fichier000.txt", CachedNames(window).First(), "premier du cache");
+
+                data.RolledUp = false;
+                window.ApplyExternalChange();
+                var host = (ItemsControl)FindByName(window, "ItemsHost")!;
+                AssertEqual(200, CountItems(host), "première page affichée au dépliage");
+
+                InvokePrivate(window, "ChangePage", 1);
+                PumpUntil(() => CountItems(host) == 100, "page 2 du portail");
+                AssertEqual(100, CountItems(host), "deuxième page affichée");
+                AssertEqual("Fichier200.txt", DisplayedNames(window).First(), "page 2 servie depuis le cache trié");
+                window.Close();
+            }
+            finally { Directory.Delete(dir, true); }
         }
 
         private sealed class FailingFileSystem : IFileSystem

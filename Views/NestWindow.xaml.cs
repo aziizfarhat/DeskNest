@@ -89,6 +89,21 @@ namespace DeskNest
         private string _lastSortBy = NestSort.Manual;
         private bool _lastSortDescending;
 
+        // Ordre d'affichage « léger » : uniquement des chemins, jamais de ItemVM.
+        // Il survit au repli (qui libère les contrôles lourds) afin que le dépliage
+        // puisse afficher la liste dès la première image de l'animation, sans
+        // attendre un tri ou une lecture de dossier asynchrone.
+        private sealed class DisplayCache
+        {
+            public List<string> Paths = new();
+            public string Folder = "";
+            public int Page;
+            public int PageCount = 1;
+            public bool IncludeParent;
+            public bool Valid;
+        }
+        private readonly DisplayCache _display = new();
+
         // Menu des éléments (menu contextuel façon Windows)
         private ContextMenu _itemMenu = null!;
         private MenuItem _imOpen = null!, _imOpenWith = null!, _imLocation = null!, _imCut = null!, _imCopy = null!, _imCopyPath = null!;
@@ -343,6 +358,7 @@ namespace DeskNest
             Loc.Changed -= OnLanguageChanged;
             _watcher?.Dispose();
             _sortCache.Clear(); // aucune métadonnée de cette zone ne survit à sa fermeture
+            ClearDisplay();     // ni l'ordre en cache ne survit à la fermeture
             _sortMenu = null;
             _portalTimer.Stop();
             _hoverTimer.Stop();
@@ -740,7 +756,7 @@ namespace DeskNest
         {
             if (!_contentReleased) return;
             _contentReleased = false;
-            if (IsFiles) RefreshItems();
+            if (IsFiles) RestoreFilesContent();
             else EnsureAltContent();
         }
 
@@ -765,7 +781,11 @@ namespace DeskNest
             double from = ActualHeight;
             if (animate && s.AnimateRoll && AnimationsEnabled && IsLoaded && IsVisible && from > 0 && Math.Abs(from - target) > 1)
             {
-                if (IsFiles) ContentScroll.Visibility = Visibility.Visible; // le contenu reste visible pendant l'animation
+                if (IsFiles)
+                {
+                    RestoreFilesContent(); // la liste triée est présente dès la première image
+                    ContentScroll.Visibility = Visibility.Visible; // le contenu reste visible pendant l'animation
+                }
                 else { EnsureAltContent(); AltContent.Visibility = Visibility.Visible; }
                 MinHeight = 0;
                 // La fenêtre garde sa hauteur maximale pendant toute l'animation : seule la découpe
@@ -1208,21 +1228,6 @@ namespace DeskNest
             Data.PortalOrder[folder] = names;
         }
 
-        private List<ItemVM> BuildClassicItems()
-        {
-            var list = new List<ItemVM>(Data.Items.Count);
-            foreach (var p in Data.Items)
-            {
-                if (HasFilter && !NameMatches(ItemVM.GetName(p))) continue;
-                var vm = new ItemVM(p, Data.IconSize, IconPixels, false, false, _manager.Settings.ShowThumbnails)
-                {
-                    ReorderEnabled = ReorderEnabled
-                };
-                list.Add(vm);
-            }
-            return list;
-        }
-
         // Tri des zones classiques : lecture des métadonnées et comparaison hors
         // du thread UI, puis création des ItemVM (icônes) sur le thread UI.
         private async Task RefreshSortedClassicItemsAsync(int version)
@@ -1239,19 +1244,16 @@ namespace DeskNest
 
             if (_closed || version != _refreshVersion) return;
 
-            var list = new List<ItemVM>(ordered.Count);
-            foreach (var p in ordered)
-                list.Add(new ItemVM(p, Data.IconSize, IconPixels, false, false, _manager.Settings.ShowThumbnails)
-                {
-                    ReorderEnabled = ReorderEnabled
-                });
+            // Le tri abouti est conservé même si la zone a été repliée entre-temps :
+            // aucun ItemVM n'est créé inutilement, seul l'ordre léger est remplacé.
+            _display.Paths = ordered;
+            _display.Folder = "";
+            _display.Page = 0;
+            _display.PageCount = 1;
+            _display.IncludeParent = false;
+            _display.Valid = true;
 
-            if (_editingTitle || _editingItem != null)
-            {
-                _refreshPending = true;
-                return;
-            }
-            ApplyItems(list, 1, 0, null);
+            ApplyCachedItemsIfExpanded();
         }
 
         // Énumération d'un dossier : exécutée hors du thread UI (un dossier
@@ -1295,7 +1297,7 @@ namespace DeskNest
 
         private void RefreshItems()
         {
-            if (!IsFiles || IsRolled) return; // Notes / To-do ont leur propre contenu ; replié = contenu libéré
+            if (!IsFiles) return; // Notes / To-do ont leur propre contenu
             // Reconstruire la liste pendant une saisie ferait perdre le champ de saisie et le texte en cours.
             if (_editingTitle || _editingItem != null)
             {
@@ -1306,13 +1308,20 @@ namespace DeskNest
 
             int version = ++_refreshVersion;
 
+            // L'ordre est calculé et mis en cache même replié : c'est ce cache qui
+            // fournira la liste à la première image du prochain dépliage. Les ItemVM
+            // lourds, eux, restent libérés tant que la zone est repliée.
             if (!IsPortal)
             {
+                UpdateClassicDisplay();
+                ApplyCachedItemsIfExpanded();
                 if (NestSort.IsActive(Data.SortBy)) _ = RefreshSortedClassicItemsAsync(version);
-                else ApplyItems(BuildClassicItems(), 1, 0, null);
                 return;
             }
 
+            if (!SamePath(CurrentFolder, _display.Folder)) ClearDisplay(); // autre dossier : ancien ordre périmé
+            else if (IsPortal) _display.Page = Math.Clamp(_portalPage, 0, Math.Max(0, _display.PageCount - 1));
+            ApplyCachedItemsIfExpanded();
             _ = RefreshPortalItemsAsync(version);
         }
 
@@ -1333,7 +1342,8 @@ namespace DeskNest
 
             if (ordered == null)
             {
-                ApplyItems(new List<ItemVM>(), 1, 0, null);
+                ClearDisplay();
+                ApplyCachedItemsIfExpanded();
                 return;
             }
 
@@ -1344,31 +1354,17 @@ namespace DeskNest
 
             int pageCount = Math.Max(1, (ordered.Count + PortalPageSize - 1) / PortalPageSize);
             int currentPage = Math.Clamp(page, 0, pageCount - 1);
-            _portalPage = currentPage;
-            int start = currentPage * PortalPageSize;
 
-            var list = new List<ItemVM>();
-            if (includeParent)
-            {
-                var parent = Directory.GetParent(cur.TrimEnd('\\'));
-                if (parent != null) list.Add(new ItemVM(parent.FullName, Data.IconSize, IconPixels, true, true, _manager.Settings.ShowThumbnails));
-            }
+            // L'ordre complet et la page sont mis en cache AVANT toute création de
+            // ItemVM : le dépliage suivant pourra afficher la page sans rescanner le dossier.
+            _display.Paths = ordered;
+            _display.Folder = cur;
+            _display.Page = currentPage;
+            _display.PageCount = pageCount;
+            _display.IncludeParent = includeParent;
+            _display.Valid = true;
 
-            int count = Math.Min(PortalPageSize, ordered.Count - start);
-            for (int i = 0; i < count; i++)
-                list.Add(new ItemVM(ordered[start + i], Data.IconSize, IconPixels, true, false, _manager.Settings.ShowThumbnails)
-                {
-                    ReorderEnabled = ReorderEnabled
-                });
-
-            // Une saisie a pu commencer pendant la lecture du dossier.
-            if (_editingTitle || _editingItem != null)
-            {
-                _refreshPending = true;
-                return;
-            }
-
-            ApplyItems(list, pageCount, start, ordered);
+            ApplyCachedItemsIfExpanded();
         }
 
         private void ApplyItems(List<ItemVM> items, int pageCount, int pageStart, List<string>? pageNames)
@@ -1385,6 +1381,117 @@ namespace DeskNest
             _anchor = null; _pendingCollapse = null; _dragCandidate = null; _renameCandidate = null;
             ItemsHost.ItemsSource = _vms;
             UpdatePager();
+        }
+
+        // ---------- Ordre affiché mis en cache (indépendant des ItemVM) ----------
+        private static bool SamePaths(IReadOnlyList<string> a, IReadOnlyList<string> b)
+        {
+            if (a.Count != b.Count) return false;
+            for (int i = 0; i < a.Count; i++)
+                if (!SamePath(a[i], b[i])) return false;
+            return true;
+        }
+
+        private static bool SameSet(IEnumerable<string> a, IEnumerable<string> b) =>
+            new HashSet<string>(a, StringComparer.OrdinalIgnoreCase)
+                .SetEquals(new HashSet<string>(b, StringComparer.OrdinalIgnoreCase));
+
+        private int DisplayPageStart()
+        {
+            if (!IsPortal) return 0;
+            int page = Math.Clamp(_display.Page, 0, Math.Max(0, _display.PageCount - 1));
+            return Math.Min(page * PortalPageSize, _display.Paths.Count);
+        }
+
+        private List<string> DisplayPagePaths()
+        {
+            if (!_display.Valid) return new List<string>();
+            int start = DisplayPageStart();
+            int count = IsPortal ? Math.Min(PortalPageSize, _display.Paths.Count - start) : _display.Paths.Count;
+            return _display.Paths.GetRange(start, count);
+        }
+
+        private void ClearDisplay()
+        {
+            _display.Paths = new List<string>();
+            _display.Folder = "";
+            _display.Page = 0;
+            _display.PageCount = 1;
+            _display.IncludeParent = false;
+            _display.Valid = false;
+        }
+
+        // Dernier ordre connu d'une zone classique : l'ordre manuscrit, éventuellement
+        // filtré. On ne l'écrase pas quand seul le critère de tri change, pour éviter
+        // un saut manuscrit → trié avant la fin du calcul asynchrone.
+        private void UpdateClassicDisplay()
+        {
+            var paths = Data.Items.Where(p => !HasFilter || NameMatches(ItemVM.GetName(p))).ToList();
+            if (!NestSort.IsActive(Data.SortBy) || !_display.Valid || !SameSet(paths, _display.Paths))
+                _display.Paths = paths;
+            _display.Folder = "";
+            _display.Page = 0;
+            _display.PageCount = 1;
+            _display.IncludeParent = false;
+            _display.Valid = true;
+        }
+
+        private List<ItemVM> BuildItemsFromDisplay()
+        {
+            var list = new List<ItemVM>();
+            if (!_display.Valid) return list;
+            if (IsPortal && _display.IncludeParent)
+            {
+                var parent = Directory.GetParent(_display.Folder.TrimEnd('\\'));
+                if (parent != null)
+                    list.Add(new ItemVM(parent.FullName, Data.IconSize, IconPixels, true, true, _manager.Settings.ShowThumbnails));
+            }
+            foreach (var p in DisplayPagePaths())
+                list.Add(new ItemVM(p, Data.IconSize, IconPixels, IsPortal, false, _manager.Settings.ShowThumbnails)
+                {
+                    ReorderEnabled = ReorderEnabled
+                });
+            return list;
+        }
+
+        // Matérialise le contenu depuis le cache : aucun tri, aucune lecture disque.
+        private void ApplyCachedItems()
+        {
+            int start = DisplayPageStart();
+            if (IsPortal) _portalPage = Math.Clamp(_display.Page, 0, Math.Max(0, _display.PageCount - 1));
+            ApplyItems(BuildItemsFromDisplay(), IsPortal ? _display.PageCount : 1,
+                       IsPortal ? start : 0, IsPortal ? _display.Paths : null);
+        }
+
+        // Applique le cache si la zone est ouverte, sans recréer les ItemVM quand
+        // l'ordre affiché est déjà le bon (aucun scintillement, aucune case vidée).
+        private void ApplyCachedItemsIfExpanded()
+        {
+            if (!IsFiles || IsRolled || _contentReleased) return;
+            if (_editingTitle || _editingItem != null) { _refreshPending = true; return; }
+            if (!_display.Valid) return;
+
+            bool samePage = !IsPortal ||
+                (_portalPage == Math.Clamp(_display.Page, 0, Math.Max(0, _display.PageCount - 1)) &&
+                 _portalPageCount == _display.PageCount);
+            bool sameUp = !IsPortal || _vms.Any(v => v.IsUp) == _display.IncludeParent;
+            if (samePage && sameUp &&
+                SamePaths(_vms.Where(v => !v.IsUp).Select(v => v.FullPath).ToList(), DisplayPagePaths()))
+            {
+                UpdatePager();
+                return;
+            }
+            ApplyCachedItems();
+        }
+
+        // Restaure le contenu Fichiers dès la première image du dépliage : la liste
+        // est déjà dans le bon ordre, l'animation n'a plus qu'à la révéler par la découpe.
+        private void RestoreFilesContent()
+        {
+            if (!IsFiles) return;
+            _contentReleased = false;
+            if (_display.Valid) ApplyCachedItems();
+            else RefreshItems(); // cache froid : calcul lancé sans bloquer l'animation
         }
 
         private void UpdatePager()
