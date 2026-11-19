@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 
 namespace DeskNest
 {
@@ -59,15 +60,30 @@ namespace DeskNest
                     VerticalAlignment = VerticalAlignment.Center,
                     IsHitTestVisible = false
                 };
-                content.Children.Add(new TextBlock
-                {
-                    Text = Glyphs[i],
-                    FontFamily = new FontFamily("Segoe MDL2 Assets"),
-                    FontSize = compact ? 17 : 28,
-                    Foreground = iconBrush,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                });
+                // Les deux types de zones utilisent la géométrie partagée avec la barre
+                // de titre ; les autres actions gardent leur glyphe Segoe.
+                var geometry = NestIcons.ForAction(Kinds[i]);
+                UIElement icon = geometry != null
+                    ? new Path
+                    {
+                        Data = geometry,
+                        Fill = iconBrush,
+                        Width = compact ? 18 : 30,
+                        Height = compact ? 18 : 30,
+                        Stretch = Stretch.Uniform,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    }
+                    : new TextBlock
+                    {
+                        Text = Glyphs[i],
+                        FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                        FontSize = compact ? 17 : 28,
+                        Foreground = iconBrush,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                content.Children.Add(icon);
 
                 if (!compact)
                 {

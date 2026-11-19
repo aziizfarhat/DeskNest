@@ -81,6 +81,7 @@ namespace DeskNest.Tests
             Run("B2 : des centaines d'éléments restent en cache au repli", () => WithWpfContext(B2ManyItemsStayCachedWhileRolled));
             Run("B2 : portail de centaines d'éléments : page en cache au dépliage", () => WithWpfContext(B2PortalManyItemsUseCachedPage));
             Run("B3 : barre de titre icône, titre, tri puis menu à droite", B3TitleBarOrdering);
+            Run("B4 : icônes Todo et Notes distinctes dans une ressource partagée", B4DistinctTypeIconsFromSharedResource);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -1574,6 +1575,47 @@ namespace DeskNest.Tests
             w.Close();
             wp.Close();
             wn.Close();
+        }
+
+        // ---------- B4 : icônes de type partagées ----------
+        private static void B4DistinctTypeIconsFromSharedResource()
+        {
+            var (_, _) = Sandbox();
+
+            Assert(!ReferenceEquals(NestIcons.Files, NestIcons.Todo), "Todo distinct de la grille");
+            Assert(!ReferenceEquals(NestIcons.Files, NestIcons.Notes), "Notes distinct de la grille");
+            Assert(!ReferenceEquals(NestIcons.Todo, NestIcons.Notes), "Todo et Notes distincts");
+            Assert(!ReferenceEquals(NestIcons.Files, NestIcons.Portal), "icône portail conservée");
+            Assert(NestIcons.Todo.Bounds.Width > 0 && NestIcons.Todo.Bounds.Height > 0, "géométrie Todo valide");
+            Assert(NestIcons.Notes.Bounds.Width > 0 && NestIcons.Notes.Bounds.Height > 0, "géométrie Notes valide");
+
+            var manager = new NestManager();
+            var cases = new (string Type, Geometry Expected)[]
+            {
+                (NestTypes.Files, NestIcons.Files),
+                (NestTypes.Todo, NestIcons.Todo),
+                (NestTypes.Notes, NestIcons.Notes)
+            };
+            foreach (var (type, expected) in cases)
+            {
+                var data = new NestData { Title = type, Type = type };
+                if (type == NestTypes.Files) data.Items.Add(@"C:\Data\a.txt");
+                var w = new NestWindow(manager, data);
+                var icon = (System.Windows.Shapes.Path)FindByName(w, "TitleIcon")!;
+                Assert(ReferenceEquals(icon.Data, expected), "icône de titre pour " + type);
+                w.Close();
+            }
+
+            var portal = new NestData { Title = "Portail", Type = NestTypes.Files, PortalPath = @"C:\Data" };
+            var wp = new NestWindow(manager, portal);
+            var portalIcon = (System.Windows.Shapes.Path)FindByName(wp, "TitleIcon")!;
+            Assert(ReferenceEquals(portalIcon.Data, NestIcons.Portal), "le portail garde son dossier");
+            wp.Close();
+
+            using var bar = new QuickActionsBar(_ => { }, compact: false);
+            var paths = FindVisualChildren<System.Windows.Shapes.Path>(bar).ToList();
+            Assert(paths.Any(p => ReferenceEquals(p.Data, NestIcons.Todo)), "tuile « nouvelle tâche » utilise la géométrie partagée");
+            Assert(paths.Any(p => ReferenceEquals(p.Data, NestIcons.Notes)), "tuile « nouvelle note » utilise la géométrie partagée");
         }
 
         private sealed class FailingFileSystem : IFileSystem

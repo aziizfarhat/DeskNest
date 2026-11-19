@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The title-bar sort button now opens its menu exactly like the nest menu button, and Notes and To-do nests get their own folded-page and checklist icons (shared with the quick-action tiles) instead of the generic grid icon.
 - Natural name comparison now strips diacritics before calling `StrCmpLogicalW`, so accented and unaccented spellings sort together while keeping natural number ordering and case insensitivity.
 
 ## [0.8.6.0] - 2026-11-18

@@ -25,16 +25,6 @@ namespace DeskNest
         public const string ItemFormat = "DeskNest.Item";
         private const double TitleHeight = 28;
 
-        private static Geometry MakeGeometry(string data)
-        {
-            var g = Geometry.Parse(data);
-            g.Freeze();
-            return g;
-        }
-        // Icône de zone normale (grille) et de Folder Portal (dossier)
-        private static readonly Geometry NestIcon = MakeGeometry("M1,1 H7 V7 H1 Z M9,1 H15 V7 H9 Z M1,9 H7 V15 H1 Z M9,9 H15 V15 H9 Z");
-        private static readonly Geometry PortalIcon = MakeGeometry("M1,3 H6 L8,5 H15 V13 H1 Z");
-
         [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
         [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr h, int index);
         [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr h, int index, int value);
@@ -836,7 +826,7 @@ namespace DeskNest
             if (IsPortal && _portalCurrent != null && !SamePath(_portalCurrent, Data.PortalPath!))
                 t += " › " + IOPath.GetFileName(_portalCurrent.TrimEnd('\\'));
             TitleText.Text = t;
-            TitleIcon.Data = IsPortal ? PortalIcon : NestIcon;
+            TitleIcon.Data = NestIcons.For(Data.Type, IsPortal);
             BackButton.Visibility = IsPortal && _portalHistory.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             // Même règle que le bouton menu : visible dès que la barre de titre
             // l'est ; replier ou masquer le titre masque la barre entière.
