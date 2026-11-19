@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Nest title bar layout: the menu button is now the rightmost icon, with the sort button, portal Back button and nest icon immediately to its left. The title takes all remaining space and truncates with an ellipsis, with no overlap at the minimum width. The hamburger glyph is replaced by three vertical dots drawn as a `Path`/`EllipseGeometry` in the title foreground, with the same hit area and hover behavior. Rolled-up and hidden-title behavior is unchanged.
+- Nest title bar layout: the menu button remains rightmost with the sort button before it; the portal Back chevron now sits at the far left before the nest icon and title (portal subfolders only), and every nest has an 8 DIP inset before the leading element. The title takes the remaining space and truncates with an ellipsis; the hamburger glyph is replaced by three vertical dots drawn as a `Path`/`EllipseGeometry` in the title foreground with the same hit area and hover behavior. Rolled-up and hidden-title behavior is unchanged.
 - The desktop background context menu is no longer deleted when DeskNest exits; labels and the executable path are refreshed at startup and on language change, and only the uninstaller removes the entries.
 
 ### Fixed

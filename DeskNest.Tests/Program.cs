@@ -84,6 +84,7 @@ namespace DeskNest.Tests
             Run("B4 : icônes Todo et Notes distinctes dans une ressource partagée", B4DistinctTypeIconsFromSharedResource);
             Run("P1 : éléments totalement opaques sous tri actif", P1ItemsStayOpaqueWhileSorted);
             Run("P2 : chevron du portail à gauche et visible seulement en sous-dossier", P2PortalBackChevronMovesLeft);
+            Run("P3 : marge gauche de 8 DIP devant le premier élément de la barre de titre", P3TitleBarLeftPadding);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -1631,6 +1632,85 @@ namespace DeskNest.Tests
                 var note = new NestWindow(manager, new NestData { Title = "Note", Type = NestTypes.Notes });
                 AssertEqual(Visibility.Collapsed, (FindByName(note, "BackButton") as Button)!.Visibility, "aucun chevron pour Notes");
                 note.Close();
+                window.Close();
+            }
+            finally { Directory.Delete(root, true); }
+        }
+
+        // ---------- P3 : marge gauche de la barre de titre (en DIP) ----------
+        private static void P3TitleBarLeftPadding()
+        {
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+
+            // Tous les types de zone, y compris sans titre et en édition en ligne.
+            foreach (var type in new[] { NestTypes.Files, NestTypes.Todo, NestTypes.Notes })
+            {
+                var data = new NestData { Title = type, Type = type };
+                var window = new NestWindow(manager, data);
+                var bar = (Border)FindByName(window, "TitleBar")!;
+                var grid = (Grid)VisualTreeHelper.GetChild(bar, 0);
+                var back = (Button)FindByName(bar, "BackButton")!;
+                var icon = (FrameworkElement)FindByName(bar, "TitleIcon")!;
+                var title = (TextBlock)FindByName(bar, "TitleText")!;
+                var edit = (TextBox)FindByName(bar, "TitleEdit")!;
+
+                AssertEqual(28.0, bar.Height, "hauteur de barre inchangée : " + type);
+                AssertEqual(8.0, back.Margin.Left, "marge DIP du chevron masqué : " + type);
+                AssertEqual(8.0, icon.Margin.Left, "marge DIP de l'icône sans chevron : " + type);
+                AssertEqual(2.0, title.Margin.Left, "marge du titre inchangée : " + type);
+                AssertEqual(4.0, title.Margin.Right, "marge droite du titre inchangée : " + type);
+                AssertEqual(GridUnitType.Auto, grid.ColumnDefinitions[0].Width.GridUnitType, "colonne retour Auto : " + type);
+                AssertEqual(GridUnitType.Auto, grid.ColumnDefinitions[1].Width.GridUnitType, "colonne icône Auto : " + type);
+                Assert(grid.ColumnDefinitions[2].Width.IsStar, "colonne titre évolutive : " + type);
+                AssertEqual(4, Grid.GetColumn((UIElement)FindByName(bar, "MenuButton")!), "menu toujours à droite : " + type);
+
+                // Édition en ligne : le titre change de contrôle, pas l'alignement à gauche.
+                InvokePrivate(window, "BeginTitleEdit");
+                AssertEqual(Visibility.Visible, edit.Visibility, "édition visible : " + type);
+                AssertEqual(Visibility.Collapsed, title.Visibility, "titre masqué pendant l'édition : " + type);
+                AssertEqual(8.0, icon.Margin.Left, "marge conservée en édition : " + type);
+                AssertEqual(2.0, edit.Margin.Left, "marge de la zone d'édition inchangée : " + type);
+                InvokePrivate(window, "EndTitleEdit", false);
+                AssertEqual(Visibility.Collapsed, edit.Visibility, "édition refermée : " + type);
+                AssertEqual(8.0, icon.Margin.Left, "marge restaurée après édition : " + type);
+
+                // Titre masqué : la barre disparaît, la marge reste en DIP au retour.
+                data.TitleVisible = false;
+                window.ApplyExternalChange();
+                AssertEqual(Visibility.Collapsed, bar.Visibility, "titre masqué : " + type);
+                AssertEqual(8.0, icon.Margin.Left, "marge conservée sans titre : " + type);
+                data.TitleVisible = true;
+                window.ApplyExternalChange();
+                AssertEqual(Visibility.Visible, bar.Visibility, "titre affiché de nouveau : " + type);
+                AssertEqual(8.0, icon.Margin.Left, "marge restaurée avec le titre : " + type);
+                window.Close();
+            }
+
+            // Portail : la marge suit le chevron visible, l'icône se resserre contre lui.
+            var root = Path.Combine(Path.GetTempPath(), "desknest-p3-" + Guid.NewGuid().ToString("N"));
+            var sub = Path.Combine(root, "Sub");
+            Directory.CreateDirectory(sub);
+            try
+            {
+                var data = new NestData { Title = "Portail", Type = NestTypes.Files, PortalPath = root };
+                var window = new NestWindow(manager, data);
+                var bar = (Border)FindByName(window, "TitleBar")!;
+                var back = (Button)FindByName(bar, "BackButton")!;
+                var icon = (FrameworkElement)FindByName(bar, "TitleIcon")!;
+
+                AssertEqual(Visibility.Collapsed, back.Visibility, "racine : chevron masqué");
+                AssertEqual(8.0, back.Margin.Left, "racine : marge portée par le chevron masqué");
+                AssertEqual(8.0, icon.Margin.Left, "racine : marge portée par l'icône");
+
+                InvokePrivate(window, "NavigateTo", sub, true);
+                AssertEqual(Visibility.Visible, back.Visibility, "sous-dossier : chevron visible");
+                AssertEqual(8.0, back.Margin.Left, "sous-dossier : marge portée par le chevron");
+                AssertEqual(2.0, icon.Margin.Left, "sous-dossier : icône collée au chevron");
+
+                back.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                AssertEqual(Visibility.Collapsed, back.Visibility, "retour : chevron masqué");
+                AssertEqual(8.0, icon.Margin.Left, "retour : marge revenant à l'icône");
                 window.Close();
             }
             finally { Directory.Delete(root, true); }
