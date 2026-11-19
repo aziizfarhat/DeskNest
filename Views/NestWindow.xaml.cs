@@ -82,6 +82,13 @@ namespace DeskNest
         private MenuItem _miPortal = null!, _miPortalChange = null!, _miPortalOpen = null!, _miPortalDetach = null!;
         private Separator _portalSep = null!;
 
+        // Tri propre à la zone : menu et cache de métadonnées (vidé à la fermeture).
+        private ContextMenu? _sortMenu;
+        private MenuItem _miSortAsc = null!, _miSortDesc = null!;
+        private readonly NestMetadataCache _sortCache = new();
+        private string _lastSortBy = NestSort.Manual;
+        private bool _lastSortDescending;
+
         // Menu des éléments (menu contextuel façon Windows)
         private ContextMenu _itemMenu = null!;
         private MenuItem _imOpen = null!, _imOpenWith = null!, _imLocation = null!, _imCut = null!, _imCopy = null!, _imCopyPath = null!;
@@ -171,6 +178,10 @@ namespace DeskNest
         private bool IsFiles => Data.Type == NestTypes.Files;
         private string CurrentFolder => _portalCurrent ?? Data.PortalPath ?? "";
 
+        // Tant qu'un tri est actif, l'ordre affiché n'est pas l'ordre manuscrit :
+        // le réordonnancement par glisser est désactivé (voir ReorderTo/Root_Drop).
+        public bool ReorderEnabled => !NestSort.IsActive(Data.SortBy);
+
         // Le contenu des zones Notes / To-do n'est instancié que lorsqu'elles sont
         // développées, et libéré dès qu'elles sont repliées (pas de contrôle caché gardé en vie).
         private FrameworkElement? _altContent;
@@ -245,6 +256,7 @@ namespace DeskNest
             Width = Math.Max(data.Width, MinWidth);
 
             Root.ContextMenu = BuildNestMenu();
+            _sortMenu = BuildSortMenu();
             _itemMenu = BuildItemMenu();
             Loc.Changed += OnLanguageChanged;
             ApplyState();
@@ -330,6 +342,8 @@ namespace DeskNest
             _refreshVersion++;
             Loc.Changed -= OnLanguageChanged;
             _watcher?.Dispose();
+            _sortCache.Clear(); // aucune métadonnée de cette zone ne survit à sa fermeture
+            _sortMenu = null;
             _portalTimer.Stop();
             _hoverTimer.Stop();
             _renameTimer?.Stop();
@@ -347,6 +361,7 @@ namespace DeskNest
         {
             FlowDirection = Loc.Flow;
             Root.ContextMenu = BuildNestMenu();
+            _sortMenu = BuildSortMenu();
             _itemMenu = BuildItemMenu();
             UpdateTitle();
         }
@@ -803,6 +818,9 @@ namespace DeskNest
             TitleText.Text = t;
             TitleIcon.Data = IsPortal ? PortalIcon : NestIcon;
             BackButton.Visibility = IsPortal && _portalHistory.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            // Même règle que le bouton menu : visible dès que la barre de titre
+            // l'est ; replier ou masquer le titre masque la barre entière.
+            SortButton.Visibility = IsFiles ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void ApplyColors()
@@ -1117,6 +1135,7 @@ namespace DeskNest
             {
                 _lastType = Data.Type;
                 Root.ContextMenu = BuildNestMenu();
+                _sortMenu = BuildSortMenu();
             }
             // Masquer la barre de recherche ne doit pas laisser un filtre invisible actif.
             if (!_manager.Settings.ShowSearchBar && HasFilter)
@@ -1127,8 +1146,12 @@ namespace DeskNest
             ApplyState();
             ApplyFonts();
             bool viewChanged = _lastListView != Data.ListView;
+            bool sortChanged = _lastSortBy != Data.SortBy || _lastSortDescending != Data.SortDescending;
+            _lastSortBy = Data.SortBy;
+            _lastSortDescending = Data.SortDescending;
+            ApplySortState();
             if (viewChanged) ApplyViewMode();
-            if (_lastIconSize != Data.IconSize || _lastItemFontSize != Data.ItemFontSize || viewChanged ||
+            if (sortChanged || _lastIconSize != Data.IconSize || _lastItemFontSize != Data.ItemFontSize || viewChanged ||
                 _lastShowThumbnails != _manager.Settings.ShowThumbnails)
                 RefreshItems();
             if (watch.ElapsedMilliseconds > 200)
@@ -1191,14 +1214,50 @@ namespace DeskNest
             foreach (var p in Data.Items)
             {
                 if (HasFilter && !NameMatches(ItemVM.GetName(p))) continue;
-                list.Add(new ItemVM(p, Data.IconSize, IconPixels, false, false, _manager.Settings.ShowThumbnails));
+                var vm = new ItemVM(p, Data.IconSize, IconPixels, false, false, _manager.Settings.ShowThumbnails)
+                {
+                    ReorderEnabled = ReorderEnabled
+                };
+                list.Add(vm);
             }
             return list;
         }
 
+        // Tri des zones classiques : lecture des métadonnées et comparaison hors
+        // du thread UI, puis création des ItemVM (icônes) sur le thread UI.
+        private async Task RefreshSortedClassicItemsAsync(int version)
+        {
+            string sortBy = Data.SortBy;
+            bool descending = Data.SortDescending;
+            var paths = Data.Items.Where(p => !HasFilter || NameMatches(ItemVM.GetName(p))).ToList();
+
+            var ordered = await Task.Run(() =>
+            {
+                var metas = paths.Select(p => _sortCache.Get(p)).ToList();
+                return NestItemSorter.Sort(metas, sortBy, descending).Select(m => m.Path).ToList();
+            });
+
+            if (_closed || version != _refreshVersion) return;
+
+            var list = new List<ItemVM>(ordered.Count);
+            foreach (var p in ordered)
+                list.Add(new ItemVM(p, Data.IconSize, IconPixels, false, false, _manager.Settings.ShowThumbnails)
+                {
+                    ReorderEnabled = ReorderEnabled
+                });
+
+            if (_editingTitle || _editingItem != null)
+            {
+                _refreshPending = true;
+                return;
+            }
+            ApplyItems(list, 1, 0, null);
+        }
+
         // Énumération d'un dossier : exécutée hors du thread UI (un dossier
         // volumineux ou un lecteur réseau ne doit pas figer la zone).
-        private static List<string>? ScanPortal(string folder, List<string>? custom)
+        private static List<string>? ScanPortal(string folder, List<string>? custom,
+                                                string sortBy, bool descending, NestMetadataCache cache)
         {
             try
             {
@@ -1207,6 +1266,13 @@ namespace DeskNest
                     try { return (File.GetAttributes(p) & (FileAttributes.Hidden | FileAttributes.System)) == 0; }
                     catch { return false; }
                 }).ToList();
+
+                if (NestSort.IsActive(sortBy))
+                {
+                    // Métadonnées lues une fois par élément, jamais dans le comparateur.
+                    return NestItemSorter.Sort(entries.Select(p => cache.Get(p)), sortBy, descending)
+                                         .Select(m => m.Path).ToList();
+                }
 
                 int Rank(string p)
                 {
@@ -1242,7 +1308,8 @@ namespace DeskNest
 
             if (!IsPortal)
             {
-                ApplyItems(BuildClassicItems(), 1, 0, null);
+                if (NestSort.IsActive(Data.SortBy)) _ = RefreshSortedClassicItemsAsync(version);
+                else ApplyItems(BuildClassicItems(), 1, 0, null);
                 return;
             }
 
@@ -1258,8 +1325,10 @@ namespace DeskNest
             var custom = GetOrder(cur)?.ToList();
             bool filtering = HasFilter;
             bool includeParent = !filtering && !SamePath(cur, Data.PortalPath!);
+            string sortBy = Data.SortBy;
+            bool descending = Data.SortDescending;
 
-            var ordered = await Task.Run(() => ScanPortal(cur, custom));
+            var ordered = await Task.Run(() => ScanPortal(cur, custom, sortBy, descending, _sortCache));
             if (_closed || version != _refreshVersion || !SamePath(CurrentFolder, cur)) return;
 
             if (ordered == null)
@@ -1287,7 +1356,10 @@ namespace DeskNest
 
             int count = Math.Min(PortalPageSize, ordered.Count - start);
             for (int i = 0; i < count; i++)
-                list.Add(new ItemVM(ordered[start + i], Data.IconSize, IconPixels, true, false, _manager.Settings.ShowThumbnails));
+                list.Add(new ItemVM(ordered[start + i], Data.IconSize, IconPixels, true, false, _manager.Settings.ShowThumbnails)
+                {
+                    ReorderEnabled = ReorderEnabled
+                });
 
             // Une saisie a pu commencer pendant la lecture du dossier.
             if (_editingTitle || _editingItem != null)
@@ -1504,7 +1576,7 @@ namespace DeskNest
         {
             // Pendant une recherche, la liste affichée est partielle : réenregistrer son ordre
             // ferait perdre les éléments masqués. Le tri reste donc désactivé tant que le filtre est actif.
-            if (HasFilter) return;
+            if (HasFilter || !ReorderEnabled) return;
 
             var moving = _vms.Where(v => !v.IsUp && paths.Any(p => SamePath(p, v.FullPath))).ToList();
             if (moving.Count == 0) return;
@@ -1756,6 +1828,15 @@ namespace DeskNest
             var m = Root.ContextMenu;
             if (m == null) return;
             m.PlacementTarget = MenuButton;
+            m.Placement = PlacementMode.Bottom;
+            m.IsOpen = true;
+        }
+
+        private void SortButton_Click(object sender, RoutedEventArgs e)
+        {
+            var m = _sortMenu;
+            if (m == null) return;
+            m.PlacementTarget = SortButton;
             m.Placement = PlacementMode.Bottom;
             m.IsOpen = true;
         }
@@ -2526,10 +2607,18 @@ namespace DeskNest
                         intoFolder = true;
                         hint = FolderHint(folderTarget, ctrl);
                     }
-                    else if (same && !HasFilter) insertMarker = true;
+                    else if (same && !HasFilter)
+                    {
+                        if (ReorderEnabled) insertMarker = true;
+                        else hint = Loc.T("sort.reorderHint");
+                    }
                     else hint = PortalHint(ctrl); // venu d'une autre zone : le fichier est mis dans le dossier du portail
                 }
-                else insertMarker = !HasFilter;
+                else
+                {
+                    insertMarker = !HasFilter && ReorderEnabled;
+                    if (!HasFilter && !ReorderEnabled) hint = Loc.T("sort.reorderHint");
+                }
             }
             else if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
@@ -2549,7 +2638,9 @@ namespace DeskNest
                     // Zone classique : simple référence, jamais Move (l'Explorateur ne doit rien supprimer).
                     if (e.AllowedEffects.HasFlag(DragDropEffects.Link)) fx = DragDropEffects.Link;
                     else if (e.AllowedEffects.HasFlag(DragDropEffects.Copy)) fx = DragDropEffects.Copy;
-                    insertMarker = fx != DragDropEffects.None && !HasFilter;
+                    insertMarker = fx != DragDropEffects.None && !HasFilter && ReorderEnabled;
+                    if (fx != DragDropEffects.None && !HasFilter && !ReorderEnabled)
+                        hint = Loc.T("sort.reorderHint");
                 }
             }
             e.Effects = fx;
@@ -2583,7 +2674,7 @@ namespace DeskNest
             if (!IsFiles) return; // Notes / To-do n'acceptent pas de dépôt de fichiers
 
             var pos = e.GetPosition(ItemsHost);
-            int idx = HasFilter ? -1 : GetInsertIndex(pos, out _);
+            int idx = HasFilter || !ReorderEnabled ? -1 : GetInsertIndex(pos, out _);
             var folderTarget = FolderTargetAt(pos, out _);
             bool ctrl = (e.KeyStates & DragDropKeyStates.ControlKey) != 0;
 
@@ -2630,6 +2721,81 @@ namespace DeskNest
                 }
             }
             finally { _manager.History.EndBatch(Loc.T("undo.addItem")); }
+        }
+
+        // ---------- Tri de la zone (Fichiers / portails uniquement) ----------
+        private ContextMenu BuildSortMenu()
+        {
+            var m = new ContextMenu { FlowDirection = Loc.Flow };
+            m.Items.Add(new MenuItem { Header = Loc.T("sort.by"), IsEnabled = false });
+
+            foreach (var mode in NestSort.Modes)
+            {
+                var selected = mode;
+                var item = new MenuItem
+                {
+                    Header = Loc.T(NestSort.LabelKey(mode)),
+                    Tag = mode,
+                    IsCheckable = true
+                };
+                item.Click += (_, _) => SetSort(selected, Data.SortDescending);
+                m.Items.Add(item);
+            }
+
+            m.Items.Add(new Separator());
+            m.Items.Add(new MenuItem { Header = Loc.T("sort.order"), IsEnabled = false });
+            _miSortAsc = new MenuItem { Header = Loc.T("sort.ascending"), IsCheckable = true };
+            _miSortAsc.Click += (_, _) => SetSort(Data.SortBy, false);
+            _miSortDesc = new MenuItem { Header = Loc.T("sort.descending"), IsCheckable = true };
+            _miSortDesc.Click += (_, _) => SetSort(Data.SortBy, true);
+            m.Items.Add(_miSortAsc);
+            m.Items.Add(_miSortDesc);
+
+            m.Opened += (_, _) =>
+            {
+                _menuOpen = true;
+                foreach (var item in m.Items.OfType<MenuItem>().Where(x => x.Tag is string))
+                    item.IsChecked = (string)item.Tag! == Data.SortBy;
+                _miSortAsc.IsChecked = !Data.SortDescending;
+                _miSortDesc.IsChecked = Data.SortDescending;
+                // L'ordre n'a pas de sens pour l'ordre manuel.
+                bool ordered = NestSort.IsActive(Data.SortBy);
+                _miSortAsc.IsEnabled = ordered;
+                _miSortDesc.IsEnabled = ordered;
+            };
+            m.Closed += (_, _) =>
+            {
+                m.ClearValue(ContextMenu.PlacementProperty);
+                m.ClearValue(ContextMenu.PlacementTargetProperty);
+                _menuOpen = false;
+                if (_hoverExpanded && !IsMouseOver) StartHover(HoverMode.Collapse, _manager.Settings.HoverCollapseDelayMs);
+            };
+            return m;
+        }
+
+        private void SetSort(string mode, bool descending)
+        {
+            string selected = NestSort.Normalize(mode);
+            bool desc = NestSort.IsActive(selected) && descending;
+            if (Data.SortBy == selected && Data.SortDescending == desc) return;
+
+            // Verrouillé ne bloque aujourd'hui que déplacement/redimensionnement
+            // de la zone : le tri, comme le réordonnancement manuel, reste autorisé.
+            _manager.EditNest(Data, Loc.T("undo.sort"), () =>
+            {
+                Data.SortBy = selected;
+                Data.SortDescending = desc;
+                _lastSortBy = selected;
+                _lastSortDescending = desc;
+                ApplySortState();
+                RefreshItems();
+            });
+        }
+
+        private void ApplySortState()
+        {
+            SortButton.Visibility = IsFiles ? Visibility.Visible : Visibility.Collapsed;
+            foreach (var vm in _vms) vm.ReorderEnabled = ReorderEnabled;
         }
 
         // ---------- Menu contextuel de la zone ----------

@@ -100,7 +100,7 @@
         <DataTemplate x:Key="GridItemTemplate">
             <Border x:Name="Cell" Width="{Binding CellWidth}" Margin="2,2,2,4" Padding="2,4,2,3"
                     CornerRadius="6" Background="Transparent" BorderBrush="Transparent" BorderThickness="1"
-                    AllowDrop="True" ToolTip="{Binding FullPath}"
+                    AllowDrop="True" ToolTip="{Binding ItemToolTip}"
                     MouseLeftButtonDown="Item_MouseLeftButtonDown" MouseLeftButtonUp="Item_MouseLeftButtonUp"
                     MouseEnter="Item_MouseEnter" MouseLeave="Item_MouseLeave"
                     MouseMove="Item_MouseMove" PreviewMouseRightButtonDown="Item_RightDown">
@@ -138,13 +138,18 @@
                     <Setter TargetName="NameText" Property="Visibility" Value="Collapsed"/>
                     <Setter TargetName="NameEdit" Property="Visibility" Value="Visible"/>
                 </DataTrigger>
+                <!-- Tri actif : plus de poignée de réordonnancement, cellule estompée. -->
+                <DataTrigger Binding="{Binding ReorderEnabled}" Value="False">
+                    <Setter TargetName="Cell" Property="Opacity" Value="0.68"/>
+                    <Setter TargetName="Cell" Property="Cursor" Value="Arrow"/>
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 
         <DataTemplate x:Key="ListItemTemplate">
             <Border x:Name="Cell" Margin="2,1" Padding="6,3" CornerRadius="6"
                     Background="Transparent" BorderBrush="Transparent" BorderThickness="1"
-                    AllowDrop="True" ToolTip="{Binding FullPath}"
+                    AllowDrop="True" ToolTip="{Binding ItemToolTip}"
                     MouseLeftButtonDown="Item_MouseLeftButtonDown" MouseLeftButtonUp="Item_MouseLeftButtonUp"
                     MouseEnter="Item_MouseEnter" MouseLeave="Item_MouseLeave"
                     MouseMove="Item_MouseMove" PreviewMouseRightButtonDown="Item_RightDown">
@@ -185,6 +190,11 @@
                 <DataTrigger Binding="{Binding IsEditing}" Value="True">
                     <Setter TargetName="NameText" Property="Visibility" Value="Collapsed"/>
                     <Setter TargetName="NameEdit" Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+                <!-- Tri actif : plus de poignée de réordonnancement, cellule estompée. -->
+                <DataTrigger Binding="{Binding ReorderEnabled}" Value="False">
+                    <Setter TargetName="Cell" Property="Opacity" Value="0.68"/>
+                    <Setter TargetName="Cell" Property="Cursor" Value="Arrow"/>
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -281,7 +291,7 @@
 
                     <!-- Tri : réservé juste à gauche du menu, affiché pour les zones Fichiers et les portails. -->
                     <Button x:Name="SortButton" Grid.Column="3" Width="24" Height="22" Margin="0,0,0,0"
-                            Style="{StaticResource FlatIconButton}" Visibility="Collapsed">
+                            Style="{StaticResource FlatIconButton}" Visibility="Collapsed" l:L.TipKey="sort.tooltip">
                         <Path Data="M3,4 H11 M5,7 H9 M7,10 H7" Stroke="{Binding Foreground, ElementName=TitleText}"
                               StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                               Width="14" Height="14"/>

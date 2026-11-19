@@ -56,6 +56,12 @@ namespace DeskNest
         // "Files" (par défaut, y compris les portails), "Notes" ou "Todo".
         public string Type { get; set; } = NestTypes.Files;
 
+        // Tri d'affichage, propre à cette zone. Les anciens layouts sans ces
+        // champs gardent le tri manuel et leur ordre existant. Ni l'un ni l'autre
+        // ne fait partie des profils d'affichage (géométrie seule).
+        public string SortBy { get; set; } = NestSort.Manual;
+        public bool SortDescending { get; set; }
+
         [JsonIgnore] public string Label => Enabled ? Title : Title + " " + Loc.T("z.hidden");
 
         // Une note fraîchement créée s'ouvre en édition ; cet état n'est pas persisté.
@@ -234,6 +240,11 @@ namespace DeskNest
         public bool IsFolder { get; }
         public bool CanRemove { get; }
         public double CellWidth => IconSize + 34;
+
+        // Un tri actif remplace l'ordre manuel : le glisser-déposer de
+        // réordonnancement est désactivé et l'infobulle l'explique.
+        public bool ReorderEnabled { get; set; } = true;
+        public string ItemToolTip => ReorderEnabled ? FullPath : Loc.T("sort.reorderHint");
 
         public event PropertyChangedEventHandler? PropertyChanged;
         private bool _isSelected;
