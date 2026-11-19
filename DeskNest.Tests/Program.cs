@@ -80,6 +80,7 @@ namespace DeskNest.Tests
             Run("B2 : cache froid : ancien ordre affiché puis retri sans vidage", () => WithWpfContext(B2ColdCacheKeepsLastKnownOrder));
             Run("B2 : des centaines d'éléments restent en cache au repli", () => WithWpfContext(B2ManyItemsStayCachedWhileRolled));
             Run("B2 : portail de centaines d'éléments : page en cache au dépliage", () => WithWpfContext(B2PortalManyItemsUseCachedPage));
+            Run("B3 : barre de titre icône, titre, tri puis menu à droite", B3TitleBarOrdering);
 
             Console.WriteLine($"{_passed} test(s) réussi(s), {_failed} échec(s).");
             return _failed == 0 ? 0 : 1;
@@ -1520,6 +1521,59 @@ namespace DeskNest.Tests
                 window.Close();
             }
             finally { Directory.Delete(dir, true); }
+        }
+
+        // ---------- B3 : ordre des éléments de la barre de titre ----------
+        private static void B3TitleBarOrdering()
+        {
+            var (_, _) = Sandbox();
+            var manager = new NestManager();
+            var data = new NestData { Title = "Titre", Type = NestTypes.Files };
+            data.Items.Add(@"C:\Data\a.txt");
+            var w = new NestWindow(manager, data);
+
+            var bar = (Border)FindByName(w, "TitleBar")!;
+            var grid = (Grid)VisualTreeHelper.GetChild(bar, 0);
+            var icon = (UIElement)FindByName(bar, "TitleIcon")!;
+            var text = (TextBlock)FindByName(bar, "TitleText")!;
+            var edit = (UIElement)FindByName(bar, "TitleEdit")!;
+            var back = (UIElement)FindByName(bar, "BackButton")!;
+            var sort = (UIElement)FindByName(bar, "SortButton")!;
+            var menu = (UIElement)FindByName(bar, "MenuButton")!;
+
+            AssertEqual(0, Grid.GetColumn(icon), "icône de type en première colonne");
+            AssertEqual(1, Grid.GetColumn(text), "titre juste après l'icône");
+            AssertEqual(1, Grid.GetColumn(edit), "édition du titre dans la même colonne");
+            AssertEqual(2, Grid.GetColumn(back), "retour du portail avant le tri");
+            AssertEqual(3, Grid.GetColumn(sort), "tri juste avant le menu");
+            AssertEqual(4, Grid.GetColumn(menu), "menu à l'extrême droite");
+            Assert(Grid.GetColumn(icon) < Grid.GetColumn(text) &&
+                   Grid.GetColumn(text) < Grid.GetColumn(sort) &&
+                   Grid.GetColumn(sort) < Grid.GetColumn(menu), "ordre icône < titre < tri < menu");
+            AssertEqual(GridUnitType.Auto, grid.ColumnDefinitions[0].Width.GridUnitType, "l'icône ne prend que sa place");
+            Assert(grid.ColumnDefinitions[1].Width.IsStar, "le titre occupe la colonne évolutive");
+            AssertEqual(TextTrimming.CharacterEllipsis, text.TextTrimming, "titre tronqué avec ellipsis");
+            AssertEqual(Visibility.Visible, icon.Visibility, "icône visible");
+            AssertEqual(Visibility.Visible, text.Visibility, "titre visible");
+
+            // Portail : le retour s'insère entre le titre et le tri, le menu reste à droite.
+            var portal = new NestData { Title = "Portail", Type = NestTypes.Files, PortalPath = @"C:\Data" };
+            var wp = new NestWindow(manager, portal);
+            AssertEqual(2, Grid.GetColumn((UIElement)FindByName(wp, "BackButton")!), "retour présent dans un portail");
+            AssertEqual(3, Grid.GetColumn((UIElement)FindByName(wp, "SortButton")!), "tri avant le menu dans un portail");
+            AssertEqual(4, Grid.GetColumn((UIElement)FindByName(wp, "MenuButton")!), "menu toujours à droite dans un portail");
+
+            // Notes : pas de tri, mais l'icône et le titre gardent leur place.
+            var note = new NestData { Title = "Note", Type = NestTypes.Notes };
+            var wn = new NestWindow(manager, note);
+            AssertEqual(Visibility.Collapsed, (FindByName(wn, "SortButton") as Button)!.Visibility, "pas de tri pour Notes");
+            AssertEqual(0, Grid.GetColumn((UIElement)FindByName(wn, "TitleIcon")!), "icône toujours à gauche pour Notes");
+            AssertEqual(1, Grid.GetColumn((UIElement)FindByName(wn, "TitleText")!), "titre toujours après l'icône pour Notes");
+            AssertEqual(4, Grid.GetColumn((UIElement)FindByName(wn, "MenuButton")!), "menu toujours à droite pour Notes");
+
+            w.Close();
+            wp.Close();
+            wn.Close();
         }
 
         private sealed class FailingFileSystem : IFileSystem
